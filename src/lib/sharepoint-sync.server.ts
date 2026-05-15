@@ -303,7 +303,13 @@ export async function syncFromSharePoint(): Promise<{ synced: number; errors: nu
       if (!dbField || !(spField in fields)) continue
       const raw = fields[spField]
       if (dbField === 'vessel_image') {
-        record[dbField] = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, item.id)
+        // Skip image download here — downloadPendingImages() handles this
+        // asynchronously to avoid hitting CF Workers subrequest limits.
+        // Only set null if there's no image already stored (don't overwrite manual uploads).
+        if (raw && typeof raw === 'object' && !record.vessel_image) {
+          // Leave vessel_image out of record — existing value preserved, null yachts get picked up by cron
+        }
+        continue
       } else {
         record[dbField] = raw !== '' ? raw : null
       }
@@ -404,4 +410,51 @@ export async function renewSharePointWebhook(): Promise<string> {
   const newExpiry = data.expirationDateTime ?? expiry.toISOString()
   await saveSpConfigPatch({ webhook_expires_at: newExpiry })
   return newExpiry
+}
+
+// ─── Background image download (cron phase 2) ─────────────────────────────────
+// Processes up to 5 yachts per invocation to stay within CF subrequest limits.
+// Run after syncFromSharePoint() in the cron so images trickle in over time.
+
+export async function downloadPendingImages(): Promise<number> {
+  const cfg = await getSpConfig().catch(() => null)
+  if (!cfg) return 0
+
+  const imageSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'vessel_image')?.[0]
+  if (!imageSpField) return 0
+
+  // Find yachts synced from SP that still have no image
+  const { data: pending } = await supabaseAdmin
+    .from('yachts')
+    .select('id, sharepoint_item_id')
+    .not('sharepoint_item_id', 'is', null)
+    .is('vessel_image', null)
+    .limit(5) as { data: Array<{ id: string; sharepoint_item_id: string }> | null }
+
+  if (!pending?.length) return 0
+
+  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+
+  let downloaded = 0
+  for (const yacht of pending) {
+    try {
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items/${yacht.sharepoint_item_id}?$expand=fields($select=${encodeURIComponent(imageSpField)})`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      const item = await res.json() as Record<string, any>
+      const raw = item.fields?.[imageSpField]
+      if (!raw) continue
+
+      const url = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, yacht.sharepoint_item_id)
+      if (url) {
+        await supabaseAdmin.from('yachts').update({ vessel_image: url } as never).eq('id', yacht.id)
+        downloaded++
+      }
+    } catch {
+      // Non-fatal — will retry on next cron run
+    }
+  }
+  return downloaded
 }

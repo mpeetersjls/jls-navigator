@@ -1,5 +1,5 @@
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
-import { syncFromSharePoint } from './lib/sharepoint-sync.server'
+import { syncFromSharePoint, downloadPendingImages } from './lib/sharepoint-sync.server'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -24,7 +24,9 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
   // Use waitUntil so the Worker stays alive while the sync runs.
   if (request.method === 'POST') {
     ctx.waitUntil(
-      syncFromSharePoint().catch((e) => console.error('[sp-webhook] sync error:', e))
+      syncFromSharePoint()
+        .then(() => downloadPendingImages())
+        .catch((e) => console.error('[sp-webhook] sync error:', e))
     )
     return new Response('', { status: 202 })
   }
@@ -47,7 +49,12 @@ export default {
   async scheduled(_event: unknown, _env: Record<string, unknown>, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<void> {
     ctx.waitUntil(
       syncFromSharePoint()
-        .then(({ synced, errors }) => console.log(`[sp-cron] synced=${synced} errors=${errors}`))
+        .then(({ synced, errors }) => {
+          console.log(`[sp-cron] synced=${synced} errors=${errors}`)
+          // Phase 2: download images for yachts that don't have one yet (5 per run)
+          return downloadPendingImages()
+        })
+        .then((imgs) => { if (imgs) console.log(`[sp-cron] images downloaded=${imgs}`) })
         .catch((e) => console.error('[sp-cron] error:', e))
     )
   },

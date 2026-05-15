@@ -1,1 +1,0 @@
-import{j as t}from"./index-wojcmvQQ.js";import{S as o}from"./stub-page-BNojf7JG.js";import"./createLucideIcon-CCCpnCsX.js";const p=()=>t.jsx(o,{title:"TDRA",breadcrumb:"Port & Operations / Permits"});export{p as component};
