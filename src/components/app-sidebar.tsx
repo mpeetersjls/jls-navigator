@@ -36,7 +36,14 @@ const NAV: NavItem[] = [
   { label: "Orbit", to: "/orbit", icon: Orbit },
   { label: "Crew Cab", to: "/crew-cab", icon: Users },
   { label: "Packages & Deliveries", to: "/packages", icon: Package },
-  { label: "Director", to: "/director", icon: BarChart3 },
+  {
+    label: "Director",
+    icon: BarChart3,
+    children: [
+      { label: "Dashboard", to: "/director", icon: BarChart3 },
+      { label: "Settings", to: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 function NavNode({ item, depth = 0 }: { item: NavItem; depth?: number }) {
@@ -126,14 +133,8 @@ export function AppSidebar() {
           </div>
         </div>
         <div className="flex gap-1">
-          <Link
-            to="/settings"
-            className="flex flex-1 items-center gap-1.5 rounded-md px-2 h-7 text-xs text-foreground/70 hover:bg-accent hover:text-foreground transition-colors"
-          >
-            <Settings className="h-3.5 w-3.5" /> Settings
-          </Link>
           <Button variant="ghost" size="sm" onClick={signOut} className="h-7 px-2 text-xs gap-1.5">
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="h-3.5 w-3.5" /> Sign out
           </Button>
         </div>
       </div>

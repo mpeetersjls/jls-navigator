@@ -131,6 +131,14 @@ const savePerms = createServerFn({ method: 'POST' })
 
 export const Route = createFileRoute('/_app/settings')({
   component: SettingsPage,
+  errorComponent: ({ error }) => (
+    <div className="p-8 max-w-xl">
+      <h2 className="text-lg font-semibold text-destructive mb-2">Settings failed to load</h2>
+      <pre className="rounded-lg bg-muted p-4 text-xs overflow-auto whitespace-pre-wrap text-muted-foreground">
+        {error instanceof Error ? error.message : String(error)}
+      </pre>
+    </div>
+  ),
 })
 
 const DEPARTMENTS = [
