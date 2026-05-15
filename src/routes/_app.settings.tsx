@@ -3,9 +3,16 @@ import { createServerFn } from '@tanstack/react-start'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Users, Shield, Plus, RotateCcw, Trash2, ChevronDown,
-  CheckCircle2, XCircle, Loader2, Lock,
+  CheckCircle2, XCircle, Loader2, Lock, Plug, Mail, Pencil, Save, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select'
+import { supabase } from '@/integrations/supabase/client'
 import { supabaseAdmin } from '@/integrations/supabase/client.server'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -148,8 +155,10 @@ const MODULES = [
   'Director',
 ]
 
+type SettingsTab = 'users' | 'permissions' | 'integrations' | 'emailTemplates'
+
 function SettingsPage() {
-  const [tab, setTab] = useState<'users' | 'permissions'>('users')
+  const [tab, setTab] = useState<SettingsTab>('users')
 
   return (
     <div className="flex h-full">
@@ -160,6 +169,8 @@ function SettingsPage() {
         {([
           { key: 'users', label: 'Users', Icon: Users },
           { key: 'permissions', label: 'Permissions', Icon: Shield },
+          { key: 'integrations', label: 'Integrations', Icon: Plug },
+          { key: 'emailTemplates', label: 'Email Templates', Icon: Mail },
         ] as const).map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -177,7 +188,10 @@ function SettingsPage() {
       </nav>
 
       <div className="flex-1 overflow-auto">
-        {tab === 'users' ? <UsersPanel /> : <PermissionsPanel />}
+        {tab === 'users' && <UsersPanel />}
+        {tab === 'permissions' && <PermissionsPanel />}
+        {tab === 'integrations' && <IntegrationsPanel />}
+        {tab === 'emailTemplates' && <EmailTemplatesPanel />}
       </div>
     </div>
   )
@@ -643,6 +657,397 @@ function PermissionsPanel() {
               )
             })}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Integrations Panel ───────────────────────────────────────────────────────
+
+type IntegrationConfig = Record<string, string>
+
+type IntegrationSetting = {
+  integration_name: string
+  enabled: boolean
+  config: IntegrationConfig
+}
+
+const INTEGRATIONS: {
+  name: string
+  key: string
+  logo: string
+  fields: { key: string; label: string; type?: string; placeholder?: string }[]
+}[] = [
+  {
+    name: 'SharePoint',
+    key: 'sharepoint',
+    logo: '📁',
+    fields: [
+      { key: 'tenant_url', label: 'Tenant URL', placeholder: 'https://yourtenant.sharepoint.com' },
+      { key: 'site_url', label: 'Site URL', placeholder: '/sites/YourSite' },
+      { key: 'client_id', label: 'Client ID', placeholder: 'Azure App Client ID' },
+      { key: 'client_secret', label: 'Client Secret', type: 'password', placeholder: '••••••••' },
+    ],
+  },
+  {
+    name: 'Monday.com',
+    key: 'monday',
+    logo: '📋',
+    fields: [
+      { key: 'api_token', label: 'API Token', type: 'password', placeholder: '••••••••' },
+      { key: 'board_id', label: 'Board ID', placeholder: 'e.g. 1234567890' },
+      { key: 'workspace_id', label: 'Workspace ID', placeholder: 'e.g. 987654' },
+    ],
+  },
+]
+
+function IntegrationsPanel() {
+  const [settings, setSettings] = useState<Record<string, IntegrationSetting>>({})
+  const [saving, setSaving] = useState<string | null>(null)
+  const [saved, setSaved] = useState<string | null>(null)
+
+  useEffect(() => {
+    supabase
+      .from('integration_settings' as never)
+      .select('integration_name, enabled, config')
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, IntegrationSetting> = {}
+        for (const row of data as IntegrationSetting[]) {
+          map[row.integration_name] = row
+        }
+        setSettings(map)
+      })
+  }, [])
+
+  function getSetting(key: string): IntegrationSetting {
+    return settings[key] ?? { integration_name: key, enabled: false, config: {} }
+  }
+
+  function updateField(key: string, field: string, value: string) {
+    setSettings(prev => {
+      const cur = prev[key] ?? { integration_name: key, enabled: false, config: {} }
+      return { ...prev, [key]: { ...cur, config: { ...cur.config, [field]: value } } }
+    })
+  }
+
+  function toggleEnabled(key: string) {
+    setSettings(prev => {
+      const cur = prev[key] ?? { integration_name: key, enabled: false, config: {} }
+      return { ...prev, [key]: { ...cur, enabled: !cur.enabled } }
+    })
+  }
+
+  async function handleSave(key: string) {
+    const s = getSetting(key)
+    setSaving(key)
+    const { error } = await (supabase as any)
+      .from('integration_settings')
+      .upsert(
+        { integration_name: s.integration_name, enabled: s.enabled, config: s.config },
+        { onConflict: 'integration_name' }
+      )
+    setSaving(null)
+    if (error) { alert(error.message); return }
+    setSaved(key)
+    setTimeout(() => setSaved(null), 2000)
+  }
+
+  return (
+    <div className="p-6 max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold">Integrations</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Connect third-party services</p>
+      </div>
+
+      {INTEGRATIONS.map(({ name, key, logo, fields }) => {
+        const s = getSetting(key)
+        const isSaving = saving === key
+        const isSaved = saved === key
+        return (
+          <div key={key} className="rounded-xl border border-border overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 bg-muted/30 border-b border-border">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{logo}</span>
+                <div>
+                  <div className="font-semibold text-sm">{name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {s.enabled ? 'Connected' : 'Not connected'}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => toggleEnabled(key)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  s.enabled ? 'bg-primary' : 'bg-muted-foreground/30'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                    s.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              {fields.map(f => (
+                <div key={f.key} className="grid grid-cols-[140px_1fr] items-center gap-3">
+                  <Label className="text-right text-xs">{f.label}</Label>
+                  <Input
+                    type={f.type ?? 'text'}
+                    placeholder={f.placeholder}
+                    value={s.config[f.key] ?? ''}
+                    onChange={e => updateField(key, f.key, e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              ))}
+              <div className="flex justify-end pt-2">
+                <Button size="sm" onClick={() => handleSave(key)} disabled={isSaving} className="min-w-[80px]">
+                  {isSaving
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : isSaved
+                      ? <><CheckCircle2 className="h-4 w-4 mr-1.5" />Saved</>
+                      : <><Save className="h-4 w-4 mr-1.5" />Save</>}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Email Templates Panel ────────────────────────────────────────────────────
+
+type EmailTemplate = {
+  id: string
+  name: string
+  permit_type: string | null
+  subject: string
+  body: string
+}
+
+const PERMIT_TYPE_OPTIONS = [
+  { value: '__all', label: 'All permit types' },
+  { value: 'sanitation', label: 'Sanitation' },
+  { value: 'exit_entry', label: 'Exit & Entry' },
+  { value: 'gate_pass', label: 'Gate Pass' },
+  { value: 'cruising_mothership', label: 'Cruising — Mothership' },
+  { value: 'cruising_tenders', label: 'Cruising — Tenders' },
+  { value: 'navigation_license', label: 'Navigation License' },
+  { value: 'tdra', label: 'TDRA' },
+  { value: 'dma', label: 'DMA Permits' },
+]
+
+const MERGE_TAGS = [
+  '{{boat_name}}', '{{holder_name}}', '{{expiry_date}}', '{{issue_date}}',
+  '{{authority}}', '{{permit_number}}', '{{quotation_number}}', '{{preferred_inspection_date}}',
+]
+
+function EmailTemplatesPanel() {
+  const [templates, setTemplates] = useState<EmailTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState<Partial<EmailTemplate> | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  const loadTemplates = useCallback(async () => {
+    setLoading(true)
+    const { data } = await supabase
+      .from('email_templates' as never)
+      .select('*')
+      .order('name') as { data: EmailTemplate[] | null }
+    setTemplates(data ?? [])
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { loadTemplates() }, [loadTemplates])
+
+  function startNew() {
+    setEditing({ name: '', permit_type: null, subject: '', body: '' })
+  }
+
+  function startEdit(t: EmailTemplate) {
+    setEditing({ ...t })
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this template?')) return
+    await (supabase as any).from('email_templates').delete().eq('id', id)
+    await loadTemplates()
+  }
+
+  async function handleSave() {
+    if (!editing) return
+    setSaving(true)
+    const payload = {
+      name: editing.name,
+      permit_type: editing.permit_type === '__all' ? null : editing.permit_type ?? null,
+      subject: editing.subject,
+      body: editing.body,
+    }
+    if (editing.id) {
+      await (supabase as any).from('email_templates').update(payload).eq('id', editing.id)
+    } else {
+      await (supabase as any).from('email_templates').insert([payload])
+    }
+    setSaving(false)
+    setEditing(null)
+    await loadTemplates()
+  }
+
+  const permitLabel = (type: string | null) =>
+    PERMIT_TYPE_OPTIONS.find(o => o.value === (type ?? '__all'))?.label ?? type ?? 'All'
+
+  if (editing !== null) {
+    return (
+      <div className="p-6 max-w-3xl">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => setEditing(null)} className="text-muted-foreground hover:text-foreground">
+            <X className="h-5 w-5" />
+          </button>
+          <h1 className="text-xl font-semibold">{editing.id ? 'Edit' : 'New'} Template</h1>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Template Name</Label>
+              <Input
+                value={editing.name ?? ''}
+                onChange={e => setEditing(prev => ({ ...prev!, name: e.target.value }))}
+                placeholder="e.g. Sanitation Pass"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Permit Type</Label>
+              <Select
+                value={editing.permit_type ?? '__all'}
+                onValueChange={v => setEditing(prev => ({ ...prev!, permit_type: v }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PERMIT_TYPE_OPTIONS.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Subject</Label>
+            <Input
+              value={editing.subject ?? ''}
+              onChange={e => setEditing(prev => ({ ...prev!, subject: e.target.value }))}
+              placeholder="e.g. Sanitation Certificate — {{boat_name}}"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Body</Label>
+            <Textarea
+              rows={10}
+              value={editing.body ?? ''}
+              onChange={e => setEditing(prev => ({ ...prev!, body: e.target.value }))}
+              placeholder="Dear {{holder_name}},&#10;&#10;Your sanitation certificate is attached..."
+              className="font-mono text-sm"
+            />
+          </div>
+
+          <div className="rounded-lg bg-muted/40 border border-border p-3">
+            <p className="text-xs font-semibold text-muted-foreground mb-2">Available merge tags</p>
+            <div className="flex flex-wrap gap-1.5">
+              {MERGE_TAGS.map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setEditing(prev => ({ ...prev!, body: (prev?.body ?? '') + tag }))}
+                  className="rounded bg-primary/10 border border-primary/20 px-2 py-0.5 text-xs text-primary font-mono hover:bg-primary/20 transition"
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1.5">Click a tag to insert it at the end of the body.</p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button size="sm" onClick={handleSave} disabled={saving || !editing.name?.trim()} className="gap-1.5">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Save Template
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-6 max-w-4xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-semibold">Email Templates</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Templates used when emailing permits. Use merge tags to personalise content.
+          </p>
+        </div>
+        <Button size="sm" onClick={startNew} className="gap-1.5">
+          <Plus className="h-4 w-4" /> New Template
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : templates.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 rounded-xl border border-dashed border-border text-center">
+          <Mail className="h-10 w-10 text-muted-foreground/50 mb-3" />
+          <p className="font-medium">No templates yet</p>
+          <p className="text-sm text-muted-foreground mt-1">Create a template to customise emails sent with permits.</p>
+          <Button size="sm" onClick={startNew} className="mt-4 gap-1.5">
+            <Plus className="h-4 w-4" /> New Template
+          </Button>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Name</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Permit Type</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Subject</th>
+                <th className="px-4 py-3 w-20" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {templates.map(t => (
+                <tr key={t.id} className="hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-3 font-medium">{t.name}</td>
+                  <td className="px-4 py-3">
+                    <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      {permitLabel(t.permit_type)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground truncate max-w-xs">{t.subject}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1 justify-end">
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => startEdit(t)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(t.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

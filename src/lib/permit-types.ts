@@ -49,6 +49,10 @@ export type Permit = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  // Extended fields (added via migration 20260515000002)
+  contact_email?: string | null;
+  preferred_inspection_date?: string | null;
+  jls_quotation_number?: string | null;
 };
 
 export function daysUntil(dateStr: string | null): number | null {

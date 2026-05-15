@@ -17,6 +17,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { StatusPill } from "@/components/status-pill";
+import { SanitationDialog } from "@/components/sanitation-dialog";
 import { Plus, Search, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -104,13 +105,22 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
                 <Plus className="h-3.5 w-3.5" /> New permit
               </Button>
             </DialogTrigger>
-            <PermitDialog
-              permitType={permitType}
-              yachts={yachts}
-              editing={editing}
-              userId={user?.id}
-              onSaved={() => { setOpen(false); void load(); }}
-            />
+            {permitType === "sanitation" ? (
+              <SanitationDialog
+                yachts={yachts}
+                editing={editing}
+                userId={user?.id}
+                onSaved={() => { setOpen(false); void load(); }}
+              />
+            ) : (
+              <PermitDialog
+                permitType={permitType}
+                yachts={yachts}
+                editing={editing}
+                userId={user?.id}
+                onSaved={() => { setOpen(false); void load(); }}
+              />
+            )}
           </Dialog>
         </div>
       </header>
