@@ -1212,6 +1212,7 @@ function autoSuggest(displayName: string): string {
     maxcrew: 'max_crew', crew: 'max_crew',
     maxguests: 'max_guests', guests: 'max_guests',
     engine: 'engine', enginetype: 'engine',
+    vesselimage: 'vessel_image', image: 'vessel_image', photo: 'vessel_image', picture: 'vessel_image', vesselphoto: 'vessel_image',
   }
   return map[n] ?? ''
 }

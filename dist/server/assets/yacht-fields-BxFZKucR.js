@@ -1,4 +1,4 @@
-export const YACHT_COLUMNS = [
+const YACHT_COLUMNS = [
   { key: "vessel_name", label: "Vessel Name" },
   { key: "vessel_type", label: "Vessel Type" },
   { key: "flag", label: "Flag" },
@@ -41,12 +41,9 @@ export const YACHT_COLUMNS = [
   { key: "dma_permit_phase_status", label: "DMA Permit Phase" },
   { key: "planner_id", label: "Planner ID" },
   { key: "engine", label: "Engine" },
-  { key: "vessel_image", label: "Vessel Image URL" },
-] as const;
-
-export type YachtColumnKey = (typeof YACHT_COLUMNS)[number]["key"];
-
-export const DEFAULT_VISIBLE_COLUMNS: YachtColumnKey[] = [
+  { key: "vessel_image", label: "Vessel Image URL" }
+];
+const DEFAULT_VISIBLE_COLUMNS = [
   "vessel_name",
   "vessel_type",
   "flag",
@@ -56,5 +53,9 @@ export const DEFAULT_VISIBLE_COLUMNS: YachtColumnKey[] = [
   "eta",
   "etd",
   "location",
-  "owners_name",
+  "owners_name"
 ];
+export {
+  DEFAULT_VISIBLE_COLUMNS as D,
+  YACHT_COLUMNS as Y
+};

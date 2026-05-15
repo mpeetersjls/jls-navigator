@@ -1,0 +1,1 @@
+import{j as t}from"./index-wojcmvQQ.js";import{S as o}from"./stub-page-BNojf7JG.js";import"./createLucideIcon-CCCpnCsX.js";const i=()=>t.jsx(o,{title:"Director",breadcrumb:"Director"});export{i as component};

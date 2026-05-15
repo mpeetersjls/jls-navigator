@@ -260,7 +260,14 @@ export async function syncFromSharePoint(): Promise<{ synced: number; errors: nu
     const record: Record<string, any> = {}
     for (const [spField, dbField] of Object.entries(cfg.fieldMapping)) {
       if (!dbField || !(spField in fields)) continue
-      record[dbField] = fields[spField] !== '' ? fields[spField] : null
+      const raw = fields[spField]
+      // SharePoint image/thumbnail columns return objects; extract URL
+      if (dbField === 'vessel_image' && raw && typeof raw === 'object') {
+        const url = raw.url ?? (raw.serverUrl && raw.serverRelativeUrl ? `${raw.serverUrl}${raw.serverRelativeUrl}` : null)
+        record[dbField] = url ?? null
+      } else {
+        record[dbField] = raw !== '' ? raw : null
+      }
     }
     if (!record.vessel_name) continue
 
