@@ -19,6 +19,7 @@ import {
 import { StatusPill } from "@/components/status-pill";
 import { SanitationDialog } from "@/components/sanitation-dialog";
 import { ExitEntryDialog } from "@/components/exit-entry-dialog";
+import { CruisingTendersDialog } from "@/components/cruising-tenders-dialog";
 import { Plus, Search, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -115,6 +116,13 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
               />
             ) : permitType === "exit_entry" ? (
               <ExitEntryDialog
+                yachts={yachts}
+                editing={editing}
+                userId={user?.id}
+                onSaved={() => { setOpen(false); void load(); }}
+              />
+            ) : permitType === "cruising_tenders" ? (
+              <CruisingTendersDialog
                 yachts={yachts}
                 editing={editing}
                 userId={user?.id}
