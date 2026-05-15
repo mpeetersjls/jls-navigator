@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { StatusPill } from "@/components/status-pill";
 import { SanitationDialog } from "@/components/sanitation-dialog";
+import { ExitEntryDialog } from "@/components/exit-entry-dialog";
 import { Plus, Search, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -107,6 +108,13 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
             </DialogTrigger>
             {permitType === "sanitation" ? (
               <SanitationDialog
+                yachts={yachts}
+                editing={editing}
+                userId={user?.id}
+                onSaved={() => { setOpen(false); void load(); }}
+              />
+            ) : permitType === "exit_entry" ? (
+              <ExitEntryDialog
                 yachts={yachts}
                 editing={editing}
                 userId={user?.id}
