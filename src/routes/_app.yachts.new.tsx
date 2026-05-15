@@ -1,6 +1,17 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { createServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+
+const doPushToSharePoint = createServerFn({ method: 'POST' })
+  .handler(async (ctx: { data: { yachtId: string } }) => {
+    try {
+      const { pushYachtToSharePoint } = await import('@/lib/sharepoint-sync.server')
+      await pushYachtToSharePoint(ctx.data.yachtId)
+    } catch {
+      // SharePoint push is non-critical
+    }
+  })
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +87,8 @@ function NewYacht() {
       const { data, error } = await supabase.from("yachts").insert([payload as never]).select("id").single();
       if (error) throw error;
       toast.success("Yacht added");
+      // Non-blocking push to SharePoint
+      doPushToSharePoint({ data: { yachtId: data.id } }).catch(() => {});
       navigate({ to: "/yachts/$id", params: { id: data.id } });
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed to save");

@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { createServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,16 @@ import { YACHT_COLUMNS } from "@/lib/yacht-fields";
 import { ArrowLeft, Trash2, Ship, Pencil, Save, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+
+const doPushToSharePoint = createServerFn({ method: 'POST' })
+  .handler(async (ctx: { data: { yachtId: string } }) => {
+    try {
+      const { pushYachtToSharePoint } = await import('@/lib/sharepoint-sync.server')
+      await pushYachtToSharePoint(ctx.data.yachtId)
+    } catch {
+      // SharePoint push is non-critical — log but don't surface to user
+    }
+  })
 
 const currentYear = new Date().getFullYear();
 const isoDate = z
@@ -178,6 +189,8 @@ function YachtDetail() {
       const { error } = await supabase.from("yachts").update(payload as never).eq("id", id);
       if (error) throw error;
       toast.success("Yacht updated");
+      // Non-blocking push to SharePoint (fire and forget)
+      doPushToSharePoint({ data: { yachtId: id } }).catch(() => {});
       setEditing(false);
       setImageFile(null);
       setImagePreview(null);

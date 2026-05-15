@@ -124,36 +124,16 @@ const savePerms = createServerFn({ method: 'POST' })
     if (error) throw new Error(error.message)
   })
 
-// ─── SharePoint helpers ───────────────────────────────────────────────────────
+// ─── SharePoint server functions ─────────────────────────────────────────────
 
-async function getGraphToken(tenantId: string, clientId: string, clientSecret: string): Promise<string> {
-  const res = await fetch(
-    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        scope: 'https://graph.microsoft.com/.default',
-        grant_type: 'client_credentials',
-      }).toString(),
-    }
-  )
-  const data = await res.json() as Record<string, string>
-  if (!data.access_token) throw new Error(data.error_description ?? data.error ?? 'Microsoft token request failed')
-  return data.access_token
-}
-
-async function resolveSharePointSite(token: string, tenantUrl: string, siteUrl: string) {
-  const hostname = new URL(tenantUrl).hostname
-  const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${hostname}:${siteUrl}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const data = await res.json() as Record<string, any>
-  if (!data.id) throw new Error(`SharePoint site not found: ${data.error?.message ?? 'Check Tenant URL and Site URL'}`)
-  return data.id as string
-}
+import {
+  getGraphToken as _getGraphToken,
+  resolveSpSite as _resolveSpSite,
+  saveSpConfigPatch,
+  syncFromSharePoint,
+  registerSharePointWebhook,
+  renewSharePointWebhook,
+} from '@/lib/sharepoint-sync.server'
 
 const doDiscoverSharePointColumns = createServerFn({ method: 'POST' })
   .handler(async (ctx: { data: { listName: string } }) => {
@@ -162,13 +142,13 @@ const doDiscoverSharePointColumns = createServerFn({ method: 'POST' })
       .select('config')
       .eq('integration_name', 'sharepoint')
       .maybeSingle()
-    const cfg: Record<string, string> = row?.config ?? {}
+    const cfg: Record<string, any> = row?.config ?? {}
     const { tenant_id, client_id, client_secret, tenant_url, site_url } = cfg
     if (!tenant_id || !client_id || !client_secret || !tenant_url || !site_url) {
       throw new Error('Complete the SharePoint credentials first (Tenant ID, Client ID, Secret, URLs).')
     }
-    const token = await getGraphToken(tenant_id, client_id, client_secret)
-    const siteId = await resolveSharePointSite(token, tenant_url, site_url)
+    const token = await _getGraphToken(tenant_id, client_id, client_secret)
+    const siteId = await _resolveSpSite(token, tenant_url, site_url)
     const res = await fetch(
       `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${ctx.data.listName}/columns`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -182,49 +162,43 @@ const doDiscoverSharePointColumns = createServerFn({ method: 'POST' })
 
 const doSyncSharePoint = createServerFn({ method: 'POST' })
   .handler(async (ctx: { data: { listName: string; fieldMapping: Record<string, string> } }) => {
+    // Persist the mapping so automatic sync (cron/webhook) uses it
+    await saveSpConfigPatch({
+      list_name: ctx.data.listName,
+      field_mapping: ctx.data.fieldMapping,
+      // Reset delta token so this full sync acts as a fresh baseline
+      delta_token: null,
+    })
+    const { synced, errors } = await syncFromSharePoint()
+    return { synced, errors, total: synced + errors }
+  })
+
+const doRegisterWebhook = createServerFn({ method: 'POST' })
+  .handler(async (ctx: { data: { appUrl: string } }) => {
+    const notificationUrl = `${ctx.data.appUrl.replace(/\/$/, '')}/api/sharepoint-webhook`
+    return registerSharePointWebhook(notificationUrl)
+  })
+
+const doRenewWebhook = createServerFn({ method: 'POST' })
+  .handler(async () => {
+    return renewSharePointWebhook()
+  })
+
+const doGetWebhookStatus = createServerFn({ method: 'GET' })
+  .handler(async (): Promise<{ subscriptionId: string | null; expiresAt: string | null; daysLeft: number | null }> => {
     const { data: row } = await (supabaseAdmin as any)
       .from('integration_settings')
       .select('config')
       .eq('integration_name', 'sharepoint')
       .maybeSingle()
-    const cfg: Record<string, string> = row?.config ?? {}
-    const { tenant_id, client_id, client_secret, tenant_url, site_url } = cfg
-    if (!tenant_id || !client_id || !client_secret || !tenant_url || !site_url) {
-      throw new Error('SharePoint integration not fully configured.')
+    const cfg = row?.config ?? {}
+    const subId: string | null = cfg.webhook_subscription_id ?? null
+    const expiresAt: string | null = cfg.webhook_expires_at ?? null
+    let daysLeft: number | null = null
+    if (expiresAt) {
+      daysLeft = Math.round((new Date(expiresAt).getTime() - Date.now()) / 86_400_000)
     }
-    const token = await getGraphToken(tenant_id, client_id, client_secret)
-    const siteId = await resolveSharePointSite(token, tenant_url, site_url)
-
-    let allItems: any[] = []
-    let nextLink: string | null =
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${ctx.data.listName}/items?expand=fields&$top=500`
-    while (nextLink) {
-      const res = await fetch(nextLink, { headers: { Authorization: `Bearer ${token}` } })
-      const page = await res.json() as Record<string, any>
-      if (!page.value) throw new Error(`Failed to get list items: ${page.error?.message ?? 'unknown'}`)
-      allItems = allItems.concat(page.value)
-      nextLink = page['@odata.nextLink'] ?? null
-    }
-
-    const mapping = ctx.data.fieldMapping
-    let synced = 0, errors = 0
-    for (const item of allItems) {
-      const fields = item.fields ?? {}
-      const record: Record<string, any> = {}
-      for (const [spField, dbField] of Object.entries(mapping)) {
-        if (!dbField || !(spField in fields)) continue
-        record[dbField] = fields[spField] !== '' ? fields[spField] : null
-      }
-      if (!record.vessel_name) continue
-      const matchField = record.imo_no ? 'imo_no' : 'vessel_name'
-      const matchVal = record[matchField]
-      const { data: existing } = await supabaseAdmin.from('yachts').select('id').eq(matchField, matchVal).maybeSingle()
-      const { error } = existing
-        ? await supabaseAdmin.from('yachts').update(record).eq('id', existing.id)
-        : await supabaseAdmin.from('yachts').insert({ ...record, status: record.status ?? 'Active' })
-      if (error) errors++; else synced++
-    }
-    return { synced, errors, total: allItems.length }
+    return { subscriptionId: subId, expiresAt, daysLeft }
   })
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -1246,6 +1220,15 @@ function SharePointSyncSection() {
   const [result, setResult] = useState<{ synced: number; errors: number; total: number } | null>(null)
   const [syncErr, setSyncErr] = useState<string | null>(null)
 
+  // Webhook state
+  const [webhook, setWebhook] = useState<{ subscriptionId: string | null; expiresAt: string | null; daysLeft: number | null } | null>(null)
+  const [webhookBusy, setWebhookBusy] = useState(false)
+  const [webhookErr, setWebhookErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    doGetWebhookStatus().then(setWebhook).catch(() => {})
+  }, [])
+
   async function handleDiscover() {
     setDiscovering(true); setSyncErr(null); setResult(null)
     try {
@@ -1269,10 +1252,79 @@ function SharePointSyncSection() {
     } finally { setSyncing(false) }
   }
 
+  async function handleRegisterWebhook() {
+    setWebhookBusy(true); setWebhookErr(null)
+    try {
+      const appUrl = window.location.origin
+      const res = await doRegisterWebhook({ data: { appUrl } })
+      setWebhook({ subscriptionId: res.subscriptionId, expiresAt: res.expiresAt, daysLeft: Math.round((new Date(res.expiresAt).getTime() - Date.now()) / 86_400_000) })
+    } catch (e) {
+      setWebhookErr(e instanceof Error ? e.message : 'Webhook registration failed')
+    } finally { setWebhookBusy(false) }
+  }
+
+  async function handleRenewWebhook() {
+    setWebhookBusy(true); setWebhookErr(null)
+    try {
+      const newExpiry = await doRenewWebhook()
+      setWebhook(prev => prev ? { ...prev, expiresAt: newExpiry, daysLeft: Math.round((new Date(newExpiry).getTime() - Date.now()) / 86_400_000) } : null)
+    } catch (e) {
+      setWebhookErr(e instanceof Error ? e.message : 'Renewal failed')
+    } finally { setWebhookBusy(false) }
+  }
+
+  const webhookActive = webhook?.subscriptionId && webhook.daysLeft !== null && webhook.daysLeft > 0
+  const webhookExpiringSoon = webhookActive && (webhook.daysLeft ?? 0) < 30
+
   return (
     <div className="border-t border-border mt-4 pt-4 space-y-4">
+      {/* ── Webhook status ── */}
+      <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <p className="text-xs font-semibold">Real-time Webhook (SharePoint → App)</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              SharePoint notifies the app instantly when list items change. Requires a cron fallback for reliability.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {webhookActive && (
+              <Button size="sm" variant="outline" onClick={handleRenewWebhook} disabled={webhookBusy} className="gap-1.5 h-7 text-xs">
+                {webhookBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Renew
+              </Button>
+            )}
+            <Button size="sm" variant={webhookActive ? 'ghost' : 'default'} onClick={handleRegisterWebhook} disabled={webhookBusy} className="gap-1.5 h-7 text-xs">
+              {webhookBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              {webhookActive ? 'Re-register' : 'Register Webhook'}
+            </Button>
+          </div>
+        </div>
+        {webhookErr && <p className="text-[11px] text-destructive">{webhookErr}</p>}
+        {webhook !== null && (
+          <div className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            webhookActive
+              ? webhookExpiringSoon
+                ? 'bg-amber-500/15 text-amber-400'
+                : 'bg-emerald-500/15 text-emerald-400'
+              : 'bg-muted text-muted-foreground'
+          }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${webhookActive ? webhookExpiringSoon ? 'bg-amber-400' : 'bg-emerald-400' : 'bg-muted-foreground'}`} />
+            {webhookActive
+              ? `Active · expires in ${webhook.daysLeft}d`
+              : webhook?.subscriptionId
+                ? 'Expired — re-register'
+                : 'Not registered'}
+          </div>
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Cron fallback runs every 15 min automatically — no action needed.
+        </p>
+      </div>
+
+      {/* ── Field mapping ── */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm font-semibold">Field Mapping &amp; Sync</p>
+        <p className="text-sm font-semibold">Field Mapping &amp; Full Sync</p>
         <div className="flex items-center gap-2">
           <Input
             value={listName}
@@ -1294,7 +1346,8 @@ function SharePointSyncSection() {
       )}
       {result && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
-          Sync complete — {result.synced} records synced, {result.errors} errors (of {result.total} total rows)
+          Sync complete — {result.synced} records synced, {result.errors} errors (of {result.total} total rows).
+          Field mapping saved — auto-sync will use it going forward.
         </div>
       )}
 
@@ -1336,6 +1389,7 @@ function SharePointSyncSection() {
         <p className="text-xs text-muted-foreground">
           Click <strong>Load Columns</strong> to fetch the SharePoint list columns,
           review the auto-suggested field mapping, then click <strong>Sync Now</strong>.
+          The mapping is saved and used for all future auto-syncs.
         </p>
       )}
     </div>
