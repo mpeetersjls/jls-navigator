@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Users, Shield, Plus, RotateCcw, Trash2, ChevronDown,
-  CheckCircle2, XCircle, Loader2, Lock, Plug, Mail, Pencil, Save, X,
+  CheckCircle2, XCircle, Loader2, Lock, Plug, Mail, Pencil, Save, X, Search,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -122,6 +122,109 @@ const savePerms = createServerFn({ method: 'POST' })
       .from('department_permissions')
       .upsert(ctx.data, { onConflict: 'department,module' })
     if (error) throw new Error(error.message)
+  })
+
+// ─── SharePoint helpers ───────────────────────────────────────────────────────
+
+async function getGraphToken(tenantId: string, clientId: string, clientSecret: string): Promise<string> {
+  const res = await fetch(
+    `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        scope: 'https://graph.microsoft.com/.default',
+        grant_type: 'client_credentials',
+      }).toString(),
+    }
+  )
+  const data = await res.json() as Record<string, string>
+  if (!data.access_token) throw new Error(data.error_description ?? data.error ?? 'Microsoft token request failed')
+  return data.access_token
+}
+
+async function resolveSharePointSite(token: string, tenantUrl: string, siteUrl: string) {
+  const hostname = new URL(tenantUrl).hostname
+  const res = await fetch(`https://graph.microsoft.com/v1.0/sites/${hostname}:${siteUrl}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json() as Record<string, any>
+  if (!data.id) throw new Error(`SharePoint site not found: ${data.error?.message ?? 'Check Tenant URL and Site URL'}`)
+  return data.id as string
+}
+
+const doDiscoverSharePointColumns = createServerFn({ method: 'POST' })
+  .handler(async (ctx: { data: { listName: string } }) => {
+    const { data: row } = await (supabaseAdmin as any)
+      .from('integration_settings')
+      .select('config')
+      .eq('integration_name', 'sharepoint')
+      .maybeSingle()
+    const cfg: Record<string, string> = row?.config ?? {}
+    const { tenant_id, client_id, client_secret, tenant_url, site_url } = cfg
+    if (!tenant_id || !client_id || !client_secret || !tenant_url || !site_url) {
+      throw new Error('Complete the SharePoint credentials first (Tenant ID, Client ID, Secret, URLs).')
+    }
+    const token = await getGraphToken(tenant_id, client_id, client_secret)
+    const siteId = await resolveSharePointSite(token, tenant_url, site_url)
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${ctx.data.listName}/columns`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    const data = await res.json() as Record<string, any>
+    if (!data.value) throw new Error(`Could not read list columns: ${data.error?.message ?? 'List not found'}`)
+    return (data.value as any[])
+      .filter((c: any) => !c.readOnly && c.name !== 'id')
+      .map((c: any) => ({ name: c.name as string, displayName: c.displayName as string }))
+  })
+
+const doSyncSharePoint = createServerFn({ method: 'POST' })
+  .handler(async (ctx: { data: { listName: string; fieldMapping: Record<string, string> } }) => {
+    const { data: row } = await (supabaseAdmin as any)
+      .from('integration_settings')
+      .select('config')
+      .eq('integration_name', 'sharepoint')
+      .maybeSingle()
+    const cfg: Record<string, string> = row?.config ?? {}
+    const { tenant_id, client_id, client_secret, tenant_url, site_url } = cfg
+    if (!tenant_id || !client_id || !client_secret || !tenant_url || !site_url) {
+      throw new Error('SharePoint integration not fully configured.')
+    }
+    const token = await getGraphToken(tenant_id, client_id, client_secret)
+    const siteId = await resolveSharePointSite(token, tenant_url, site_url)
+
+    let allItems: any[] = []
+    let nextLink: string | null =
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${ctx.data.listName}/items?expand=fields&$top=500`
+    while (nextLink) {
+      const res = await fetch(nextLink, { headers: { Authorization: `Bearer ${token}` } })
+      const page = await res.json() as Record<string, any>
+      if (!page.value) throw new Error(`Failed to get list items: ${page.error?.message ?? 'unknown'}`)
+      allItems = allItems.concat(page.value)
+      nextLink = page['@odata.nextLink'] ?? null
+    }
+
+    const mapping = ctx.data.fieldMapping
+    let synced = 0, errors = 0
+    for (const item of allItems) {
+      const fields = item.fields ?? {}
+      const record: Record<string, any> = {}
+      for (const [spField, dbField] of Object.entries(mapping)) {
+        if (!dbField || !(spField in fields)) continue
+        record[dbField] = fields[spField] !== '' ? fields[spField] : null
+      }
+      if (!record.vessel_name) continue
+      const matchField = record.imo_no ? 'imo_no' : 'vessel_name'
+      const matchVal = record[matchField]
+      const { data: existing } = await supabaseAdmin.from('yachts').select('id').eq(matchField, matchVal).maybeSingle()
+      const { error } = existing
+        ? await supabaseAdmin.from('yachts').update(record).eq('id', existing.id)
+        : await supabaseAdmin.from('yachts').insert({ ...record, status: record.status ?? 'Active' })
+      if (error) errors++; else synced++
+    }
+    return { synced, errors, total: allItems.length }
   })
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -704,9 +807,10 @@ const INTEGRATIONS: {
     key: 'sharepoint',
     logo: '📁',
     fields: [
-      { key: 'tenant_url', label: 'Tenant URL', placeholder: 'https://yourtenant.sharepoint.com' },
-      { key: 'site_url', label: 'Site URL', placeholder: '/sites/YourSite' },
-      { key: 'client_id', label: 'Client ID', placeholder: 'Azure App Client ID' },
+      { key: 'tenant_url', label: 'Tenant URL', placeholder: 'https://jlsyachts.sharepoint.com' },
+      { key: 'site_url', label: 'Site URL', placeholder: '/sites/PortOperationsandAgency' },
+      { key: 'tenant_id', label: 'Tenant ID', placeholder: 'Azure AD Tenant GUID (from portal.azure.com)' },
+      { key: 'client_id', label: 'Client ID', placeholder: 'Azure App Registration Client ID' },
       { key: 'client_secret', label: 'Client Secret', type: 'password', placeholder: '••••••••' },
     ],
   },
@@ -832,6 +936,7 @@ function IntegrationsPanel() {
                       : <><Save className="h-4 w-4 mr-1.5" />Save</>}
                 </Button>
               </div>
+              {key === 'sharepoint' && <SharePointSyncSection />}
             </div>
           </div>
         )
@@ -1069,6 +1174,169 @@ function EmailTemplatesPanel() {
             </tbody>
           </table>
         </div>
+      )}
+    </div>
+  )
+}
+
+// --- SharePoint Sync Section ---
+
+const YACHT_DB_FIELDS = [
+  { value: '', label: '— Skip —' },
+  { value: 'vessel_name', label: 'Vessel Name' },
+  { value: 'vessel_type', label: 'Vessel Type' },
+  { value: 'flag', label: 'Flag' },
+  { value: 'imo_no', label: 'IMO No.' },
+  { value: 'official_no', label: 'Official No.' },
+  { value: 'port_of_registry', label: 'Port of Registry' },
+  { value: 'built_year', label: 'Built Year' },
+  { value: 'builders_name', label: 'Builders Name' },
+  { value: 'built_place', label: 'Built Place' },
+  { value: 'gross_tonnage', label: 'Gross Tonnage' },
+  { value: 'net_tonnage', label: 'Net Tonnage' },
+  { value: 'length_overall_m', label: 'LOA (m)' },
+  { value: 'breadth_m', label: 'Breadth (m)' },
+  { value: 'draught_m', label: 'Draught (m)' },
+  { value: 'mmsi', label: 'MMSI' },
+  { value: 'radio_call_sign', label: 'Radio Call Sign' },
+  { value: 'owners_name', label: 'Owner Name' },
+  { value: 'owners_nationality', label: 'Owner Nationality' },
+  { value: 'company_name', label: 'Company' },
+  { value: 'email_address', label: 'Email' },
+  { value: 'contact_no', label: 'Contact No.' },
+  { value: 'berth', label: 'Berth' },
+  { value: 'status', label: 'Status' },
+]
+
+function autoSuggest(displayName: string): string {
+  const n = displayName.toLowerCase().replace(/[\s._\-()+#]/g, '')
+  const map: Record<string, string> = {
+    title: 'vessel_name', vesselname: 'vessel_name',
+    vesseltype: 'vessel_type',
+    flag: 'flag',
+    imono: 'imo_no', imonumber: 'imo_no', imo: 'imo_no',
+    officialno: 'official_no', officialnumber: 'official_no',
+    portofregistry: 'port_of_registry', registry: 'port_of_registry',
+    builtyear: 'built_year', yearbuilt: 'built_year',
+    buildersname: 'builders_name', builder: 'builders_name',
+    builtplace: 'built_place',
+    grosstonnage: 'gross_tonnage', gt: 'gross_tonnage',
+    nettonnage: 'net_tonnage', nt: 'net_tonnage',
+    loa: 'length_overall_m', lengthoverall: 'length_overall_m',
+    breadth: 'breadth_m', beam: 'breadth_m',
+    draught: 'draught_m', draft: 'draught_m',
+    mmsi: 'mmsi',
+    radiocallsign: 'radio_call_sign', callsign: 'radio_call_sign',
+    ownersname: 'owners_name', ownername: 'owners_name', owner: 'owners_name',
+    ownersnationality: 'owners_nationality',
+    companyname: 'company_name', company: 'company_name',
+    emailaddress: 'email_address', email: 'email_address',
+    contactno: 'contact_no', phone: 'contact_no',
+    berth: 'berth', status: 'status',
+  }
+  return map[n] ?? ''
+}
+
+function SharePointSyncSection() {
+  const [listName, setListName] = useState('Yachts')
+  const [columns, setColumns] = useState<{ name: string; displayName: string }[]>([])
+  const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [discovering, setDiscovering] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [result, setResult] = useState<{ synced: number; errors: number; total: number } | null>(null)
+  const [syncErr, setSyncErr] = useState<string | null>(null)
+
+  async function handleDiscover() {
+    setDiscovering(true); setSyncErr(null); setResult(null)
+    try {
+      const cols = await doDiscoverSharePointColumns({ data: { listName } })
+      setColumns(cols)
+      const auto: Record<string, string> = {}
+      for (const c of cols) auto[c.name] = autoSuggest(c.displayName)
+      setMapping(auto)
+    } catch (e) {
+      setSyncErr(e instanceof Error ? e.message : 'Discovery failed')
+    } finally { setDiscovering(false) }
+  }
+
+  async function handleSync() {
+    setSyncing(true); setSyncErr(null); setResult(null)
+    try {
+      const res = await doSyncSharePoint({ data: { listName, fieldMapping: mapping } })
+      setResult(res)
+    } catch (e) {
+      setSyncErr(e instanceof Error ? e.message : 'Sync failed')
+    } finally { setSyncing(false) }
+  }
+
+  return (
+    <div className="border-t border-border mt-4 pt-4 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-sm font-semibold">Field Mapping &amp; Sync</p>
+        <div className="flex items-center gap-2">
+          <Input
+            value={listName}
+            onChange={e => setListName(e.target.value)}
+            placeholder="List name"
+            className="h-8 w-32 text-sm"
+          />
+          <Button size="sm" variant="outline" onClick={handleDiscover} disabled={discovering} className="gap-1.5 h-8">
+            {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+            Load Columns
+          </Button>
+        </div>
+      </div>
+
+      {syncErr && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {syncErr}
+        </div>
+      )}
+      {result && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+          Sync complete — {result.synced} records synced, {result.errors} errors (of {result.total} total rows)
+        </div>
+      )}
+
+      {columns.length > 0 ? (
+        <>
+          <div className="rounded-lg border border-border overflow-hidden text-sm">
+            <div className="grid grid-cols-[1fr_20px_1fr] gap-2 bg-muted/40 border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>SharePoint Column</span><span /><span>App Field</span>
+            </div>
+            <div className="divide-y divide-border max-h-72 overflow-auto">
+              {columns.map(col => (
+                <div key={col.name} className="grid grid-cols-[1fr_20px_1fr] gap-2 items-center px-3 py-1.5">
+                  <div>
+                    <div className="font-medium text-xs">{col.displayName}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{col.name}</div>
+                  </div>
+                  <span className="text-center text-muted-foreground text-xs">→</span>
+                  <select
+                    value={mapping[col.name] ?? ''}
+                    onChange={e => setMapping(prev => ({ ...prev, [col.name]: e.target.value }))}
+                    className="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {YACHT_DB_FIELDS.map(f => (
+                      <option key={f.value} value={f.value}>{f.label}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={handleSync} disabled={syncing} className="gap-1.5">
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {syncing ? 'Syncing…' : 'Sync Now'}
+            </Button>
+          </div>
+        </>
+      ) : !discovering && (
+        <p className="text-xs text-muted-foreground">
+          Click <strong>Load Columns</strong> to fetch the SharePoint list columns,
+          review the auto-suggested field mapping, then click <strong>Sync Now</strong>.
+        </p>
       )}
     </div>
   )
