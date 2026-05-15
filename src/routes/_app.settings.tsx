@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Users, Shield, Plus, RotateCcw, Trash2, ChevronDown,
   CheckCircle2, XCircle, Loader2, Lock, Plug, Mail, Pencil, Save, X,
@@ -408,7 +409,17 @@ function UserRow({
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, right: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
   const initials = (user.displayName ?? user.email).slice(0, 2).toUpperCase()
+
+  function handleOpen() {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 4, right: window.innerWidth - r.right })
+    }
+    setOpen(v => !v)
+  }
 
   return (
     <tr className="hover:bg-muted/20 transition-colors">
@@ -456,12 +467,13 @@ function UserRow({
         {user.lastSignIn ? new Date(user.lastSignIn).toLocaleDateString() : '—'}
       </td>
       <td className="px-4 py-3">
-        <div className="relative flex justify-end">
+        <div className="flex justify-end">
           <Button
+            ref={btnRef}
             variant="ghost"
             size="sm"
             className="h-7 w-7 p-0"
-            onClick={() => setOpen(v => !v)}
+            onClick={handleOpen}
             disabled={isLoading}
           >
             {isLoading
@@ -469,10 +481,13 @@ function UserRow({
               : <ChevronDown className="h-3.5 w-3.5" />}
           </Button>
 
-          {open && (
+          {open && createPortal(
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-              <div className="absolute right-0 top-8 z-20 w-52 rounded-lg border border-border bg-popover shadow-xl py-1">
+              <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+              <div
+                className="fixed z-50 w-52 rounded-lg border border-border bg-popover shadow-xl py-1"
+                style={{ top: pos.top, right: pos.right }}
+              >
                 <p className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Change Role
                 </p>
@@ -514,7 +529,8 @@ function UserRow({
                   <Trash2 className="h-3.5 w-3.5" /> Remove User
                 </button>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
       </td>
