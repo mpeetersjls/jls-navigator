@@ -492,3 +492,37 @@ export async function downloadPendingImages(): Promise<number> {
   }
   return downloaded
 }
+
+// Download the SP image for a single yacht by its DB id (on-demand, e.g. from the detail page button)
+export async function downloadYachtImage(yachtId: string): Promise<string | null> {
+  const cfg = await getSpConfig().catch(() => null)
+  if (!cfg) return null
+
+  const imageSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'vessel_image')?.[0]
+  if (!imageSpField) return null
+
+  const { data: yacht } = await supabaseAdmin
+    .from('yachts')
+    .select('id, sharepoint_item_id')
+    .eq('id', yachtId)
+    .maybeSingle() as { data: { id: string; sharepoint_item_id: string | null } | null }
+
+  if (!yacht?.sharepoint_item_id) return null
+
+  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items/${yacht.sharepoint_item_id}?$expand=fields($select=${encodeURIComponent(imageSpField)})`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  )
+  const item = await res.json() as Record<string, any>
+  const raw = item.fields?.[imageSpField]
+  if (!raw) return null
+
+  const url = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, yacht.sharepoint_item_id)
+  if (url) {
+    await supabaseAdmin.from('yachts').update({ vessel_image: url } as never).eq('id', yachtId)
+  }
+  return url ?? null
+}

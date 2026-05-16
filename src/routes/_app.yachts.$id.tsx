@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/status-pill";
 import { YACHT_COLUMNS } from "@/lib/yacht-fields";
-import { ArrowLeft, Trash2, Ship, Pencil, Save, X, Upload } from "lucide-react";
+import { ArrowLeft, Trash2, Ship, Pencil, Save, X, Upload, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -19,6 +19,17 @@ const doPushToSharePoint = createServerFn({ method: 'POST' })
       await pushYachtToSharePoint(ctx.data.yachtId)
     } catch {
       // SharePoint push is non-critical — log but don't surface to user
+    }
+  })
+
+const doSyncImage = createServerFn({ method: 'POST' })
+  .handler(async (ctx: { data: { yachtId: string } }) => {
+    try {
+      const { downloadYachtImage } = await import('@/lib/sharepoint-sync.server')
+      const url = await downloadYachtImage(ctx.data.yachtId)
+      return { url }
+    } catch {
+      return { url: null }
     }
   })
 
@@ -102,6 +113,7 @@ function YachtDetail() {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [imgLoadError, setImgLoadError] = useState(false);
+  const [syncingImage, setSyncingImage] = useState(false);
 
   useEffect(() => { void load(); }, [id]);
   async function load() {
@@ -270,14 +282,41 @@ function YachtDetail() {
                   <div className="flex h-full items-center justify-center"><Ship className="h-12 w-12 text-muted-foreground/40" /></div>
                 )}
               </div>
-              {editing && (
-                <div className="border-t border-border p-3">
+              <div className="border-t border-border p-3 flex flex-col gap-2">
+                {!editing && (!displayImage || imgLoadError) && (
+                  <button
+                    type="button"
+                    disabled={syncingImage}
+                    onClick={async () => {
+                      setSyncingImage(true);
+                      try {
+                        const result = await doSyncImage({ data: { yachtId: id } });
+                        if (result?.url) {
+                          setImgLoadError(false);
+                          await load();
+                          toast.success("Image synced from SharePoint");
+                        } else {
+                          toast.error("No image found in SharePoint for this yacht");
+                        }
+                      } catch {
+                        toast.error("Failed to sync image");
+                      } finally {
+                        setSyncingImage(false);
+                      }
+                    }}
+                    className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs hover:bg-accent disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncingImage ? "animate-spin" : ""}`} />
+                    {syncingImage ? "Syncing…" : "Sync Image from SharePoint"}
+                  </button>
+                )}
+                {editing && (
                   <label className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs hover:bg-accent">
                     <Upload className="h-3.5 w-3.5" /> Replace image
                     <input type="file" accept="image/*" className="hidden" onChange={pickImage} />
                   </label>
-                </div>
-              )}
+                )}
+              </div>
               <div className="p-4 text-sm space-y-2">
                 {editing ? (
                   <>
