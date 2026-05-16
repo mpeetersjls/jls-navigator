@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Paperclip, FileCheck2, Save, Mail, Loader2, Image } from "lucide-react";
+import { Paperclip, FileCheck2, Save, Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Yacht = { id: string; vessel_name: string };
@@ -31,6 +31,95 @@ const AUTHORITIES = [
   "Other",
 ];
 
+// ── Reusable picture-upload box ──────────────────────────────────────────────
+interface UploadBoxProps {
+  label: string;
+  fileName: string | null;
+  uploading: boolean;
+  fileUrl?: string | null;
+  isBusy: boolean;
+  onClear: () => void;
+  onPick: () => void;
+  inputRef: React.RefObject<HTMLInputElement>;
+  onFileChange: (f: File) => void;
+  accept?: string;
+}
+
+function TdraUploadBox({
+  label,
+  fileName,
+  uploading,
+  fileUrl,
+  isBusy,
+  onClear,
+  onPick,
+  inputRef,
+  onFileChange,
+  accept = ".pdf,.jpg,.jpeg,.png",
+}: UploadBoxProps) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      <div
+        onClick={() => !isBusy && onPick()}
+        className={`h-28 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 text-center p-3 transition cursor-pointer ${
+          fileName
+            ? "border-primary/50 bg-primary/5"
+            : "border-border bg-muted/20 hover:border-primary/40"
+        }`}
+      >
+        {uploading ? (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        ) : fileName ? (
+          <>
+            <FileCheck2 className="h-5 w-5 text-primary" />
+            <span className="text-[10px] text-primary font-medium break-all leading-tight line-clamp-2">
+              {fileName}
+            </span>
+            {fileUrl && (
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] text-muted-foreground underline hover:text-foreground"
+              >
+                View
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              className="text-[10px] text-destructive/70 hover:text-destructive"
+            >
+              Remove
+            </button>
+          </>
+        ) : (
+          <>
+            <Paperclip className="h-5 w-5 text-muted-foreground/50" />
+            <span className="text-[10px] text-muted-foreground">
+              Tap or click to add a file
+            </span>
+          </>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onFileChange(f);
+            e.target.value = "";
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Main dialog ───────────────────────────────────────────────────────────────
 export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
   const [form, setForm] = useState<Partial<Permit>>(() =>
     editing ?? { permit_type: "tdra", status: "pending" }
@@ -38,32 +127,33 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
   const [busy, setBusy] = useState(false);
   const [emailBusy, setEmailBusy] = useState(false);
 
-  // Invoice from Authority (stored in notes as a URL)
+  // Invoice from Authority — stored in `notes` with prefix "invoice_url:"
   const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
   const [invoiceFileName, setInvoiceFileName] = useState<string | null>(null);
   const [uploadingInvoice, setUploadingInvoice] = useState(false);
   const invoiceRef = useRef<HTMLInputElement>(null);
 
-  // TDRA Certificate (stored in document_url)
+  // TDRA Certificate — stored in `document_url`
   const [certFileName, setCertFileName] = useState<string | null>(null);
   const [uploadingCert, setUploadingCert] = useState(false);
   const certRef = useRef<HTMLInputElement>(null);
 
-  // Attachments for Client (also stored in document_url — last uploaded wins or we combine)
+  // Attachments for Client — also stored in `document_url` (last uploaded wins)
   const [attachFileName, setAttachFileName] = useState<string | null>(null);
   const [uploadingAttach, setUploadingAttach] = useState(false);
   const attachRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setForm(editing ?? { permit_type: "tdra", status: "pending" });
+    // Restore cert filename from document_url
     if (editing?.document_url) {
       const parts = editing.document_url.split("/");
       setCertFileName(decodeURIComponent(parts[parts.length - 1].split("?")[0]));
     } else {
       setCertFileName(null);
     }
-    // Invoice URL stored in notes field with prefix
-    if (editing?.notes && editing.notes.startsWith("invoice_url:")) {
+    // Restore invoice URL from notes
+    if (editing?.notes?.startsWith("invoice_url:")) {
       const url = editing.notes.replace("invoice_url:", "");
       setInvoiceUrl(url);
       const parts = url.split("/");
@@ -94,7 +184,6 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
       const url = await uploadFile(file, "invoice");
       setInvoiceUrl(url);
       setInvoiceFileName(file.name);
-      // Store invoice URL in notes with prefix
       set("notes", `invoice_url:${url}`);
       toast.success("Invoice uploaded");
     } catch (e) {
@@ -122,7 +211,6 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
     setUploadingAttach(true);
     try {
       const url = await uploadFile(file, "attachments");
-      // Append to document_url or set it if cert not uploaded
       set("document_url", url);
       setAttachFileName(file.name);
       toast.success("Attachment uploaded");
@@ -137,23 +225,18 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
     return {
       permit_type: "tdra" as const,
       yacht_id: form.yacht_id ?? null,
-      // permit_number → Applied By
-      permit_number: form.permit_number || null,
+      permit_number: form.permit_number || null,       // Applied By
       status: (form.status ?? "pending") as PermitStatus,
-      // issue_date → TDRA Date Applied
-      issue_date: form.issue_date || null,
-      // expiry_date → Expiry Date
-      expiry_date: form.expiry_date || null,
+      issue_date: form.issue_date || null,             // TDRA Date Applied
+      expiry_date: form.expiry_date || null,           // Expiry Date
       issuing_authority: form.issuing_authority || null,
-      // holder_name → Name
-      holder_name: form.holder_name || null,
+      holder_name: form.holder_name || null,           // Name
       contact_email: form.contact_email || null,
       dma_phase: null,
       preferred_inspection_date: null,
       jls_quotation_number: form.jls_quotation_number || null,
-      document_url: form.document_url || null,
-      // notes stores invoice_url: prefix
-      notes: invoiceUrl ? `invoice_url:${invoiceUrl}` : null,
+      document_url: form.document_url || null,         // TDRA Certificate / Attachments
+      notes: invoiceUrl ? `invoice_url:${invoiceUrl}` : null, // Invoice URL
     };
   }
 
@@ -240,89 +323,6 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
 
   const isBusy = busy || emailBusy || uploadingInvoice || uploadingCert || uploadingAttach;
 
-  function UploadBox({
-    label,
-    fileName,
-    uploading,
-    fileUrl,
-    onClear,
-    onPick,
-    inputRef,
-    onFileChange,
-    accept = ".pdf,.jpg,.jpeg,.png",
-  }: {
-    label: string;
-    fileName: string | null;
-    uploading: boolean;
-    fileUrl?: string | null;
-    onClear: () => void;
-    onPick: () => void;
-    inputRef: React.RefObject<HTMLInputElement>;
-    onFileChange: (f: File) => void;
-    accept?: string;
-  }) {
-    return (
-      <div className="space-y-1.5">
-        <Label>{label}</Label>
-        <div
-          onClick={() => !isBusy && onPick()}
-          className={`h-28 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 text-center p-3 transition cursor-pointer ${
-            fileName
-              ? "border-primary/50 bg-primary/5"
-              : "border-border bg-muted/20 hover:border-primary/40"
-          }`}
-        >
-          {uploading ? (
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : fileName ? (
-            <>
-              <FileCheck2 className="h-5 w-5 text-primary" />
-              <span className="text-[10px] text-primary font-medium break-all leading-tight line-clamp-2">
-                {fileName}
-              </span>
-              {fileUrl && (
-                <a
-                  href={fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[10px] text-muted-foreground underline hover:text-foreground"
-                >
-                  View
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onClear(); }}
-                className="text-[10px] text-destructive/70 hover:text-destructive"
-              >
-                Remove
-              </button>
-            </>
-          ) : (
-            <>
-              <Image className="h-5 w-5 text-muted-foreground/50" />
-              <span className="text-[10px] text-muted-foreground">
-                Tap or click to add a picture
-              </span>
-            </>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept={accept}
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onFileChange(f);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <DialogContent className="max-w-4xl">
       <DialogHeader>
@@ -399,21 +399,23 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
           </div>
 
           {/* Row 3 — document uploads */}
-          <UploadBox
+          <TdraUploadBox
             label="Invoice from Authority"
             fileName={invoiceFileName}
             uploading={uploadingInvoice}
             fileUrl={invoiceUrl}
+            isBusy={isBusy}
             onClear={() => { setInvoiceUrl(null); setInvoiceFileName(null); set("notes", null); }}
             onPick={() => invoiceRef.current?.click()}
             inputRef={invoiceRef}
             onFileChange={handleInvoiceUpload}
           />
-          <UploadBox
+          <TdraUploadBox
             label="TDRA Certificate"
             fileName={certFileName}
             uploading={uploadingCert}
             fileUrl={form.document_url ?? null}
+            isBusy={isBusy}
             onClear={() => { set("document_url", null); setCertFileName(null); }}
             onPick={() => certRef.current?.click()}
             inputRef={certRef}
@@ -465,9 +467,7 @@ export function TdraDialog({ yachts, editing, userId, onSaved }: Props) {
               ) : (
                 <>
                   <Paperclip className="h-5 w-5 text-muted-foreground/60" />
-                  <span className="text-xs text-muted-foreground">
-                    There is nothing attached.
-                  </span>
+                  <span className="text-xs text-muted-foreground">There is nothing attached.</span>
                   <span className="text-xs text-primary font-medium">Attach file</span>
                 </>
               )}
