@@ -101,6 +101,7 @@ function YachtDetail() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [imgLoadError, setImgLoadError] = useState(false);
 
   useEffect(() => { void load(); }, [id]);
   async function load() {
@@ -214,7 +215,6 @@ function YachtDetail() {
   if (!y) return <div className="p-6 text-sm text-muted-foreground">Not found.</div>;
 
   const displayImage = imagePreview ?? (y.vessel_image ? String(y.vessel_image) : null);
-  const [imgLoadError, setImgLoadError] = useState(false);
 
   return (
     <div className="flex h-full flex-col">
