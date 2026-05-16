@@ -1,0 +1,1 @@
+import{j as t}from"./index-DD-zYqhE.js";import{S as o}from"./stub-page-CpcuIdNk.js";import"./createLucideIcon-CBSh2MZ_.js";const m=()=>t.jsx(o,{title:"Gate Pass",breadcrumb:"Port & Operations / Permits"});export{m as component};

@@ -1,8 +1,8 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import {
-  Anchor, Ship, FileCheck2, Sailboat, Orbit, Users, Package, BarChart3,
+  Ship, FileCheck2, Sailboat, Orbit, Users, Package, BarChart3,
   ChevronDown, ChevronRight, LogOut, Settings, Search,
-  LogIn, ShieldCheck, Compass, Anchor as AnchorIcon, DoorOpen, Radio, Navigation, FileBadge,
+  LogIn, ShieldCheck, Compass, Anchor, DoorOpen, Radio, Navigation, FileBadge, LayoutGrid,
 } from "lucide-react";
 import { useState } from "react";
 import logo from "@/assets/jls-logo.png";
@@ -17,22 +17,28 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  { label: "Yachts", to: "/yachts", icon: Ship },
   {
-    label: "Permits",
-    icon: FileCheck2,
+    label: "Port & Operations",
+    icon: LayoutGrid,
     children: [
-      { label: "Exit & Entry Permits", to: "/permits/exit-entry", icon: LogIn },
-      { label: "Sanitation", to: "/permits/sanitation", icon: ShieldCheck },
-      { label: "Cruising Permit — Mothership", to: "/permits/cruising-mothership", icon: Compass },
-      { label: "Cruising Permit — Tenders", to: "/permits/cruising-tenders", icon: AnchorIcon },
-      { label: "Gate Pass", to: "/permits/gate-pass", icon: DoorOpen },
-      { label: "TDRA", to: "/permits/tdra", icon: Radio },
-      { label: "Navigation License", to: "/permits/navigation-license", icon: Navigation },
-      { label: "DMA Permits", to: "/permits/dma", icon: FileBadge },
+      { label: "Yachts", to: "/yachts", icon: Ship },
+      {
+        label: "Permits",
+        icon: FileCheck2,
+        children: [
+          { label: "Exit & Entry Permits", to: "/permits/exit-entry", icon: LogIn },
+          { label: "Sanitation", to: "/permits/sanitation", icon: ShieldCheck },
+          { label: "Cruising Permit — Mot...", to: "/permits/cruising-mothership", icon: Compass },
+          { label: "Cruising Permit — Ten...", to: "/permits/cruising-tenders", icon: Anchor },
+          { label: "Gate Pass", to: "/permits/gate-pass", icon: DoorOpen },
+          { label: "TDRA", to: "/permits/tdra", icon: Radio },
+          { label: "Navigation License", to: "/permits/navigation-license", icon: Navigation },
+          { label: "DMA Permits", to: "/permits/dma", icon: FileBadge },
+        ],
+      },
+      { label: "Small Boat Registration", to: "/small-boat-registration", icon: Sailboat },
     ],
   },
-  { label: "Small Boat Registration", to: "/small-boat-registration", icon: Sailboat },
   { label: "Orbit", to: "/orbit", icon: Orbit },
   { label: "Crew Cab", to: "/crew-cab", icon: Users },
   { label: "Packages & Deliveries", to: "/packages", icon: Package },
