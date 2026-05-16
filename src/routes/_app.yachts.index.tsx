@@ -7,7 +7,7 @@ import { StatusPill } from "@/components/status-pill";
 import { YACHT_COLUMNS, DEFAULT_VISIBLE_COLUMNS, type YachtColumnKey } from "@/lib/yacht-fields";
 import {
   Plus, LayoutGrid, List, Search, SlidersHorizontal, Anchor, Ship, MapPin, LogOut, RefreshCcw,
-  ChevronUp, ChevronDown, ChevronsUpDown, Pencil,
+  ChevronUp, ChevronDown, ChevronsUpDown, Pencil, Radar,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -335,6 +335,20 @@ function fmt(v: unknown) {
   return String(v);
 }
 
+/** Returns a MarineTraffic deep-link using IMO → MMSI → name as fallback */
+function trackUrl(y: Yacht): string {
+  const imo = String(y.imo_no ?? "").trim();
+  if (imo && imo !== "—") {
+    return `https://www.marinetraffic.com/en/ais/details/ships/imo:${imo}`;
+  }
+  const mmsi = String(y.mmsi ?? "").trim();
+  if (mmsi && mmsi !== "—") {
+    return `https://www.marinetraffic.com/en/ais/details/ships/mmsi:${mmsi}`;
+  }
+  const name = String(y.vessel_name ?? "").trim();
+  return `https://www.marinetraffic.com/en/ais/index/search/all/keyword:${encodeURIComponent(name)}`;
+}
+
 function ListView({
   rows, visible, sortKey, sortDir, onSort, quickEditId, setQuickEditId, updateStatus,
 }: {
@@ -366,6 +380,9 @@ function ListView({
                 </span>
               </th>
             ))}
+            <th className="px-3 py-2 text-left font-medium w-8">
+              <Radar className="h-3 w-3 opacity-40" />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -407,6 +424,19 @@ function ListView({
                   )}
                 </td>
               ))}
+              {/* Fleet tracking button */}
+              <td className="px-2 py-1.5">
+                <a
+                  href={trackUrl(y)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Track on MarineTraffic"
+                  onClick={e => e.stopPropagation()}
+                  className="inline-flex h-6 w-6 items-center justify-center rounded transition hover:bg-primary/10 hover:text-primary text-muted-foreground/50"
+                >
+                  <Radar className="h-3.5 w-3.5" />
+                </a>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -445,6 +475,20 @@ function CardsView({ rows }: { rows: Yacht[] }) {
               <div><div className="text-muted-foreground">LOA</div><div className="font-medium tabular-nums">{fmt(y.length_overall_m)} m</div></div>
               <div><div className="text-muted-foreground">ETA</div><div className="font-medium tabular-nums">{fmt(y.eta)}</div></div>
               <div><div className="text-muted-foreground">ETD</div><div className="font-medium tabular-nums">{fmt(y.etd)}</div></div>
+            </div>
+            {/* Fleet tracking */}
+            <div className="border-t border-border/50 pt-2">
+              <a
+                href={trackUrl(y)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Track on MarineTraffic"
+                onClick={e => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 rounded px-2 py-1 text-[11px] text-muted-foreground transition hover:bg-primary/10 hover:text-primary"
+              >
+                <Radar className="h-3 w-3" />
+                Track on MarineTraffic
+              </a>
             </div>
           </div>
         </Link>
