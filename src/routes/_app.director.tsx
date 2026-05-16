@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { StubPage } from "@/components/stub-page";
+import { DirectorPage } from "@/components/director-page";
 
 export const Route = createFileRoute("/_app/director")({
-  component: () => <StubPage title="Director" breadcrumb="Director" />,
+  component: DirectorPage,
   head: () => ({ meta: [{ title: "Director — JLS Yachts CRM" }] }),
 });

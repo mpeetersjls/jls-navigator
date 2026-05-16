@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/status-pill";
 import { YACHT_COLUMNS, DEFAULT_VISIBLE_COLUMNS, type YachtColumnKey } from "@/lib/yacht-fields";
 import {
-  Plus, LayoutGrid, List, Search, SlidersHorizontal, Anchor, Ship, MapPin, Calendar,
+  Plus, LayoutGrid, List, Search, SlidersHorizontal, Anchor, Ship, MapPin, Archive,
+  ChevronUp, ChevronDown, ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuCheckboxItem,
+  DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/_app/yachts/")({
@@ -19,15 +21,41 @@ export const Route = createFileRoute("/_app/yachts/")({
 });
 
 type Yacht = Record<string, unknown> & { id: string; vessel_name: string; vessel_image?: string | null };
+type StatusFilter = "all" | "active" | "archived";
+type SortDir = "asc" | "desc";
+
+const LS_VISIBLE_KEY = "jls-yachts-visible-columns";
+
+function loadVisibleCols(): YachtColumnKey[] {
+  try {
+    const raw = localStorage.getItem(LS_VISIBLE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as YachtColumnKey[];
+      const valid = YACHT_COLUMNS.map((c) => c.key);
+      const filtered = parsed.filter((k) => valid.includes(k));
+      if (filtered.length > 0) return filtered;
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_VISIBLE_COLUMNS;
+}
 
 function YachtsPage() {
   const [view, setView] = useState<"list" | "cards">("list");
   const [yachts, setYachts] = useState<Yacht[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
-  const [visible, setVisible] = useState<YachtColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [visible, setVisible] = useState<YachtColumnKey[]>(loadVisibleCols);
+  const [sortKey, setSortKey] = useState<YachtColumnKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   useEffect(() => { void load(); }, []);
+
+  // Persist visible columns to localStorage
+  useEffect(() => {
+    localStorage.setItem(LS_VISIBLE_KEY, JSON.stringify(visible));
+  }, [visible]);
+
   async function load() {
     setLoading(true);
     const { data, error } = await supabase
@@ -39,49 +67,102 @@ function YachtsPage() {
     setLoading(false);
   }
 
-  const filtered = useMemo(() => {
-    if (!q.trim()) return yachts;
-    const s = q.toLowerCase();
-    return yachts.filter((y) =>
-      Object.values(y).some((v) => String(v ?? "").toLowerCase().includes(s)),
-    );
-  }, [yachts, q]);
-
   const stats = useMemo(() => {
     const total = yachts.length;
-    const inPort = yachts.filter((y) => String(y.status ?? "").toLowerCase().includes("active") || String(y.status ?? "").toLowerCase().includes("port")).length;
+    const active = yachts.filter((y) =>
+      String(y.status ?? "").toLowerCase() === "active",
+    ).length;
     const archived = yachts.filter((y) => y.archive === true).length;
-    return { total, inPort, archived };
+    return { total, active, archived };
   }, [yachts]);
+
+  const filtered = useMemo(() => {
+    let rows = yachts;
+
+    // Status filter
+    if (statusFilter === "active") {
+      rows = rows.filter((y) => String(y.status ?? "").toLowerCase() === "active");
+    } else if (statusFilter === "archived") {
+      rows = rows.filter((y) => y.archive === true);
+    }
+
+    // Text search
+    if (q.trim()) {
+      const s = q.toLowerCase();
+      rows = rows.filter((y) =>
+        Object.values(y).some((v) => String(v ?? "").toLowerCase().includes(s)),
+      );
+    }
+
+    // Sort
+    if (sortKey) {
+      rows = [...rows].sort((a, b) => {
+        const av = String(a[sortKey] ?? "").toLowerCase();
+        const bv = String(b[sortKey] ?? "").toLowerCase();
+        const cmp = av.localeCompare(bv, undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    }
+
+    return rows;
+  }, [yachts, q, statusFilter, sortKey, sortDir]);
+
+  function toggleSort(key: YachtColumnKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function toggleStatFilter(filter: StatusFilter) {
+    setStatusFilter((prev) => (prev === filter ? "all" : filter));
+  }
+
+  function toggleVisible(key: YachtColumnKey, checked: boolean) {
+    setVisible((prev) => (checked ? [...prev, key] : prev.filter((k) => k !== key)));
+  }
 
   return (
     <div className="flex h-full flex-col">
       {/* Top bar */}
-      <header className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-3">
+      <header className="flex items-center justify-between border-b border-border bg-card/40 px-5 py-3">
         <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Anchor className="h-3.5 w-3.5" /> Port & Operations
             <span className="opacity-40">/</span>
             <span className="text-foreground">Yachts</span>
           </div>
-          <h1 className="font-display text-xl font-semibold tracking-tight">Yacht Registry</h1>
+          <h1 className="font-display text-base font-semibold tracking-tight">Yacht Registry</h1>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search yachts…" className="h-9 w-64 pl-8" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search yachts…"
+              className="h-8 w-56 pl-8"
+            />
           </div>
-          <div className="flex h-9 rounded-md border border-border bg-card p-0.5">
-            <button onClick={() => setView("list")} className={`flex items-center gap-1 rounded px-2.5 text-xs ${view === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}>
+          <div className="flex h-8 rounded-md border border-border bg-card p-0.5">
+            <button
+              onClick={() => setView("list")}
+              className={`flex items-center gap-1 rounded px-2.5 text-xs ${view === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
+            >
               <List className="h-3.5 w-3.5" /> List
             </button>
-            <button onClick={() => setView("cards")} className={`flex items-center gap-1 rounded px-2.5 text-xs ${view === "cards" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}>
+            <button
+              onClick={() => setView("cards")}
+              className={`flex items-center gap-1 rounded px-2.5 text-xs ${view === "cards" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}
+            >
               <LayoutGrid className="h-3.5 w-3.5" /> Cards
             </button>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-9 gap-1.5">
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
                 <SlidersHorizontal className="h-3.5 w-3.5" /> Columns
               </Button>
             </DropdownMenuTrigger>
@@ -92,35 +173,74 @@ function YachtsPage() {
                 <DropdownMenuCheckboxItem
                   key={c.key}
                   checked={visible.includes(c.key)}
-                  onCheckedChange={(v) =>
-                    setVisible((prev) => (v ? [...prev, c.key] : prev.filter((k) => k !== c.key)))
-                  }
+                  onCheckedChange={(v) => toggleVisible(c.key, v)}
                 >
                   {c.label}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button asChild size="sm" className="h-9 gap-1.5">
+          <Button asChild size="sm" className="h-8 gap-1.5 text-xs">
             <Link to="/yachts/new"><Plus className="h-3.5 w-3.5" /> Add Yacht</Link>
           </Button>
         </div>
       </header>
 
-      {/* Stat strip */}
-      <div className="grid grid-cols-3 gap-3 px-6 py-4">
-        <Stat label="Total Vessels" value={stats.total} icon={Ship} accent="text-primary" />
-        <Stat label="Active / In Port" value={stats.inPort} icon={MapPin} accent="text-success" />
-        <Stat label="Archived" value={stats.archived} icon={Calendar} accent="text-muted-foreground" />
+      {/* Stat strip — clickable to filter */}
+      <div className="grid grid-cols-3 gap-3 px-5 py-3">
+        <StatCard
+          label="Total Vessels"
+          value={stats.total}
+          icon={Ship}
+          accent="text-primary"
+          active={statusFilter === "all"}
+          onClick={() => setStatusFilter("all")}
+        />
+        <StatCard
+          label="Active"
+          value={stats.active}
+          icon={MapPin}
+          accent="text-success"
+          active={statusFilter === "active"}
+          onClick={() => toggleStatFilter("active")}
+        />
+        <StatCard
+          label="Archived"
+          value={stats.archived}
+          icon={Archive}
+          accent="text-muted-foreground"
+          active={statusFilter === "archived"}
+          onClick={() => toggleStatFilter("archived")}
+        />
       </div>
 
-      <div className="flex-1 overflow-auto px-6 pb-6">
+      {statusFilter !== "all" && (
+        <div className="px-5 pb-1 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            Filtering by: <strong className="text-foreground capitalize">{statusFilter}</strong>
+          </span>
+          <button
+            onClick={() => setStatusFilter("all")}
+            className="text-xs text-primary hover:underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto px-5 pb-5">
         {loading ? (
           <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">Loading…</div>
         ) : filtered.length === 0 ? (
-          <EmptyState />
+          <EmptyState hasFilter={!!q || statusFilter !== "all"} />
         ) : view === "list" ? (
-          <ListView rows={filtered} visible={visible} />
+          <ListView
+            rows={filtered}
+            visible={visible}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={toggleSort}
+          />
         ) : (
           <CardsView rows={filtered} />
         )}
@@ -129,25 +249,54 @@ function YachtsPage() {
   );
 }
 
-function Stat({ label, value, icon: Icon, accent }: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; accent: string }) {
+function StatCard({
+  label, value, icon: Icon, accent, active, onClick,
+}: {
+  label: string;
+  value: number;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
+    <button
+      onClick={onClick}
+      className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition hover:border-primary/40 hover:bg-card/80 ${
+        active ? "border-primary/50 bg-primary/5 ring-1 ring-primary/20" : "border-border bg-card"
+      }`}
+    >
       <div>
         <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
         <div className={`font-display text-2xl font-bold tabular-nums ${accent}`}>{value}</div>
       </div>
       <Icon className={`h-7 w-7 ${accent} opacity-60`} />
-    </div>
+    </button>
   );
 }
 
-function EmptyState() {
+function SortIcon({ col, sortKey, sortDir }: { col: YachtColumnKey; sortKey: YachtColumnKey | null; sortDir: SortDir }) {
+  if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-30" />;
+  return sortDir === "asc"
+    ? <ChevronUp className="h-3 w-3 text-primary" />
+    : <ChevronDown className="h-3 w-3 text-primary" />;
+}
+
+function EmptyState({ hasFilter }: { hasFilter: boolean }) {
   return (
     <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center">
       <Ship className="h-10 w-10 text-muted-foreground/60" />
-      <h3 className="mt-3 font-display text-lg font-semibold">No yachts yet</h3>
-      <p className="text-sm text-muted-foreground">Add your first vessel to get started.</p>
-      <Button asChild className="mt-4 gap-1.5"><Link to="/yachts/new"><Plus className="h-4 w-4" /> Add Yacht</Link></Button>
+      <h3 className="mt-3 font-display text-lg font-semibold">
+        {hasFilter ? "No matching yachts" : "No yachts yet"}
+      </h3>
+      <p className="text-sm text-muted-foreground">
+        {hasFilter ? "Try adjusting your search or filter." : "Add your first vessel to get started."}
+      </p>
+      {!hasFilter && (
+        <Button asChild className="mt-4 gap-1.5">
+          <Link to="/yachts/new"><Plus className="h-4 w-4" /> Add Yacht</Link>
+        </Button>
+      )}
     </div>
   );
 }
@@ -157,27 +306,48 @@ function fmt(v: unknown) {
   return String(v);
 }
 
-function ListView({ rows, visible }: { rows: Yacht[]; visible: YachtColumnKey[] }) {
+function ListView({
+  rows, visible, sortKey, sortDir, onSort,
+}: {
+  rows: Yacht[];
+  visible: YachtColumnKey[];
+  sortKey: YachtColumnKey | null;
+  sortDir: SortDir;
+  onSort: (key: YachtColumnKey) => void;
+}) {
   const cols = YACHT_COLUMNS.filter((c) => visible.includes(c.key));
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="min-w-full text-sm">
+      <table className="min-w-full text-xs">
         <thead className="sticky top-0 z-10 bg-card/95 backdrop-blur">
           <tr className="border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
             <th className="px-3 py-2 text-left font-medium">●</th>
             {cols.map((c) => (
-              <th key={c.key} className="whitespace-nowrap px-3 py-2 text-left font-medium">{c.label}</th>
+              <th
+                key={c.key}
+                className="whitespace-nowrap px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-foreground transition"
+                onClick={() => onSort(c.key)}
+              >
+                <span className="flex items-center gap-1">
+                  {c.label}
+                  <SortIcon col={c.key} sortKey={sortKey} sortDir={sortDir} />
+                </span>
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((y, i) => (
             <tr key={y.id} className="border-b border-border/50 transition hover:bg-accent/30">
-              <td className="px-3 py-2 text-muted-foreground tabular-nums text-xs">{String(i + 1).padStart(3, "0")}</td>
+              <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{String(i + 1).padStart(3, "0")}</td>
               {cols.map((c) => (
-                <td key={c.key} className="whitespace-nowrap px-3 py-2">
+                <td key={c.key} className="whitespace-nowrap px-3 py-1.5">
                   {c.key === "vessel_name" ? (
-                    <Link to="/yachts/$id" params={{ id: y.id }} className="font-medium text-foreground hover:text-primary">
+                    <Link
+                      to="/yachts/$id"
+                      params={{ id: y.id }}
+                      className="font-medium text-foreground hover:text-primary"
+                    >
                       {fmt(y[c.key])}
                     </Link>
                   ) : c.key === "status" ? (
@@ -209,7 +379,9 @@ function CardsView({ rows }: { rows: Yacht[] }) {
             {y.vessel_image ? (
               <img src={y.vessel_image as string} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center"><Ship className="h-10 w-10 text-muted-foreground/40" /></div>
+              <div className="flex h-full w-full items-center justify-center">
+                <Ship className="h-10 w-10 text-muted-foreground/40" />
+              </div>
             )}
           </div>
           <div className="space-y-2 p-4">

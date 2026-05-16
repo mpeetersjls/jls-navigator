@@ -14,6 +14,10 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { StatusPill } from "@/components/status-pill";
@@ -24,6 +28,7 @@ import { CruisingMothershipDialog } from "@/components/cruising-mothership-dialo
 import { TdraDialog } from "@/components/tdra-dialog";
 import { DmaDialog } from "@/components/dma-dialog";
 import { NavigationLicenseDialog } from "@/components/navigation-license-dialog";
+import { GatePassDialog } from "@/components/gate-pass-dialog";
 import { Plus, Search, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -39,6 +44,7 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Permit | null>(null);
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Permit | null>(null);
 
   useEffect(() => { void load(); void loadYachts(); }, [permitType]);
 
@@ -61,12 +67,12 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
   function startNew() { setEditing(null); setOpen(true); }
   function startEdit(p: Permit) { setEditing(p); setOpen(true); }
 
-  async function remove(p: Permit) {
-    if (!confirm(`Delete permit ${p.permit_number ?? ""}?`)) return;
-    const { error } = await supabase.from("permits").delete().eq("id", p.id);
-    if (error) return toast.error(error.message);
-    toast.success("Deleted");
-    void load();
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    const { error } = await supabase.from("permits").delete().eq("id", deleteTarget.id);
+    if (error) toast.error(error.message);
+    else { toast.success("Deleted"); void load(); }
+    setDeleteTarget(null);
   }
 
   const filtered = useMemo(() => {
@@ -153,6 +159,13 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
                 userId={user?.id}
                 onSaved={() => { setOpen(false); void load(); }}
               />
+            ) : permitType === "gate_pass" ? (
+              <GatePassDialog
+                yachts={yachts}
+                editing={editing}
+                userId={user?.id}
+                onSaved={() => { setOpen(false); void load(); }}
+              />
             ) : permitType === "navigation_license" ? (
               <NavigationLicenseDialog
                 yachts={yachts}
@@ -234,7 +247,7 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
                           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => startEdit(r)}>
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => remove(r)}>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive" onClick={() => setDeleteTarget(r)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -247,6 +260,30 @@ export function PermitsPage({ permitType }: { permitType: PermitType }) {
           </div>
         )}
       </div>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete permit?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.permit_number
+                ? <>Permit <strong>{deleteTarget.permit_number}</strong> will be permanently removed.</>
+                : "This permit will be permanently removed."}
+              {" "}This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
