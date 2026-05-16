@@ -7,13 +7,15 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
   const url = new URL(request.url)
 
   // SharePoint sends GET with validationToken when registering a subscription.
-  // Must echo it back as text/plain within 5 seconds.
+  // Must echo the raw token back as text/plain within 5 seconds.
+  // NOTE: url.searchParams.get() already URL-decodes the value — do NOT
+  // wrap in decodeURIComponent() again or tokens containing % will throw URIError.
   if (request.method === 'GET') {
     const token = url.searchParams.get('validationToken')
     if (token) {
-      return new Response(decodeURIComponent(token), {
+      return new Response(token, {
         status: 200,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        headers: { 'Content-Type': 'text/plain' },
       })
     }
     return new Response('ok', { status: 200 })
