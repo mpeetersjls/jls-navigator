@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { StubPage } from "@/components/stub-page";
+import { PermitsPage } from "@/components/permits-page";
+import { PERMIT_META } from "@/lib/permit-types";
 
 export const Route = createFileRoute("/_app/permits/navigation-license")({
-  component: () => <StubPage title="Navigation License" breadcrumb="Port & Operations / Permits" />,
-  head: () => ({ meta: [{ title: "Navigation License — JLS Yachts CRM" }] }),
+  component: () => <PermitsPage permitType="navigation_license" />,
+  head: () => ({ meta: [{ title: `${PERMIT_META.navigation_license.label} — JLS Yachts CRM` }] }),
 });
