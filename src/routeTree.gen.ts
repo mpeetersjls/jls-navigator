@@ -29,6 +29,10 @@ import { Route as AppPermitsExitEntryRouteImport } from './routes/_app.permits.e
 import { Route as AppPermitsDmaRouteImport } from './routes/_app.permits.dma'
 import { Route as AppPermitsCruisingTendersRouteImport } from './routes/_app.permits.cruising-tenders'
 import { Route as AppPermitsCruisingMothershipRouteImport } from './routes/_app.permits.cruising-mothership'
+import { Route as AppCrewCabVehiclesRouteImport } from './routes/_app.crew-cab.vehicles'
+import { Route as AppCrewCabTripsRouteImport } from './routes/_app.crew-cab.trips'
+import { Route as AppCrewCabLocationsRouteImport } from './routes/_app.crew-cab.locations'
+import { Route as AppCrewCabDriversRouteImport } from './routes/_app.crew-cab.drivers'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -133,16 +137,40 @@ const AppPermitsCruisingMothershipRoute =
     path: '/permits/cruising-mothership',
     getParentRoute: () => AppRoute,
   } as any)
+const AppCrewCabVehiclesRoute = AppCrewCabVehiclesRouteImport.update({
+  id: '/vehicles',
+  path: '/vehicles',
+  getParentRoute: () => AppCrewCabRoute,
+} as any)
+const AppCrewCabTripsRoute = AppCrewCabTripsRouteImport.update({
+  id: '/trips',
+  path: '/trips',
+  getParentRoute: () => AppCrewCabRoute,
+} as any)
+const AppCrewCabLocationsRoute = AppCrewCabLocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
+  getParentRoute: () => AppCrewCabRoute,
+} as any)
+const AppCrewCabDriversRoute = AppCrewCabDriversRouteImport.update({
+  id: '/drivers',
+  path: '/drivers',
+  getParentRoute: () => AppCrewCabRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/crew-cab': typeof AppCrewCabRoute
+  '/crew-cab': typeof AppCrewCabRouteWithChildren
   '/director': typeof AppDirectorRoute
   '/orbit': typeof AppOrbitRoute
   '/packages': typeof AppPackagesRoute
   '/settings': typeof AppSettingsRoute
   '/small-boat-registration': typeof AppSmallBoatRegistrationRoute
+  '/crew-cab/drivers': typeof AppCrewCabDriversRoute
+  '/crew-cab/locations': typeof AppCrewCabLocationsRoute
+  '/crew-cab/trips': typeof AppCrewCabTripsRoute
+  '/crew-cab/vehicles': typeof AppCrewCabVehiclesRoute
   '/permits/cruising-mothership': typeof AppPermitsCruisingMothershipRoute
   '/permits/cruising-tenders': typeof AppPermitsCruisingTendersRoute
   '/permits/dma': typeof AppPermitsDmaRoute
@@ -158,12 +186,16 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/crew-cab': typeof AppCrewCabRoute
+  '/crew-cab': typeof AppCrewCabRouteWithChildren
   '/director': typeof AppDirectorRoute
   '/orbit': typeof AppOrbitRoute
   '/packages': typeof AppPackagesRoute
   '/settings': typeof AppSettingsRoute
   '/small-boat-registration': typeof AppSmallBoatRegistrationRoute
+  '/crew-cab/drivers': typeof AppCrewCabDriversRoute
+  '/crew-cab/locations': typeof AppCrewCabLocationsRoute
+  '/crew-cab/trips': typeof AppCrewCabTripsRoute
+  '/crew-cab/vehicles': typeof AppCrewCabVehiclesRoute
   '/permits/cruising-mothership': typeof AppPermitsCruisingMothershipRoute
   '/permits/cruising-tenders': typeof AppPermitsCruisingTendersRoute
   '/permits/dma': typeof AppPermitsDmaRoute
@@ -181,12 +213,16 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_app/crew-cab': typeof AppCrewCabRoute
+  '/_app/crew-cab': typeof AppCrewCabRouteWithChildren
   '/_app/director': typeof AppDirectorRoute
   '/_app/orbit': typeof AppOrbitRoute
   '/_app/packages': typeof AppPackagesRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/small-boat-registration': typeof AppSmallBoatRegistrationRoute
+  '/_app/crew-cab/drivers': typeof AppCrewCabDriversRoute
+  '/_app/crew-cab/locations': typeof AppCrewCabLocationsRoute
+  '/_app/crew-cab/trips': typeof AppCrewCabTripsRoute
+  '/_app/crew-cab/vehicles': typeof AppCrewCabVehiclesRoute
   '/_app/permits/cruising-mothership': typeof AppPermitsCruisingMothershipRoute
   '/_app/permits/cruising-tenders': typeof AppPermitsCruisingTendersRoute
   '/_app/permits/dma': typeof AppPermitsDmaRoute
@@ -210,6 +246,10 @@ export interface FileRouteTypes {
     | '/packages'
     | '/settings'
     | '/small-boat-registration'
+    | '/crew-cab/drivers'
+    | '/crew-cab/locations'
+    | '/crew-cab/trips'
+    | '/crew-cab/vehicles'
     | '/permits/cruising-mothership'
     | '/permits/cruising-tenders'
     | '/permits/dma'
@@ -231,6 +271,10 @@ export interface FileRouteTypes {
     | '/packages'
     | '/settings'
     | '/small-boat-registration'
+    | '/crew-cab/drivers'
+    | '/crew-cab/locations'
+    | '/crew-cab/trips'
+    | '/crew-cab/vehicles'
     | '/permits/cruising-mothership'
     | '/permits/cruising-tenders'
     | '/permits/dma'
@@ -253,6 +297,10 @@ export interface FileRouteTypes {
     | '/_app/packages'
     | '/_app/settings'
     | '/_app/small-boat-registration'
+    | '/_app/crew-cab/drivers'
+    | '/_app/crew-cab/locations'
+    | '/_app/crew-cab/trips'
+    | '/_app/crew-cab/vehicles'
     | '/_app/permits/cruising-mothership'
     | '/_app/permits/cruising-tenders'
     | '/_app/permits/dma'
@@ -414,11 +462,57 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppPermitsCruisingMothershipRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/crew-cab/vehicles': {
+      id: '/_app/crew-cab/vehicles'
+      path: '/vehicles'
+      fullPath: '/crew-cab/vehicles'
+      preLoaderRoute: typeof AppCrewCabVehiclesRouteImport
+      parentRoute: typeof AppCrewCabRoute
+    }
+    '/_app/crew-cab/trips': {
+      id: '/_app/crew-cab/trips'
+      path: '/trips'
+      fullPath: '/crew-cab/trips'
+      preLoaderRoute: typeof AppCrewCabTripsRouteImport
+      parentRoute: typeof AppCrewCabRoute
+    }
+    '/_app/crew-cab/locations': {
+      id: '/_app/crew-cab/locations'
+      path: '/locations'
+      fullPath: '/crew-cab/locations'
+      preLoaderRoute: typeof AppCrewCabLocationsRouteImport
+      parentRoute: typeof AppCrewCabRoute
+    }
+    '/_app/crew-cab/drivers': {
+      id: '/_app/crew-cab/drivers'
+      path: '/drivers'
+      fullPath: '/crew-cab/drivers'
+      preLoaderRoute: typeof AppCrewCabDriversRouteImport
+      parentRoute: typeof AppCrewCabRoute
+    }
   }
 }
 
+interface AppCrewCabRouteChildren {
+  AppCrewCabDriversRoute: typeof AppCrewCabDriversRoute
+  AppCrewCabLocationsRoute: typeof AppCrewCabLocationsRoute
+  AppCrewCabTripsRoute: typeof AppCrewCabTripsRoute
+  AppCrewCabVehiclesRoute: typeof AppCrewCabVehiclesRoute
+}
+
+const AppCrewCabRouteChildren: AppCrewCabRouteChildren = {
+  AppCrewCabDriversRoute: AppCrewCabDriversRoute,
+  AppCrewCabLocationsRoute: AppCrewCabLocationsRoute,
+  AppCrewCabTripsRoute: AppCrewCabTripsRoute,
+  AppCrewCabVehiclesRoute: AppCrewCabVehiclesRoute,
+}
+
+const AppCrewCabRouteWithChildren = AppCrewCabRoute._addFileChildren(
+  AppCrewCabRouteChildren,
+)
+
 interface AppRouteChildren {
-  AppCrewCabRoute: typeof AppCrewCabRoute
+  AppCrewCabRoute: typeof AppCrewCabRouteWithChildren
   AppDirectorRoute: typeof AppDirectorRoute
   AppOrbitRoute: typeof AppOrbitRoute
   AppPackagesRoute: typeof AppPackagesRoute
@@ -438,7 +532,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
-  AppCrewCabRoute: AppCrewCabRoute,
+  AppCrewCabRoute: AppCrewCabRouteWithChildren,
   AppDirectorRoute: AppDirectorRoute,
   AppOrbitRoute: AppOrbitRoute,
   AppPackagesRoute: AppPackagesRoute,

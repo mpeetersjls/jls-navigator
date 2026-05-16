@@ -1,7 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { StubPage } from "@/components/stub-page";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/crew-cab")({
-  component: () => <StubPage title="Crew Cab" breadcrumb="Crew Cab" />,
-  head: () => ({ meta: [{ title: "Crew Cab — JLS Yachts CRM" }] }),
+  beforeLoad: () => { throw redirect({ to: "/crew-cab/trips" }) },
 });

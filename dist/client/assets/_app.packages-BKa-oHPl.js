@@ -1,1 +1,0 @@
-import{j as t}from"./index-DD-zYqhE.js";import{S as e}from"./stub-page-CpcuIdNk.js";import"./createLucideIcon-CBSh2MZ_.js";const a=()=>t.jsx(e,{title:"Packages & Deliveries",breadcrumb:"Packages"});export{a as component};
