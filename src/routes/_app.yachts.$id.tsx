@@ -11,6 +11,10 @@ import { YACHT_COLUMNS } from "@/lib/yacht-fields";
 import { ArrowLeft, Trash2, Ship, Pencil, Save, X, Upload, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const doPushToSharePoint = createServerFn({ method: 'POST' })
   .handler(async (ctx: { data: { yachtId: string } }) => {
@@ -113,6 +117,7 @@ function YachtDetail() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [imgLoadError, setImgLoadError] = useState(false);
   const [syncingImage, setSyncingImage] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => { void load(); }, [id]);
   async function load() {
@@ -215,7 +220,6 @@ function YachtDetail() {
   }
 
   async function del() {
-    if (!confirm("Delete this yacht?")) return;
     const { error } = await supabase.from("yachts").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Deleted");
@@ -224,6 +228,8 @@ function YachtDetail() {
 
   if (loading) return <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">Loading…</div>;
   if (!y) return <div className="p-6 text-sm text-muted-foreground">Not found.</div>;
+
+  const yachtName = String(y.vessel_name ?? "this yacht");
 
   const displayImage = imagePreview ?? (y.vessel_image ? String(y.vessel_image) : null);
 
@@ -257,7 +263,7 @@ function YachtDetail() {
               <Button variant="outline" size="sm" onClick={startEdit} className="gap-1.5">
                 <Pencil className="h-3.5 w-3.5" /> Edit
               </Button>
-              <Button variant="outline" size="sm" onClick={del} className="gap-1.5 text-destructive hover:text-destructive">
+              <Button variant="outline" size="sm" onClick={() => setConfirmDelete(true)} className="gap-1.5 text-destructive hover:text-destructive">
                 <Trash2 className="h-3.5 w-3.5" /> Delete
               </Button>
             </>
@@ -345,6 +351,26 @@ function YachtDetail() {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete yacht?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{yachtName}</strong> and all its data will be permanently removed. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={del}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

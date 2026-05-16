@@ -226,37 +226,28 @@ async function fetchSpImageToSupabase(
   tenantId?: string,
   clientId?: string,
   clientSecret?: string,
-): Promise<string | null> {
+): Promise<{ url: string | null; reason?: string }> {
   // SP image/thumbnail columns return an object (or sometimes a JSON string)
   let img: Record<string, any> | null = null
   if (typeof raw === 'string') {
     // Could be a JSON-encoded object or a plain URL
-    try { img = JSON.parse(raw) } catch { return raw } // plain URL — use as-is
+    try { img = JSON.parse(raw) } catch {
+      // plain URL — upload it to Supabase
+      return uploadUrlToSupabase(raw, graphToken, spItemId, 'plain-url')
+    }
   } else if (raw && typeof raw === 'object') {
     img = raw as Record<string, any>
   }
-  if (!img) return null
+  if (!img) return { url: null, reason: 'Image field value was empty or unrecognisable.' }
 
-  // Hyperlink/Picture column returns { Url, Description }
+  // ── Hyperlink/Picture column: { Url, Description } ──────────────────────────
   if (typeof img.Url === 'string') {
-    // Plain URL — download directly with Graph token, or just store the URL
-    const directRes = await fetch(img.Url, { headers: { Authorization: `Bearer ${graphToken}` } })
-    if (!directRes.ok) return img.Url // store raw URL as fallback
-    const ab = await directRes.arrayBuffer()
-    const ct = directRes.headers.get('content-type') ?? 'image/jpeg'
-    const ext = ct.split('/')[1]?.split(';')[0] ?? 'jpg'
-    const path = `sharepoint/${spItemId}-hyperlink.${ext}`
-    const { error } = await supabaseAdmin.storage.from('vessel-images').upload(path, ab, { upsert: true, contentType: ct })
-    if (error) return img.Url
-    return supabaseAdmin.storage.from('vessel-images').getPublicUrl(path).data.publicUrl
+    return uploadUrlToSupabase(img.Url, graphToken, spItemId, 'hyperlink')
   }
 
   const serverUrl: string = img.serverUrl ?? tenantUrl.replace(/\/$/, '')
-  const serverRelativeUrl: string | undefined = img.serverRelativeUrl
-  if (!serverRelativeUrl) return null
 
-  // SharePoint file downloads require a SharePoint-scoped token (not the Graph token).
-  // Try to get one if credentials are available, otherwise fall back to Graph token.
+  // ── Acquire the best download token we can ───────────────────────────────────
   let downloadToken = graphToken
   if (tenantId && clientId && clientSecret) {
     try {
@@ -267,23 +258,73 @@ async function fetchSpImageToSupabase(
     }
   }
 
-  const imgRes = await fetch(`${serverUrl}${serverRelativeUrl}`, {
-    headers: { Authorization: `Bearer ${downloadToken}` },
-  })
-  if (!imgRes.ok) return null
+  // ── 1. Try serverRelativeUrl (classic Picture column) ───────────────────────
+  const serverRelativeUrl: string | undefined = img.serverRelativeUrl
+  if (serverRelativeUrl) {
+    const result = await uploadUrlToSupabase(
+      `${serverUrl}${serverRelativeUrl}`,
+      downloadToken,
+      spItemId,
+      img.fileName ?? 'sp-image',
+    )
+    if (result.url) return result
+    // fall through to thumbnail alternatives below
+  }
 
-  const arrayBuffer = await imgRes.arrayBuffer()
-  const contentType = imgRes.headers.get('content-type') ?? 'image/jpeg'
-  const ext = contentType.split('/')[1]?.split(';')[0] ?? 'jpg'
-  const fileName = img.fileName ?? `vessel-${spItemId}.${ext}`
-  const path = `sharepoint/${spItemId}-${fileName}`
+  // ── 2. Try thumbnailUrl (modern Image column, SharePoint 2019+) ──────────────
+  // thumbnailUrl may be relative (/_layouts/…) or absolute
+  const rawThumb: string | undefined = img.thumbnailUrl
+  if (rawThumb) {
+    const thumbFull = rawThumb.startsWith('http') ? rawThumb : `${serverUrl}${rawThumb}`
+    const result = await uploadUrlToSupabase(thumbFull, downloadToken, spItemId, 'thumbnail')
+    if (result.url) return result
+    // try with Graph token if SP token didn't work
+    if (downloadToken !== graphToken) {
+      const r2 = await uploadUrlToSupabase(thumbFull, graphToken, spItemId, 'thumbnail-graph')
+      if (r2.url) return r2
+    }
+  }
 
-  const { error } = await supabaseAdmin.storage
-    .from('vessel-images')
-    .upload(path, arrayBuffer, { upsert: true, contentType })
+  // ── 3. Neither worked ────────────────────────────────────────────────────────
+  const tried: string[] = []
+  if (serverRelativeUrl) tried.push(`server-relative URL (HTTP error)`)
+  if (rawThumb) tried.push(`thumbnail URL (HTTP error)`)
+  return {
+    url: null,
+    reason: tried.length
+      ? `SharePoint image found but download failed: ${tried.join('; ')}. Ensure the Azure app has Files.Read.All or Sites.Read.All permission.`
+      : 'Image field has no downloadable URL (serverRelativeUrl or thumbnailUrl).',
+  }
+}
 
-  if (error) return null
-  return supabaseAdmin.storage.from('vessel-images').getPublicUrl(path).data.publicUrl
+/** Fetch a URL with the given bearer token and upload the bytes to Supabase vessel-images. */
+async function uploadUrlToSupabase(
+  url: string,
+  token: string,
+  spItemId: string,
+  tag: string,
+): Promise<{ url: string | null; reason?: string }> {
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) {
+      return { url: null, reason: `HTTP ${res.status} fetching image (${tag})` }
+    }
+    const ab = await res.arrayBuffer()
+    const ct = res.headers.get('content-type') ?? 'image/jpeg'
+    // Reject HTML/error pages returned with 200 status
+    if (ct.includes('text/html')) {
+      return { url: null, reason: `Server returned HTML instead of image (${tag}) — likely auth redirect` }
+    }
+    const ext = ct.split('/')[1]?.split(';')[0]?.replace(/[^a-z0-9]/gi, '') ?? 'jpg'
+    const path = `sharepoint/${spItemId}-${tag}.${ext}`
+    const { error } = await supabaseAdmin.storage
+      .from('vessel-images')
+      .upload(path, ab, { upsert: true, contentType: ct })
+    if (error) return { url: null, reason: `Supabase upload failed: ${error.message}` }
+    return { url: supabaseAdmin.storage.from('vessel-images').getPublicUrl(path).data.publicUrl }
+  } catch (e) {
+    return { url: null, reason: `Network error: ${e instanceof Error ? e.message : String(e)}` }
+  }
 }
 
 // ─── Inbound: SharePoint → App (delta sync) ────────────────────────────────────
@@ -520,7 +561,7 @@ export async function downloadPendingImages(): Promise<number> {
       const raw = item.fields?.[imageSpField]
       if (!raw) continue
 
-      const url = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, yacht.sharepoint_item_id, cfg.tenantId, cfg.clientId, cfg.clientSecret)
+      const { url } = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, yacht.sharepoint_item_id, cfg.tenantId, cfg.clientId, cfg.clientSecret)
       if (url) {
         await supabaseAdmin.from('yachts').update({ vessel_image: url } as never).eq('id', yacht.id)
         downloaded++
@@ -594,11 +635,11 @@ export async function downloadYachtImage(yachtId: string): Promise<{ url: string
   )
   const item = await res.json() as Record<string, any>
   const raw = item.fields?.[imageSpField]
-  if (!raw) return { url: null, reason: 'The SharePoint item has no image attached.' }
+  if (!raw) return { url: null, reason: 'The SharePoint item has no image attached to the mapped image field.' }
 
-  const url = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, spItemId, cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const { url, reason } = await fetchSpImageToSupabase(raw, token, cfg.tenantUrl, spItemId, cfg.tenantId, cfg.clientId, cfg.clientSecret)
   if (url) {
     await supabaseAdmin.from('yachts').update({ vessel_image: url } as never).eq('id', yachtId)
   }
-  return { url: url ?? null, reason: url ? undefined : 'Image was found in SharePoint but could not be downloaded.' }
+  return { url: url ?? null, reason: url ? undefined : reason }
 }
