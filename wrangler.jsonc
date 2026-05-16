@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "jls-navigator",
-  "account_id": "4a0be15a938a847c43555a99ef72bea1",
+  "account_id": "a17922632501410e1a7bc57dfba7629a",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/worker-entry.ts",
