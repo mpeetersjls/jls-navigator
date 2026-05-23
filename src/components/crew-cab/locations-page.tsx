@@ -83,16 +83,25 @@ export function LocationsPage() {
     if (!form.address.trim()) { toast.error("Enter an address first"); return; }
     setGeocoding(true);
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(form.address)}&format=json&limit=1`,
-        { headers: { "Accept-Language": "en" } },
-      );
-      const data = await res.json() as any[];
-      if (!data.length) { toast.error("Address not found"); return; }
+      // Try UAE-specific first, then global fallback
+      const queries = [
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(form.address)}&countrycodes=ae&format=json&limit=1&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(form.address + ", United Arab Emirates")}&format=json&limit=1&addressdetails=1`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(form.address)}&format=json&limit=1&addressdetails=1`,
+      ];
+
+      let found: any = null;
+      for (const url of queries) {
+        const res = await fetch(url, { headers: { "Accept-Language": "en", "User-Agent": "JLS-Navigator/1.0" } });
+        const data = await res.json() as any[];
+        if (data.length) { found = data[0]; break; }
+      }
+
+      if (!found) { toast.error("Address not found — try a shorter address or enter coordinates manually"); return; }
       setForm((f) => ({
         ...f,
-        latitude: String(parseFloat(data[0].lat).toFixed(6)),
-        longitude: String(parseFloat(data[0].lon).toFixed(6)),
+        latitude: String(parseFloat(found.lat).toFixed(6)),
+        longitude: String(parseFloat(found.lon).toFixed(6)),
       }));
       toast.success("Coordinates found");
     } catch {
