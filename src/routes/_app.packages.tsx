@@ -1,7 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PackagesPage } from "@/components/packages-page";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_app/packages")({
-  component: PackagesPage,
-  head: () => ({ meta: [{ title: "Packages & Deliveries — JLS Yachts CRM" }] }),
+  component: () => <Outlet />,
 });

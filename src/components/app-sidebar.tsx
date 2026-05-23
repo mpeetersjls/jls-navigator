@@ -3,7 +3,7 @@ import {
   Ship, FileCheck2, Sailboat, Orbit, Users, Package, BarChart3,
   ChevronDown, ChevronRight, LogOut, Settings, Search,
   LogIn, ShieldCheck, Compass, Anchor, DoorOpen, Radio, Navigation, FileBadge, LayoutGrid,
-  Route, UserCircle2, Car, MapPin, ScrollText, X, DollarSign, Monitor, ShoppingCart,
+  Route, UserCircle2, Car, MapPin, ScrollText, X, DollarSign, Monitor, ShoppingCart, Truck,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import logo from "@/assets/jls-logo.png";
@@ -51,7 +51,15 @@ const NAV: NavItem[] = [
       { label: "Locations", to: "/crew-cab/locations", icon: MapPin },
     ],
   },
-  { label: "Packages & Deliveries", to: "/packages", icon: Package },
+  {
+    label: "Packages & Deliveries",
+    icon: Package,
+    children: [
+      { label: "Packages", to: "/packages", icon: Package },
+      { label: "Drivers", to: "/packages/drivers", icon: UserCircle2 },
+      { label: "Deliveries / Route", to: "/packages/deliveries", icon: Truck },
+    ],
+  },
   { label: "Finance", to: "/finance", icon: DollarSign },
   { label: "Yacht IT Solutions", to: "/yacht-it", icon: Monitor },
   { label: "Procurement", to: "/procurement", icon: ShoppingCart },
