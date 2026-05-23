@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TripType = "crew_pickup" | "inhouse" | "airport_transfer";
+type TripType = "crew_pickup" | "inhouse" | "airport_transfer" | "arrival_transport" | "departure_transport" | "delivery_collection" | "seaport_crew_change" | "shorebased";
 type TripStatus = "pending" | "confirmed" | "in_progress" | "completed" | "cancelled";
 
 type SavedLocation = { id: string; name: string; address: string | null; latitude: number | null; longitude: number | null };
@@ -95,11 +95,21 @@ const TYPE_LABEL: Record<TripType, string> = {
   crew_pickup: "Crew Pickup",
   inhouse: "In-House",
   airport_transfer: "Airport Transfer",
+  arrival_transport: "Arrival Transport",
+  departure_transport: "Departure Transport",
+  delivery_collection: "Delivery & Collection",
+  seaport_crew_change: "Seaport Crew Change",
+  shorebased: "Shorebased",
 };
 const TYPE_COLOR: Record<TripType, string> = {
   crew_pickup: "bg-blue-500/15 text-blue-400 border-blue-500/20",
   inhouse: "bg-purple-500/15 text-purple-400 border-purple-500/20",
   airport_transfer: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  arrival_transport: "bg-sky-500/15 text-sky-400 border-sky-500/20",
+  departure_transport: "bg-orange-500/15 text-orange-400 border-orange-500/20",
+  delivery_collection: "bg-teal-500/15 text-teal-400 border-teal-500/20",
+  seaport_crew_change: "bg-indigo-500/15 text-indigo-400 border-indigo-500/20",
+  shorebased: "bg-rose-500/15 text-rose-400 border-rose-500/20",
 };
 const STATUS_LABEL: Record<TripStatus, string> = {
   pending: "Pending", confirmed: "Confirmed", in_progress: "In Progress",
@@ -362,7 +372,16 @@ function BoardRow({
         {isActive("trip_type") ? (
           <InlineSelect
             value={trip.trip_type}
-            options={[{ value: "crew_pickup", label: "Crew Pickup" }, { value: "inhouse", label: "In-House" }, { value: "airport_transfer", label: "Airport Transfer" }]}
+            options={[
+              { value: "arrival_transport", label: "Arrival Transport" },
+              { value: "departure_transport", label: "Departure Transport" },
+              { value: "crew_pickup", label: "Crew Pickup" },
+              { value: "inhouse", label: "In-House" },
+              { value: "airport_transfer", label: "Airport Transfer" },
+              { value: "delivery_collection", label: "Delivery & Collection" },
+              { value: "seaport_crew_change", label: "Seaport Crew Change" },
+              { value: "shorebased", label: "Shorebased" },
+            ]}
             onChange={v => onSave(trip.id, { trip_type: v })}
             onDone={() => onActivate("")}
           />
@@ -575,9 +594,14 @@ function BoardAddRow({
       <td className="border-r border-border/40 px-2 py-1">
         <select value={form.trip_type} onChange={e => setForm(f => ({ ...f, trip_type: e.target.value as TripType }))}
           className="h-6 w-full rounded border border-border bg-card text-xs px-1">
+          <option value="arrival_transport">Arrival Transport</option>
+          <option value="departure_transport">Departure Transport</option>
           <option value="crew_pickup">Crew Pickup</option>
           <option value="inhouse">In-House</option>
           <option value="airport_transfer">Airport Transfer</option>
+          <option value="delivery_collection">Delivery &amp; Collection</option>
+          <option value="seaport_crew_change">Seaport Crew Change</option>
+          <option value="shorebased">Shorebased</option>
         </select>
       </td>
       <td className="border-r border-border/40 px-2 py-1">
@@ -808,7 +832,7 @@ export function TripsPage() {
           <h1 className="font-display text-base font-semibold">Trips</h1>
           <span className="text-xs text-muted-foreground">({trips.length})</span>
           <div className="flex items-center gap-0.5 ml-1">
-            {(["all", "crew_pickup", "inhouse", "airport_transfer"] as const).map(f => (
+            {(["all", "arrival_transport", "departure_transport", "crew_pickup", "inhouse", "airport_transfer", "delivery_collection", "seaport_crew_change", "shorebased"] as const).map(f => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -929,9 +953,14 @@ export function TripsPage() {
                   <Select value={form.trip_type} onValueChange={v => setForm(f => ({ ...f, trip_type: v as TripType }))}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="arrival_transport">Arrival Transport</SelectItem>
+                      <SelectItem value="departure_transport">Departure Transport</SelectItem>
                       <SelectItem value="crew_pickup">Crew Pickup</SelectItem>
                       <SelectItem value="inhouse">In-House</SelectItem>
                       <SelectItem value="airport_transfer">Airport Transfer</SelectItem>
+                      <SelectItem value="delivery_collection">Delivery &amp; Collection</SelectItem>
+                      <SelectItem value="seaport_crew_change">Seaport Crew Change</SelectItem>
+                      <SelectItem value="shorebased">Shorebased</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
