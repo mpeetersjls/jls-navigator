@@ -62,6 +62,14 @@ const STATUSES = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+const CURRENCIES = [
+  { value: "AED", label: "AED — UAE Dirham" },
+  { value: "USD", label: "USD — US Dollar" },
+  { value: "GBP", label: "GBP — British Pound" },
+  { value: "EUR", label: "EUR — Euro" },
+  { value: "ZAR", label: "ZAR — S. African Rand" },
+];
+
 const EMPTY_FORM: FormState = {
   request_no: null,
   yacht_name: "",
@@ -334,8 +342,8 @@ export function ProcurementPage() {
             </td>
             <td className="px-3 py-2"><CategoryBadge category={item.category} /></td>
             <td className="px-3 py-2 tabular-nums text-center">{item.quantity}</td>
-            <td className="px-3 py-2 tabular-nums text-right">{fmtAed(item.unit_price)}</td>
-            <td className="px-3 py-2 tabular-nums text-right font-medium">{fmtAed(item.total_amount)}</td>
+            <td className="px-3 py-2 tabular-nums text-right">{item.currency || "AED"} {fmtAed(item.unit_price)}</td>
+            <td className="px-3 py-2 tabular-nums text-right font-medium">{item.currency || "AED"} {fmtAed(item.total_amount)}</td>
             <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
               {item.invoice_ref ?? "—"}
             </td>
@@ -367,7 +375,7 @@ export function ProcurementPage() {
     );
   }
 
-  const TABLE_HEADERS = ["Ref", "Yacht", "Vendor", "Description", "Category", "Qty", "Unit Price", "Total (AED)", "Invoice Ref", "Status", "Requested", ""];
+  const TABLE_HEADERS = ["Ref", "Yacht", "Vendor", "Description", "Category", "Qty", "Unit Price", "Total", "Invoice Ref", "Status", "Requested", ""];
 
   return (
     <div className="flex h-full flex-col">
@@ -404,7 +412,7 @@ export function ProcurementPage() {
             { label: "Requested", value: stats.requested, color: "text-blue-400", isNum: false },
             { label: "Ordered", value: stats.ordered, color: "text-amber-400", isNum: false },
             { label: "Received", value: stats.received, color: "text-emerald-400", isNum: false },
-            { label: "Total Value (AED)", value: fmtAed(stats.totalValue), color: "text-foreground", isNum: true },
+            { label: "Total Value", value: fmtAed(stats.totalValue), color: "text-foreground", isNum: true },
           ].map(s => (
             <div
               key={s.label}
@@ -518,7 +526,7 @@ export function ProcurementPage() {
                     <span className="text-sm font-semibold">{yacht}</span>
                     <span className="text-xs text-muted-foreground">
                       {rows.length} item{rows.length !== 1 ? "s" : ""} ·{" "}
-                      <span className="font-medium text-foreground">AED {fmtAed(subtotal)}</span>
+                      <span className="font-medium text-foreground">{fmtAed(subtotal)}</span>
                     </span>
                   </div>
                   <table className="min-w-full text-sm">
@@ -636,7 +644,18 @@ export function ProcurementPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Unit Price (AED)</Label>
+                <Label>Currency</Label>
+                <Select value={form.currency} onValueChange={v => setF("currency", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map(c => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Unit Price ({form.currency || "AED"})</Label>
                 <Input
                   type="number"
                   min="0"
@@ -647,7 +666,7 @@ export function ProcurementPage() {
                 />
               </div>
               <div className="col-span-2 space-y-1.5">
-                <Label>Total Amount (AED)</Label>
+                <Label>Total Amount ({form.currency || "AED"})</Label>
                 <Input
                   type="number"
                   min="0"
