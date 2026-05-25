@@ -139,11 +139,53 @@ function Badge({ label, color }: { label: string; color: string }) {
   );
 }
 
+// ─── Coordinate parser ────────────────────────────────────────────────────────
+
+function parseCoords(input: string): { lat: number; lng: number } | null {
+  const s = input.trim();
+
+  // DMS: 25°14′55″N, 55°21′41″E  (tolerates Unicode/ASCII variants)
+  const dmsRe = /(\d+)\s*[°º˚]\s*(\d+)\s*[′'ʻ`']\s*([\d.]+)\s*[″"""]\s*([NS])[,\s]+(\d+)\s*[°º˚]\s*(\d+)\s*[′'ʻ`']\s*([\d.]+)\s*[″"""]\s*([EW])/i;
+  const dms = s.match(dmsRe);
+  if (dms) {
+    let lat = parseInt(dms[1]) + parseInt(dms[2]) / 60 + parseFloat(dms[3]) / 3600;
+    let lng = parseInt(dms[5]) + parseInt(dms[6]) / 60 + parseFloat(dms[7]) / 3600;
+    if (dms[4].toUpperCase() === "S") lat = -lat;
+    if (dms[8].toUpperCase() === "W") lng = -lng;
+    return { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) };
+  }
+
+  // Decimal + cardinal: 25.2486N, 55.3614E  or  25.2486 N 55.3614 E
+  const decDirRe = /([\d.]+)\s*([NS])[,\s]+([\d.]+)\s*([EW])/i;
+  const decDir = s.match(decDirRe);
+  if (decDir) {
+    let lat = parseFloat(decDir[1]);
+    let lng = parseFloat(decDir[3]);
+    if (decDir[2].toUpperCase() === "S") lat = -lat;
+    if (decDir[4].toUpperCase() === "W") lng = -lng;
+    return { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) };
+  }
+
+  // Plain decimal: 25.2486, 55.3614  (or negative for S/W)
+  const plainRe = /^(-?[\d.]+)[,\s]+(-?[\d.]+)$/;
+  const plain = s.match(plainRe);
+  if (plain) {
+    const lat = parseFloat(plain[1]);
+    const lng = parseFloat(plain[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (Math.abs(lat) > 0.1 || Math.abs(lng) > 0.1)) {
+      return { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) };
+    }
+  }
+
+  return null;
+}
+
 // ─── Address Combobox ─────────────────────────────────────────────────────────
 
 type AddressSuggestion =
   | { kind: "saved"; id: string; label: string; sub: string | null; lat: number | null; lng: number | null }
-  | { kind: "nominatim"; label: string; lat: number; lng: number };
+  | { kind: "nominatim"; label: string; sub: string; lat: number; lng: number }
+  | { kind: "coords"; label: string; lat: number; lng: number; raw: string };
 
 type AddressValue = {
   location_id: string;   // "__none" or a saved-location uuid
@@ -190,6 +232,20 @@ function AddressCombobox({
     clearTimeout(timerRef.current);
     if (q.length < 2) { setSuggestions([]); return; }
 
+    // ── 1. Coordinate detection (DMS / decimal / cardinal) ─────────────────
+    const coords = parseCoords(q);
+    if (coords) {
+      setSuggestions([{
+        kind: "coords",
+        label: `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`,
+        lat: coords.lat,
+        lng: coords.lng,
+        raw: q,
+      }]);
+      return;
+    }
+
+    // ── 2. Saved-location filter (instant) ─────────────────────────────────
     const savedMatches: AddressSuggestion[] = savedLocations
       .filter(l => l.name.toLowerCase().includes(q.toLowerCase()) || (l.address ?? "").toLowerCase().includes(q.toLowerCase()))
       .slice(0, 4)
@@ -197,35 +253,49 @@ function AddressCombobox({
 
     setSuggestions(savedMatches);
 
+    // ── 3. Nominatim autocomplete (debounced, query clamped to 100 chars) ──
+    const searchQ = q.length > 100 ? q.slice(0, 100).replace(/\s\S*$/, "").trim() : q;
+
     timerRef.current = setTimeout(async () => {
       setFetching(true);
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=5&addressdetails=0`,
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQ)}&limit=6&addressdetails=1`,
           { headers: { "Accept-Language": "en" } }
         );
         if (!res.ok) return;
-        const data: { display_name: string; lat: string; lon: string }[] = await res.json();
+        const data: { display_name: string; lat: string; lon: string; address?: Record<string, string> }[] = await res.json();
         setSuggestions([
           ...savedMatches,
-          ...data.map<AddressSuggestion>(r => ({
-            kind: "nominatim",
-            label: r.display_name,
-            lat: parseFloat(r.lat),
-            lng: parseFloat(r.lon),
-          })),
+          ...data.map<AddressSuggestion>(r => {
+            const parts = r.display_name.split(",").map(p => p.trim());
+            const a = r.address ?? {};
+            const sub = [a.road, a.suburb, a.city ?? a.town ?? a.village, a.country]
+              .filter(Boolean).join(", ");
+            return {
+              kind: "nominatim",
+              label: parts[0],
+              sub: sub || parts.slice(1, 3).join(", "),
+              lat: parseFloat(r.lat),
+              lng: parseFloat(r.lon),
+            };
+          }),
         ]);
-      } catch { /* network error — just keep saved matches */ }
+      } catch { /* network error — keep saved matches */ }
       finally { setFetching(false); }
-    }, 450);
+    }, 400);
   }
 
   function select(s: AddressSuggestion) {
     if (s.kind === "saved") {
       onChange({ location_id: s.id, address: s.label, lat: s.lat, lng: s.lng });
       setQuery(s.label);
+    } else if (s.kind === "coords") {
+      onChange({ location_id: "__none", address: s.raw, lat: s.lat, lng: s.lng });
+      setQuery(s.raw);
     } else {
-      onChange({ location_id: "__none", address: s.label, lat: s.lat, lng: s.lng });
+      const addr = [s.label, s.sub].filter(Boolean).join(", ");
+      onChange({ location_id: "__none", address: addr, lat: s.lat, lng: s.lng });
       setQuery(s.label);
     }
     setSuggestions([]);
@@ -265,14 +335,31 @@ function AddressCombobox({
               onMouseDown={() => select(s)}
               className="flex w-full items-start gap-2 px-3 py-2 text-left text-xs hover:bg-accent transition"
             >
-              <MapPin className={cn("mt-0.5 h-3 w-3 shrink-0", s.kind === "saved" ? "text-primary" : "text-muted-foreground")} />
+              <MapPin className={cn(
+                "mt-0.5 h-3 w-3 shrink-0",
+                s.kind === "saved" ? "text-primary" :
+                s.kind === "coords" ? "text-amber-400" :
+                "text-muted-foreground"
+              )} />
               <div className="min-w-0">
-                <div className="truncate font-medium">{s.kind === "saved" ? s.label : s.label.split(",")[0]}</div>
-                {s.kind === "saved" && s.sub && <div className="truncate text-muted-foreground">{s.sub}</div>}
-                {s.kind === "nominatim" && <div className="truncate text-muted-foreground">{s.label.split(",").slice(1, 3).join(",").trim()}</div>}
+                <div className="truncate font-medium">
+                  {s.kind === "coords" ? `📍 ${s.label}` : s.label}
+                </div>
+                {s.kind === "saved" && s.sub && (
+                  <div className="truncate text-muted-foreground">{s.sub}</div>
+                )}
+                {s.kind === "nominatim" && s.sub && (
+                  <div className="truncate text-muted-foreground">{s.sub}</div>
+                )}
+                {s.kind === "coords" && (
+                  <div className="text-muted-foreground">Use exact coordinates</div>
+                )}
               </div>
               {s.kind === "saved" && (
                 <span className="ml-auto shrink-0 rounded px-1 py-0.5 text-[9px] bg-primary/15 text-primary">Saved</span>
+              )}
+              {s.kind === "coords" && (
+                <span className="ml-auto shrink-0 rounded px-1 py-0.5 text-[9px] bg-amber-500/15 text-amber-400">Coords</span>
               )}
             </button>
           ))}
