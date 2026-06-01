@@ -667,17 +667,19 @@ export function ProcurementPage() {
         </div>
 
         {/* Stats strip */}
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-5 gap-2.5">
           {[
-            { label: "Total", value: stats.total, color: "text-primary", isNum: false },
-            { label: "Requested", value: stats.requested, color: "text-blue-400", isNum: false },
-            { label: "Ordered", value: stats.ordered, color: "text-amber-400", isNum: false },
-            { label: "Received", value: stats.received, color: "text-emerald-400", isNum: false },
-            { label: "Total Value", value: fmtNum(stats.totalValue), color: "text-foreground", isNum: true },
+            { label: "Total Requests", value: stats.total, color: "text-primary", bg: "bg-primary/10", isNum: false },
+            { label: "Requested", value: stats.requested, color: "text-blue-400", bg: "bg-blue-400/10", isNum: false },
+            { label: "Ordered", value: stats.ordered, color: "text-amber-400", bg: "bg-amber-400/10", isNum: false },
+            { label: "Received", value: stats.received, color: "text-emerald-400", bg: "bg-emerald-400/10", isNum: false },
+            { label: "Total Value (AED)", value: fmtNum(stats.totalValue), color: "text-foreground", bg: "bg-muted/40", isNum: true },
           ].map(s => (
-            <div key={s.label} className="rounded-lg border border-border bg-card px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</div>
-              <div className={cn("font-display font-bold tabular-nums", s.isNum ? "text-sm" : "text-lg", s.color)}>{s.value}</div>
+            <div key={s.label} className="rounded-xl border border-border bg-card px-4 py-3.5 transition-colors hover:border-border/80">
+              <div className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-muted-foreground/70">{s.label}</div>
+              <div className={cn("mt-1 font-display font-bold tabular-nums leading-none", s.isNum ? "text-[1.1rem]" : "text-[1.625rem]", s.color)}>
+                {s.value}
+              </div>
             </div>
           ))}
         </div>

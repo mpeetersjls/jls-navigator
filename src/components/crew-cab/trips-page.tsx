@@ -660,13 +660,14 @@ function BoardRow({
 // ─── Board Add Row ─────────────────────────────────────────────────────────────
 
 function BoardAddRow({
-  locations, drivers, vehicles, yachts, onAdd,
+  locations, drivers, vehicles, yachts, onAdd, label = "Add trip",
 }: {
   locations: SavedLocation[];
   drivers: Driver[];
   vehicles: Vehicle[];
   yachts: Yacht[];
   onAdd: (form: Partial<FormState>) => Promise<void>;
+  label?: string;
 }) {
   const [active, setActive] = useState(false);
   const [form, setForm] = useState<Partial<FormState>>({
@@ -687,13 +688,13 @@ function BoardAddRow({
 
   if (!active) {
     return (
-      <tr className="border-b border-border/40">
+      <tr className="border-b border-border/30 hover:bg-muted/10 transition-colors">
         <td colSpan={10} className="px-3 py-1.5">
           <button
             onClick={() => setActive(true)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-primary transition-colors"
           >
-            <Plus className="h-3 w-3" /> Add trip
+            <Plus className="h-3 w-3" /> {label}
           </button>
         </td>
       </tr>
@@ -937,30 +938,35 @@ export function TripsPage() {
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between border-b border-border bg-card/40 px-5 py-3">
-        <div className="flex items-center gap-3">
-          <Route className="h-4 w-4 text-primary" />
-          <h1 className="font-display text-base font-semibold">Trips</h1>
-          <span className="text-xs text-muted-foreground">({trips.length})</span>
-          <div className="flex items-center gap-0.5 ml-1">
-            {(["all", "arrival_transport", "departure_transport", "crew_pickup", "inhouse", "airport_transfer", "delivery_collection", "seaport_crew_change", "shorebased"] as const).map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition",
-                  filter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {f === "all" ? "All" : TYPE_LABEL[f as TripType]}
-              </button>
-            ))}
+      <header className="border-b border-border/70 bg-card/30 backdrop-blur-sm px-5 py-0">
+        {/* Title row */}
+        <div className="flex items-center justify-between py-3 pb-2.5">
+          <div className="flex items-center gap-2.5">
+            <Route className="h-4 w-4 text-primary/80" />
+            <h1 className="font-display text-[1.1rem] font-semibold tracking-tight">Trips</h1>
+            <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground tabular-nums">{trips.length}</span>
           </div>
+          <Button onClick={openNew} size="sm" className="h-8 gap-1.5 px-3.5 font-medium shadow-sm">
+            <Plus className="h-3.5 w-3.5" /> New Trip
+          </Button>
         </div>
-
-        <Button onClick={openNew} size="sm" className="h-7 gap-1.5 text-xs px-3">
-          <Plus className="h-3.5 w-3.5" /> New Trip
-        </Button>
+        {/* Filter chips */}
+        <div className="flex items-center gap-1 pb-0 overflow-x-auto">
+          {(["all", "arrival_transport", "departure_transport", "crew_pickup", "inhouse", "airport_transfer", "delivery_collection", "seaport_crew_change", "shorebased"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "shrink-0 rounded-t-md px-3 py-1.5 text-[11px] font-semibold transition-all border-b-2",
+                filter === f
+                  ? "border-primary text-primary bg-primary/8"
+                  : "border-transparent text-muted-foreground/60 hover:text-muted-foreground hover:bg-muted/30",
+              )}
+            >
+              {f === "all" ? "All" : TYPE_LABEL[f as TripType]}
+            </button>
+          ))}
+        </div>
       </header>
 
       {/* Content */}
@@ -974,10 +980,10 @@ export function TripsPage() {
             {/* Hint bar */}
             <div className="px-3 py-1.5 border-b border-border/60 flex items-center gap-2 bg-muted/20">
               <span className="text-[10px] text-muted-foreground">
-                Click any cell to edit inline · Enter or Tab to confirm · Add rows below
+                Click any cell to edit inline · Enter or Tab to confirm · Add rows at top or bottom
               </span>
               {filtered.length === 0 && (
-                <span className="ml-auto text-[10px] text-muted-foreground italic">No trips yet — add one below ↓</span>
+                <span className="ml-auto text-[10px] text-muted-foreground italic">No trips yet — add one above or below</span>
               )}
             </div>
             <table className="w-full min-w-[1300px]">
@@ -991,6 +997,14 @@ export function TripsPage() {
                 </tr>
               </thead>
               <tbody>
+                <BoardAddRow
+                  locations={locations}
+                  drivers={drivers}
+                  vehicles={vehicles}
+                  yachts={yachts}
+                  onAdd={boardAdd}
+                  label="Add trip at top"
+                />
                 {filtered.map(t => (
                   <BoardRow
                     key={t.id}

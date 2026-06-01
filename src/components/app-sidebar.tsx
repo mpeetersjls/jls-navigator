@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronRight, LogOut, Settings, Search,
   LogIn, ShieldCheck, Compass, Anchor, DoorOpen, Radio, Navigation, FileBadge, LayoutGrid,
   Route, UserCircle2, Car, MapPin, ScrollText, X, DollarSign, Monitor, ShoppingCart, Truck,
+  UserCog,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import logo from "@/assets/jls-logo.png";
@@ -68,10 +69,10 @@ const NAV: NavItem[] = [
     icon: BarChart3,
     children: [
       { label: "Dashboard", to: "/director", icon: BarChart3 },
-      { label: "Settings", to: "/settings", icon: Settings },
       { label: "Changelog", to: "/changelog", icon: ScrollText },
     ],
   },
+  { label: "Settings", to: "/settings", icon: UserCog },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -237,8 +238,8 @@ export function AppSidebar() {
       </nav>
 
       {/* User footer */}
-      <div className="border-t border-sidebar-border/70 p-2.5">
-        <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-sidebar-accent/50 transition-colors cursor-default">
+      <div className="border-t border-sidebar-border/70 p-2.5 space-y-1">
+        <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-1 ring-primary/30 bg-primary/15 text-[10px] font-bold text-primary">
             {(user?.email ?? "?").slice(0, 2).toUpperCase()}
           </div>
@@ -246,7 +247,14 @@ export function AppSidebar() {
             <div className="truncate text-[11px] font-medium text-sidebar-foreground/80">{user?.email ?? "Guest"}</div>
             <div className="text-[9.5px] text-sidebar-foreground/35 tracking-wide">Signed in</div>
           </div>
-          <Button variant="ghost" size="sm" onClick={signOut} className="h-6 w-6 p-0 text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-transparent" title="Sign out">
+          <Link
+            to="/settings"
+            className="flex h-6 w-6 items-center justify-center rounded text-sidebar-foreground/35 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+            title="Settings & Users"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </Link>
+          <Button variant="ghost" size="sm" onClick={signOut} className="h-6 w-6 p-0 text-sidebar-foreground/35 hover:text-sidebar-foreground hover:bg-transparent" title="Sign out">
             <LogOut className="h-3.5 w-3.5" />
           </Button>
         </div>
