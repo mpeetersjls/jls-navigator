@@ -64,14 +64,8 @@ const NAV: NavItem[] = [
   { label: "Finance", to: "/finance", icon: DollarSign },
   { label: "Yacht IT Solutions", to: "/yacht-it", icon: Monitor },
   { label: "Procurement", to: "/procurement", icon: ShoppingCart },
-  {
-    label: "Director",
-    icon: BarChart3,
-    children: [
-      { label: "Dashboard", to: "/director", icon: BarChart3 },
-      { label: "Changelog", to: "/changelog", icon: ScrollText },
-    ],
-  },
+  { label: "Director", to: "/director", icon: BarChart3 },
+  { label: "Changelog", to: "/changelog", icon: ScrollText },
   { label: "Settings", to: "/settings", icon: UserCog },
 ];
 
