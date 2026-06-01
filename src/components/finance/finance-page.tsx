@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   DollarSign, RefreshCw, CheckCircle2, XCircle, FileText, FileCheck,
   Quote, Loader2, ExternalLink, ClipboardList, Search, Check, AlertTriangle,
-  RotateCcw, LayoutGrid, Package, Cpu, ShoppingCart, Car,
+  RotateCcw, LayoutGrid, Package, Cpu, ShoppingCart, Car, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -237,6 +237,18 @@ function StatsBar({ items }: { items: { billing_status: BillingStatus; invoice_a
 
 // ─── Invoice Tracker (Crew Cab standalone) ────────────────────────────────────
 
+// Canonical order of trip types for grouping
+const TRIP_TYPE_ORDER = [
+  "arrival_transport",
+  "departure_transport",
+  "crew_pickup",
+  "inhouse",
+  "airport_transfer",
+  "delivery_collection",
+  "seaport_crew_change",
+  "shorebased",
+];
+
 function InvoiceTracker() {
   const [trips, setTrips] = useState<TrackerTrip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,6 +260,8 @@ function InvoiceTracker() {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editInvoiceRef, setEditInvoiceRef] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [grouped, setGrouped] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => { void load(); }, []);
 
@@ -280,6 +294,32 @@ function InvoiceTracker() {
     }
     return true;
   }), [trips, filterYacht, filterBilling, filterType, q]);
+
+  // Group trips by type, maintaining canonical order
+  const groupedTrips = useMemo(() => {
+    const map = new Map<string, TrackerTrip[]>();
+    TRIP_TYPE_ORDER.forEach(k => map.set(k, []));
+    filtered.forEach(t => {
+      const key = t.trip_type ?? "other";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    });
+    // Remove empty groups and sort canonical + unknown types last
+    const result: Array<{ type: string; label: string; trips: TrackerTrip[] }> = [];
+    map.forEach((tripsArr, type) => {
+      if (tripsArr.length > 0)
+        result.push({ type, label: TRIP_TYPE_LABEL[type] ?? type, trips: tripsArr });
+    });
+    return result;
+  }, [filtered]);
+
+  function toggleGroup(type: string) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      return next;
+    });
+  }
 
   async function updateBilling(id: string, billing_status: BillingStatus, invoice_ref?: string, invoice_amount?: number | null) {
     setSaving(id);
@@ -341,65 +381,151 @@ function InvoiceTracker() {
             <RotateCcw className="h-3 w-3" /> Clear
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={load} disabled={loading}>
-          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Refresh
-        </Button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          <button
+            onClick={() => setGrouped(g => !g)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors h-8 ${grouped ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-border/80"}`}
+          >
+            <LayoutGrid className="h-3 w-3" /> {grouped ? "Grouped" : "Group by Type"}
+          </button>
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={load} disabled={loading}>
+            {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Refresh
+          </Button>
+        </div>
       </div>
       <div className="rounded-lg border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead>
               <tr className="bg-muted/40 border-b border-border">
-                {["Date", "Type", "Yacht", "Driver", "Pickup → Dropoff", "Notes", "Billing Status", "Invoice Ref", "Amount (AED)", "Actions"].map(col => (
+                {(grouped
+                  ? ["Date", "Yacht", "Driver", "Pickup → Dropoff", "Notes", "Billing Status", "Invoice Ref", "Amount (AED)", "Actions"]
+                  : ["Date", "Type", "Yacht", "Driver", "Pickup → Dropoff", "Notes", "Billing Status", "Invoice Ref", "Amount (AED)", "Actions"]
+                ).map(col => (
                   <th key={col} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {loading ? (
-                <tr><td colSpan={10} className="px-3 py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+                <tr><td colSpan={grouped ? 9 : 10} className="px-3 py-10 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">No trips match the current filters.</td></tr>
-              ) : filtered.map(trip => {
-                const isEditing = editingRow === trip.id;
-                const isSaving = saving === trip.id;
-                const bs = (trip.billing_status ?? "pending_review") as BillingStatus;
-                return (
-                  <tr key={trip.id} className="hover:bg-muted/10 transition-colors">
-                    <td className="px-3 py-2 text-xs whitespace-nowrap text-muted-foreground">{fmtDate(trip.pickup_datetime)}</td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap">{TRIP_TYPE_LABEL[trip.trip_type] ?? trip.trip_type}</td>
-                    <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{trip.yacht?.vessel_name ?? <span className="text-muted-foreground">—</span>}</td>
-                    <td className="px-3 py-2 text-xs whitespace-nowrap text-muted-foreground">{trip.driver?.full_name ?? "—"}</td>
-                    <td className="px-3 py-2 text-xs max-w-[200px]">
-                      <div className="truncate text-muted-foreground">{[trip.pickup_address, trip.dropoff_address].filter(Boolean).join(" → ") || "—"}</div>
-                    </td>
-                    <td className="px-3 py-2 text-xs max-w-[150px]">
-                      <div className="truncate text-muted-foreground">{trip.notes ?? "—"}</div>
-                    </td>
-                    <td className="px-3 py-2"><BillingBadge status={bs} /></td>
-                    <td className="px-3 py-2 text-xs">
-                      {isEditing ? null : <span className="text-muted-foreground">{trip.invoice_ref ?? "—"}</span>}
-                    </td>
-                    <td className="px-3 py-2 text-xs">
-                      {isEditing ? null : <span className="text-muted-foreground">{fmtAed(trip.invoice_amount)}</span>}
-                    </td>
-                    <td className="px-3 py-2">
-                      <BillingActions
-                        id={trip.id} bs={bs} saving={isSaving} isEditing={isEditing}
-                        editRef={editingRow === trip.id ? editInvoiceRef : ""}
-                        editAmount={editingRow === trip.id ? editAmount : ""}
-                        onSetEditRef={setEditInvoiceRef} onSetEditAmount={setEditAmount}
-                        onStartEdit={() => { setEditingRow(trip.id); setEditInvoiceRef(trip.invoice_ref ?? ""); setEditAmount(trip.invoice_amount ? String(trip.invoice_amount) : ""); }}
-                        onCancelEdit={() => setEditingRow(null)}
-                        onSaveInvoiced={() => updateBilling(trip.id, "invoiced", editInvoiceRef, editAmount ? parseFloat(editAmount) : null)}
-                        onFlag={() => updateBilling(trip.id, "pending_invoice")}
-                        onNotBillable={() => updateBilling(trip.id, "not_billable")}
-                        onReset={() => updateBilling(trip.id, "pending_review")}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
+                <tr><td colSpan={grouped ? 9 : 10} className="px-3 py-10 text-center text-sm text-muted-foreground">No trips match the current filters.</td></tr>
+              ) : grouped ? (
+                // ── Grouped view ──────────────────────────────────────────────
+                groupedTrips.map(({ type, label, trips: groupTrips }) => {
+                  const isCollapsed = collapsedGroups.has(type);
+                  const groupTotal = groupTrips.reduce((s, t) => s + (t.invoice_amount ?? 0), 0);
+                  const billable = groupTrips.filter(t => t.billing_status !== "not_billable").length;
+                  const invoiced = groupTrips.filter(t => t.billing_status === "invoiced").length;
+                  return (
+                    <>
+                      {/* Group header row */}
+                      <tr
+                        key={`group-${type}`}
+                        className="bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => toggleGroup(type)}
+                      >
+                        <td colSpan={9} className="px-3 py-2">
+                          <div className="flex items-center gap-3">
+                            <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isCollapsed ? "" : "rotate-90"}`} />
+                            <span className="font-semibold text-[13px] text-foreground">{label}</span>
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{groupTrips.length}</span>
+                            <span className="text-[11px] text-muted-foreground">{billable} billable · {invoiced} invoiced</span>
+                            {groupTotal > 0 && (
+                              <span className="ml-auto text-[11px] font-semibold text-emerald-400">
+                                AED {groupTotal.toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Group rows — no Type column (shown in header) */}
+                      {!isCollapsed && groupTrips.map(trip => {
+                        const isEditing = editingRow === trip.id;
+                        const isSaving = saving === trip.id;
+                        const bs = (trip.billing_status ?? "pending_review") as BillingStatus;
+                        return (
+                          <tr key={trip.id} className="hover:bg-muted/10 transition-colors">
+                            <td className="pl-8 pr-3 py-2 text-xs whitespace-nowrap text-muted-foreground">{fmtDate(trip.pickup_datetime)}</td>
+                            <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{trip.yacht?.vessel_name ?? <span className="text-muted-foreground">—</span>}</td>
+                            <td className="px-3 py-2 text-xs whitespace-nowrap text-muted-foreground">{trip.driver?.full_name ?? "—"}</td>
+                            <td className="px-3 py-2 text-xs max-w-[200px]">
+                              <div className="truncate text-muted-foreground">{[trip.pickup_address, trip.dropoff_address].filter(Boolean).join(" → ") || "—"}</div>
+                            </td>
+                            <td className="px-3 py-2 text-xs max-w-[150px]">
+                              <div className="truncate text-muted-foreground">{trip.notes ?? "—"}</div>
+                            </td>
+                            <td className="px-3 py-2"><BillingBadge status={bs} /></td>
+                            <td className="px-3 py-2 text-xs">
+                              {isEditing ? null : <span className="text-muted-foreground">{trip.invoice_ref ?? "—"}</span>}
+                            </td>
+                            <td className="px-3 py-2 text-xs">
+                              {isEditing ? null : <span className="text-muted-foreground">{fmtAed(trip.invoice_amount)}</span>}
+                            </td>
+                            <td className="px-3 py-2">
+                              <BillingActions
+                                id={trip.id} bs={bs} saving={isSaving} isEditing={isEditing}
+                                editRef={isEditing ? editInvoiceRef : ""}
+                                editAmount={isEditing ? editAmount : ""}
+                                onSetEditRef={setEditInvoiceRef} onSetEditAmount={setEditAmount}
+                                onStartEdit={() => { setEditingRow(trip.id); setEditInvoiceRef(trip.invoice_ref ?? ""); setEditAmount(trip.invoice_amount ? String(trip.invoice_amount) : ""); }}
+                                onCancelEdit={() => setEditingRow(null)}
+                                onSaveInvoiced={() => updateBilling(trip.id, "invoiced", editInvoiceRef, editAmount ? parseFloat(editAmount) : null)}
+                                onFlag={() => updateBilling(trip.id, "pending_invoice")}
+                                onNotBillable={() => updateBilling(trip.id, "not_billable")}
+                                onReset={() => updateBilling(trip.id, "pending_review")}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </>
+                  );
+                })
+              ) : (
+                // ── Flat view ─────────────────────────────────────────────────
+                filtered.map(trip => {
+                  const isEditing = editingRow === trip.id;
+                  const isSaving = saving === trip.id;
+                  const bs = (trip.billing_status ?? "pending_review") as BillingStatus;
+                  return (
+                    <tr key={trip.id} className="hover:bg-muted/10 transition-colors">
+                      <td className="px-3 py-2 text-xs whitespace-nowrap text-muted-foreground">{fmtDate(trip.pickup_datetime)}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">{TRIP_TYPE_LABEL[trip.trip_type] ?? trip.trip_type}</td>
+                      <td className="px-3 py-2 text-xs font-medium whitespace-nowrap">{trip.yacht?.vessel_name ?? <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap text-muted-foreground">{trip.driver?.full_name ?? "—"}</td>
+                      <td className="px-3 py-2 text-xs max-w-[200px]">
+                        <div className="truncate text-muted-foreground">{[trip.pickup_address, trip.dropoff_address].filter(Boolean).join(" → ") || "—"}</div>
+                      </td>
+                      <td className="px-3 py-2 text-xs max-w-[150px]">
+                        <div className="truncate text-muted-foreground">{trip.notes ?? "—"}</div>
+                      </td>
+                      <td className="px-3 py-2"><BillingBadge status={bs} /></td>
+                      <td className="px-3 py-2 text-xs">
+                        {isEditing ? null : <span className="text-muted-foreground">{trip.invoice_ref ?? "—"}</span>}
+                      </td>
+                      <td className="px-3 py-2 text-xs">
+                        {isEditing ? null : <span className="text-muted-foreground">{fmtAed(trip.invoice_amount)}</span>}
+                      </td>
+                      <td className="px-3 py-2">
+                        <BillingActions
+                          id={trip.id} bs={bs} saving={isSaving} isEditing={isEditing}
+                          editRef={isEditing ? editInvoiceRef : ""}
+                          editAmount={isEditing ? editAmount : ""}
+                          onSetEditRef={setEditInvoiceRef} onSetEditAmount={setEditAmount}
+                          onStartEdit={() => { setEditingRow(trip.id); setEditInvoiceRef(trip.invoice_ref ?? ""); setEditAmount(trip.invoice_amount ? String(trip.invoice_amount) : ""); }}
+                          onCancelEdit={() => setEditingRow(null)}
+                          onSaveInvoiced={() => updateBilling(trip.id, "invoiced", editInvoiceRef, editAmount ? parseFloat(editAmount) : null)}
+                          onFlag={() => updateBilling(trip.id, "pending_invoice")}
+                          onNotBillable={() => updateBilling(trip.id, "not_billable")}
+                          onReset={() => updateBilling(trip.id, "pending_review")}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

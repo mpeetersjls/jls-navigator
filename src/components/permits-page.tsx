@@ -298,7 +298,7 @@ function Stat({ label, value, icon: Icon, accent }: { label: string; value: numb
         <div className={`mt-1 font-display text-[1.625rem] font-bold leading-none tabular-nums ${accent}`}>{value}</div>
       </div>
       <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${accent.replace('text-', 'bg-').replace('primary', 'primary/10').replace('success', 'success/10').replace('warning', 'warning/10').replace('destructive', 'destructive/10')}`}>
-        <Icon className={`h-4.5 w-4.5 ${accent} opacity-80`} style={{ height: '1.125rem', width: '1.125rem' }} />
+        <Icon className={`h-[1.125rem] w-[1.125rem] ${accent} opacity-80`} />
       </div>
     </div>
   );
