@@ -104,45 +104,38 @@ export function DirectorPage() {
       const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const db = supabase as any;
 
-      const [yachtsRes, permitsRes, tripsRes, driversRes, pkgRes, procRes, permitsMoRes, tripsMoRes] = await Promise.all([
+      // Core queries — must succeed
+      const [yachtsRes, permitsRes, tripsRes, driversRes] = await Promise.all([
         supabase.from("yachts").select("id, vessel_name, status").order("vessel_name"),
-        supabase
-          .from("permits")
-          .select("id, permit_type, yacht_id, expiry_date, status")
-          .order("expiry_date", { ascending: true, nullsFirst: false }),
-        (supabase as any)
-          .from("crew_cab_trips")
-          .select("id, pickup_location, dropoff_location, pickup_datetime, status, driver_id")
-          .gte("pickup_datetime", now)
-          .lte("pickup_datetime", in7Days)
-          .order("pickup_datetime", { ascending: true })
-          .limit(10),
-        (supabase as any).from("crew_drivers").select("id, full_name"),
-        // Pending package deliveries
-        (supabase as any).from("packages").select("id", { count: "exact", head: true }).in("status", ["pending", "in_transit", "received"]),
-        // Pending procurement items
-        (supabase as any).from("procurement_items").select("id", { count: "exact", head: true }).in("status", ["requested", "ordered"]),
-        // Permits created this month
-        (supabase as any).from("permits").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
-        // Trips this month
-        (supabase as any).from("crew_cab_trips").select("id", { count: "exact", head: true }).gte("pickup_datetime", monthStart),
+        supabase.from("permits").select("id, permit_type, yacht_id, expiry_date, status").order("expiry_date", { ascending: true, nullsFirst: false }),
+        db.from("crew_trips").select("id, pickup_location, dropoff_location, pickup_datetime, status, driver_id").gte("pickup_datetime", now).lte("pickup_datetime", in7Days).order("pickup_datetime", { ascending: true }).limit(10),
+        db.from("crew_drivers").select("id, full_name"),
       ]);
 
       if (yachtsRes.error) throw yachtsRes.error;
       if (permitsRes.error) throw permitsRes.error;
-      if (tripsRes.error) throw tripsRes.error;
-      if (driversRes.error) throw driversRes.error;
+
+      // Optional count queries — degrade gracefully if tables don't exist
+      const [pkgRes, procRes, permitsMoRes, tripsMoRes] = await Promise.allSettled([
+        db.from("packages").select("id", { count: "exact", head: true }).in("status", ["pending", "in_transit", "received"]),
+        db.from("procurement_items").select("id", { count: "exact", head: true }).in("status", ["requested", "ordered"]),
+        db.from("permits").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+        db.from("crew_trips").select("id", { count: "exact", head: true }).gte("pickup_datetime", monthStart),
+      ]);
+
+      const safeCount = (r: PromiseSettledResult<any>) => r.status === "fulfilled" ? (r.value?.count ?? 0) : 0;
 
       setData({
         yachts: (yachtsRes.data ?? []) as Yacht[],
         permits: (permitsRes.data ?? []) as Permit[],
-        trips: (tripsRes.data ?? []) as CrewCabTrip[],
-        drivers: (driversRes.data ?? []) as CrewDriver[],
-        pendingPackages: pkgRes.count ?? 0,
-        pendingProcurement: procRes.count ?? 0,
-        permitsThisMonth: permitsMoRes.count ?? 0,
-        tripsThisMonth: tripsMoRes.count ?? 0,
+        trips: ((tripsRes as any).data ?? []) as CrewCabTrip[],
+        drivers: ((driversRes as any).data ?? []) as CrewDriver[],
+        pendingPackages: safeCount(pkgRes),
+        pendingProcurement: safeCount(procRes),
+        permitsThisMonth: safeCount(permitsMoRes),
+        tripsThisMonth: safeCount(tripsMoRes),
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load dashboard data");
