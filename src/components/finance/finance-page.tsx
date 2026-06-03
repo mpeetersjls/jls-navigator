@@ -1109,49 +1109,85 @@ function ProcurementTracker() {
   );
 }
 
-// ─── Trackers Section (all departments) ──────────────────────────────────────
+// ─── Unified Department Tracker ──────────────────────────────────────────────
 
-const DEPT_TABS: { key: TrackerDept; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "crew",        label: "Crew Cab",           icon: Car },
-  { key: "packages",   label: "Packages",            icon: Package },
-  { key: "it",         label: "Yacht IT Solutions",  icon: Cpu },
-  { key: "procurement",label: "Procurement",         icon: ShoppingCart },
+type DeptKey = TrackerDept | "orbit";
+
+const DEPT_LIST: {
+  key: DeptKey;
+  label: string;
+  shortLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  available: boolean;
+}[] = [
+  { key: "crew",        label: "Crew Cab",                shortLabel: "Crew Cab",       icon: Car,         available: true  },
+  { key: "packages",    label: "Packages & Deliveries",   shortLabel: "ShipSync",       icon: Package,     available: true  },
+  { key: "it",          label: "Yacht IT Solutions",      shortLabel: "Yacht IT",       icon: Cpu,         available: true  },
+  { key: "procurement", label: "Procurement",             shortLabel: "Procurement",    icon: ShoppingCart,available: true  },
+  { key: "orbit",       label: "Orbit (Projects)",        shortLabel: "Orbit",          icon: LayoutGrid,  available: false },
 ];
 
-function TrackersSection() {
-  const [dept, setDept] = useState<TrackerDept>("crew");
+function DeptTracker() {
+  const [dept, setDept] = useState<DeptKey>("crew");
+
+  const current = DEPT_LIST.find(d => d.key === dept)!;
 
   return (
-    <div className="space-y-4">
-      {/* Department sub-tabs */}
-      <div className="flex items-center gap-1 border-b border-border/60">
-        {DEPT_TABS.map(t => {
-          const Icon = t.icon;
+    <div className="space-y-5">
+
+      {/* Department chips */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/60 mr-1">Department</span>
+        {DEPT_LIST.map(d => {
+          const Icon = d.icon;
+          const active = dept === d.key;
           return (
             <button
-              key={t.key}
-              onClick={() => setDept(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition ${
-                dept === t.key
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+              key={d.key}
+              onClick={() => d.available && setDept(d.key)}
+              disabled={!d.available}
+              title={!d.available ? `${d.label} billing tracker — coming soon` : d.label}
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium border transition-all ${
+                active
+                  ? "bg-primary/15 border-primary/40 text-primary shadow-sm"
+                  : d.available
+                    ? "border-border/60 text-muted-foreground hover:border-border hover:text-foreground hover:bg-accent/30"
+                    : "border-border/30 text-muted-foreground/40 cursor-not-allowed opacity-50"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
-              {t.label}
+              {d.shortLabel}
+              {!d.available && <span className="text-[9px] ml-0.5 opacity-60">soon</span>}
             </button>
           );
         })}
       </div>
 
-      {/* Department content */}
+      {/* Active dept label */}
+      <div className="flex items-center gap-2 -mt-2">
+        <current.icon className="h-4 w-4 text-primary/70" />
+        <span className="text-[13px] font-semibold text-foreground">{current.label}</span>
+        <div className="flex-1 h-px bg-border/40" />
+      </div>
+
+      {/* Content */}
       {dept === "crew"         && <InvoiceTracker />}
       {dept === "packages"     && <PackagesTracker />}
       {dept === "it"           && <YachtItTracker />}
       {dept === "procurement"  && <ProcurementTracker />}
+      {dept === "orbit"        && (
+        <div className="flex h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border text-center">
+          <LayoutGrid className="h-8 w-8 text-muted-foreground/40 mb-2" />
+          <p className="text-sm font-medium">Orbit billing tracker</p>
+          <p className="text-xs text-muted-foreground mt-1">Project-level billing coming soon</p>
+        </div>
+      )}
     </div>
   );
 }
+
+// Keep TrackersSection as alias for backwards compatibility
+function TrackersSection() { return <DeptTracker />; }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -1224,18 +1260,10 @@ export function FinancePage() {
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border">
-          {/* Trackers */}
+          {/* Unified Invoice Tracker (all departments) */}
           <button
             onClick={() => setTab("trackers")}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${tab === "trackers" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            Trackers
-          </button>
-          {/* Invoice Tracker (legacy crew-only view) */}
-          <button
-            onClick={() => setTab("tracker")}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${tab === "tracker" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition ${tab === "trackers" || tab === "tracker" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
             <ClipboardList className="h-3.5 w-3.5" />
             Invoice Tracker
@@ -1254,8 +1282,7 @@ export function FinancePage() {
         </div>
 
         {/* Tab content */}
-        {tab === "trackers" && <TrackersSection />}
-        {tab === "tracker"  && <InvoiceTracker />}
+        {(tab === "trackers" || tab === "tracker") && <DeptTracker />}
         {isQbTab && (
           <div className="rounded-lg border border-border overflow-hidden">
             <table className="w-full text-sm">
