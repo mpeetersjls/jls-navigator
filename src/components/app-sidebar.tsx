@@ -54,7 +54,7 @@ const NAV: NavItem[] = [
     ],
   },
   {
-    label: "Packages & Deliveries",
+    label: "ShipSync",
     icon: Package,
     children: [
       { label: "Packages", to: "/packages", icon: Package },

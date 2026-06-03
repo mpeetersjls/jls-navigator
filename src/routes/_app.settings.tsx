@@ -274,7 +274,7 @@ const DEPARTMENTS = [
   'Orbit',
   'Accounts',
   'Marketing',
-  'Packages & Deliveries',
+  'ShipSync',
   'Director',
   'Management',
 ]
@@ -285,7 +285,7 @@ const MODULES = [
   'Small Boat Registration',
   'Orbit',
   'Crew Cab',
-  'Packages & Deliveries',
+  'ShipSync',
   'Director',
 ]
 

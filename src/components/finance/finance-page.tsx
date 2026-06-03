@@ -1121,7 +1121,7 @@ const DEPT_LIST: {
   available: boolean;
 }[] = [
   { key: "crew",        label: "Crew Cab",                shortLabel: "Crew Cab",       icon: Car,         available: true  },
-  { key: "packages",    label: "Packages & Deliveries",   shortLabel: "ShipSync",       icon: Package,     available: true  },
+  { key: "packages",    label: "ShipSync",   shortLabel: "ShipSync",       icon: Package,     available: true  },
   { key: "it",          label: "Yacht IT Solutions",      shortLabel: "Yacht IT",       icon: Cpu,         available: true  },
   { key: "procurement", label: "Procurement",             shortLabel: "Procurement",    icon: ShoppingCart,available: true  },
   { key: "orbit",       label: "Orbit (Projects)",        shortLabel: "Orbit",          icon: LayoutGrid,  available: false },

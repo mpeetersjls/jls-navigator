@@ -221,7 +221,7 @@ export function PackagesPage() {
         <header className="flex items-center justify-between border-b border-border bg-card/40 px-5 py-3">
           <div>
             <div className="text-xs text-muted-foreground">Port & Operations / Packages</div>
-            <h1 className="font-display text-base font-semibold tracking-tight">Packages & Deliveries</h1>
+            <h1 className="font-display text-base font-semibold tracking-tight">ShipSync</h1>
           </div>
         </header>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
@@ -252,7 +252,7 @@ export function PackagesPage() {
       <header className="flex items-center justify-between border-b border-border bg-card/40 px-5 py-3">
         <div>
           <div className="text-xs text-muted-foreground">Port & Operations / Packages</div>
-          <h1 className="font-display text-base font-semibold tracking-tight">Packages & Deliveries</h1>
+          <h1 className="font-display text-base font-semibold tracking-tight">ShipSync</h1>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
