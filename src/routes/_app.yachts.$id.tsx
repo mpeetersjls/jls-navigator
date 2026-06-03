@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusPill } from "@/components/status-pill";
 import { YACHT_COLUMNS } from "@/lib/yacht-fields";
-import { ArrowLeft, Trash2, Ship, Pencil, Save, X, Upload, RefreshCw } from "lucide-react";
+import { ArrowLeft, Trash2, Ship, Pencil, Save, X, Upload, RefreshCw, FileCheck2, Route as RouteIcon, Package, ExternalLink } from "lucide-react";
+import { PERMIT_META } from "@/lib/permit-types";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { z } from "zod";
 import {
@@ -350,6 +352,9 @@ function YachtDetail() {
             ))}
           </div>
         </div>
+
+        {/* Related records */}
+        {!editing && <YachtRelatedRecords yachtId={id} />}
       </div>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
@@ -374,6 +379,126 @@ function YachtDetail() {
     </div>
   );
 }
+
+// ─── Related Records Panel ────────────────────────────────────────────────────
+
+type RelatedPermit = { id: string; permit_type: string; permit_number: string | null; expiry_date: string | null; status: string };
+type RelatedTrip   = { id: string; trip_type: string; pickup_datetime: string | null; passenger_name: string | null; status: string };
+type RelatedPkg    = { id: string; tracking_number: string | null; description: string | null; status: string; received_date: string | null };
+
+function YachtRelatedRecords({ yachtId }: { yachtId: string }) {
+  const [permits, setPermits] = useState<RelatedPermit[]>([]);
+  const [trips,   setTrips]   = useState<RelatedTrip[]>([]);
+  const [pkgs,    setPkgs]    = useState<RelatedPkg[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void (async () => {
+      setLoading(true);
+      const db = supabase as any;
+      const [pRes, tRes, kRes] = await Promise.all([
+        db.from("permits").select("id, permit_type, permit_number, expiry_date, status").eq("yacht_id", yachtId).order("expiry_date", { ascending: true }).limit(8),
+        db.from("crew_cab_trips").select("id, trip_type, pickup_datetime, passenger_name, status").eq("yacht_id", yachtId).order("pickup_datetime", { ascending: false }).limit(8),
+        db.from("packages").select("id, tracking_number, description, status, received_date").eq("yacht_id", yachtId).order("received_date", { ascending: false }).limit(6),
+      ]);
+      setPermits(pRes.data ?? []);
+      setTrips(tRes.data ?? []);
+      setPkgs(kRes.data ?? []);
+      setLoading(false);
+    })();
+  }, [yachtId]);
+
+  const TRIP_LABEL: Record<string, string> = {
+    arrival_transport: "Arrival", departure_transport: "Departure", crew_pickup: "Crew Pickup",
+    inhouse: "In-House", airport_transfer: "Airport", delivery_collection: "Delivery",
+    seaport_crew_change: "Seaport", shorebased: "Shorebased",
+  };
+
+  const statusColor: Record<string, string> = {
+    active: "text-emerald-400", pending: "text-amber-400", expired: "text-red-400",
+    cancelled: "text-slate-400", completed: "text-emerald-400", in_progress: "text-blue-400",
+  };
+
+  if (loading) return null;
+  if (!permits.length && !trips.length && !pkgs.length) return null;
+
+  return (
+    <div className="mx-auto max-w-6xl mt-2 pb-6">
+      <h2 className="font-display text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider px-1">Related Records</h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+        {/* Permits */}
+        {permits.length > 0 && (
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+              <FileCheck2 className="h-3.5 w-3.5 text-primary/70" />
+              <span className="text-xs font-semibold text-foreground">Permits</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">{permits.length}</span>
+            </div>
+            <div className="divide-y divide-border/50">
+              {permits.map(p => (
+                <Link key={p.id} to={PERMIT_META[p.permit_type as keyof typeof PERMIT_META]?.route ?? "/permits/exit-entry" as any} className="flex items-center gap-2 px-4 py-2 hover:bg-accent/30 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{PERMIT_META[p.permit_type as keyof typeof PERMIT_META]?.label ?? p.permit_type}</div>
+                    <div className="text-[10px] text-muted-foreground">{p.expiry_date ? `Expires ${new Date(p.expiry_date + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : "No expiry"}</div>
+                  </div>
+                  <span className={cn("text-[10px] font-semibold uppercase", statusColor[p.status] ?? "text-muted-foreground")}>{p.status}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Trips */}
+        {trips.length > 0 && (
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+              <RouteIcon className="h-3.5 w-3.5 text-primary/70" />
+              <span className="text-xs font-semibold text-foreground">Recent Trips</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">{trips.length}</span>
+            </div>
+            <div className="divide-y divide-border/50">
+              {trips.map(t => (
+                <div key={t.id} className="flex items-center gap-2 px-4 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium">{t.passenger_name ?? "—"}</div>
+                    <div className="text-[10px] text-muted-foreground">{TRIP_LABEL[t.trip_type] ?? t.trip_type} · {t.pickup_datetime ? new Date(t.pickup_datetime).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}</div>
+                  </div>
+                  <span className={cn("text-[10px] font-semibold uppercase", statusColor[t.status] ?? "text-muted-foreground")}>{t.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Packages */}
+        {pkgs.length > 0 && (
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+              <Package className="h-3.5 w-3.5 text-primary/70" />
+              <span className="text-xs font-semibold text-foreground">Packages</span>
+              <span className="ml-auto text-[10px] text-muted-foreground">{pkgs.length}</span>
+            </div>
+            <div className="divide-y divide-border/50">
+              {pkgs.map(p => (
+                <div key={p.id} className="flex items-center gap-2 px-4 py-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{p.description ?? p.tracking_number ?? "—"}</div>
+                    <div className="text-[10px] text-muted-foreground">{p.received_date ? new Date(p.received_date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "Pending"}</div>
+                  </div>
+                  <span className={cn("text-[10px] font-semibold uppercase", statusColor[p.status] ?? "text-muted-foreground")}>{p.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ─── Static sub-components ────────────────────────────────────────────────────
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (

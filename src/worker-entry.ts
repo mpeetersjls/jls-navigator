@@ -1,5 +1,6 @@
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
 import { syncFromSharePoint, downloadPendingImages } from './lib/sharepoint-sync.server'
+import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -47,17 +48,27 @@ export default {
     return handleRequest(request, env, ctx)
   },
 
-  // Cloudflare cron trigger — runs on the schedule defined in wrangler.jsonc
+  // Cloudflare cron trigger — runs every 15 min for SharePoint; expiry alerts only at 08:xx UTC
   async scheduled(_event: unknown, _env: Record<string, unknown>, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<void> {
+    const utcHour = new Date().getUTCHours();
+
     ctx.waitUntil(
       syncFromSharePoint()
         .then(({ synced, errors }) => {
           console.log(`[sp-cron] synced=${synced} errors=${errors}`)
-          // Phase 2: download images for yachts that don't have one yet (5 per run)
           return downloadPendingImages()
         })
         .then((imgs) => { if (imgs) console.log(`[sp-cron] images downloaded=${imgs}`) })
         .catch((e) => console.error('[sp-cron] error:', e))
     )
+
+    // Send expiry alerts once daily at 08:00 UTC
+    if (utcHour === 8) {
+      ctx.waitUntil(
+        runExpiryAlerts()
+          .then(({ sent, skipped }) => console.log(`[expiry-cron] sent=${sent} skipped=${skipped}`))
+          .catch((e) => console.error('[expiry-cron] error:', e))
+      )
+    }
   },
 }

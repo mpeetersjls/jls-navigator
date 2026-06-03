@@ -12,6 +12,10 @@ import {
   Loader2,
   MapPin,
   ArrowRight,
+  Package,
+  ShoppingCart,
+  CalendarDays,
+  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,6 +49,10 @@ type DashboardData = {
   permits: Permit[];
   trips: CrewCabTrip[];
   drivers: CrewDriver[];
+  pendingPackages: number;
+  pendingProcurement: number;
+  permitsThisMonth: number;
+  tripsThisMonth: number;
 };
 
 function Stat({
@@ -95,7 +103,9 @@ export function DirectorPage() {
       const now = new Date().toISOString();
       const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-      const [yachtsRes, permitsRes, tripsRes, driversRes] = await Promise.all([
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+
+      const [yachtsRes, permitsRes, tripsRes, driversRes, pkgRes, procRes, permitsMoRes, tripsMoRes] = await Promise.all([
         supabase.from("yachts").select("id, vessel_name, status").order("vessel_name"),
         supabase
           .from("permits")
@@ -109,6 +119,14 @@ export function DirectorPage() {
           .order("pickup_datetime", { ascending: true })
           .limit(10),
         (supabase as any).from("crew_drivers").select("id, full_name"),
+        // Pending package deliveries
+        (supabase as any).from("packages").select("id", { count: "exact", head: true }).in("status", ["pending", "in_transit", "received"]),
+        // Pending procurement items
+        (supabase as any).from("procurement_items").select("id", { count: "exact", head: true }).in("status", ["requested", "ordered"]),
+        // Permits created this month
+        (supabase as any).from("permits").select("id", { count: "exact", head: true }).gte("created_at", monthStart),
+        // Trips this month
+        (supabase as any).from("crew_cab_trips").select("id", { count: "exact", head: true }).gte("pickup_datetime", monthStart),
       ]);
 
       if (yachtsRes.error) throw yachtsRes.error;
@@ -121,6 +139,10 @@ export function DirectorPage() {
         permits: (permitsRes.data ?? []) as Permit[],
         trips: (tripsRes.data ?? []) as CrewCabTrip[],
         drivers: (driversRes.data ?? []) as CrewDriver[],
+        pendingPackages: pkgRes.count ?? 0,
+        pendingProcurement: procRes.count ?? 0,
+        permitsThisMonth: permitsMoRes.count ?? 0,
+        tripsThisMonth: tripsMoRes.count ?? 0,
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load dashboard data");
@@ -182,7 +204,7 @@ export function DirectorPage() {
         </div>
       ) : (
         <div className="flex flex-1 flex-col gap-4 overflow-auto p-5">
-          {/* Stats row */}
+          {/* Stats — row 1: Yachts & Permits */}
           <div className="grid grid-cols-6 gap-3">
             <Stat label="Total Yachts" value={stats?.totalYachts ?? 0} icon={Anchor} accent="text-primary" />
             <Stat label="Active Yachts" value={stats?.activeYachts ?? 0} icon={CheckCircle2} accent="text-success" />
@@ -190,6 +212,13 @@ export function DirectorPage() {
             <Stat label="Expiring ≤ 30d" value={stats?.expiringCount ?? 0} icon={Clock} accent="text-warning" />
             <Stat label="Expired Permits" value={stats?.expiredCount ?? 0} icon={AlertTriangle} accent="text-destructive" />
             <Stat label="Upcoming Trips" value={stats?.upcomingTrips ?? 0} icon={Car} accent="text-primary" />
+          </div>
+          {/* Stats — row 2: Operations this month */}
+          <div className="grid grid-cols-4 gap-3">
+            <Stat label="Permits This Month" value={data?.permitsThisMonth ?? 0} icon={CalendarDays} accent="text-info" />
+            <Stat label="Trips This Month" value={data?.tripsThisMonth ?? 0} icon={TrendingUp} accent="text-success" />
+            <Stat label="Packages In Progress" value={data?.pendingPackages ?? 0} icon={Package} accent="text-warning" />
+            <Stat label="Pending Procurement" value={data?.pendingProcurement ?? 0} icon={ShoppingCart} accent="text-primary" />
           </div>
 
           {/* Bottom panels */}

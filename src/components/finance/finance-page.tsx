@@ -5,10 +5,28 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   DollarSign, RefreshCw, CheckCircle2, XCircle, FileText, FileCheck,
   Quote, Loader2, ExternalLink, ClipboardList, Search, Check, AlertTriangle,
-  RotateCcw, LayoutGrid, Package, Cpu, ShoppingCart, Car, ChevronRight,
+  RotateCcw, LayoutGrid, Package, Cpu, ShoppingCart, Car, ChevronRight, Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+
+// ─── CSV export utility ───────────────────────────────────────────────────────
+
+function downloadCSV(filename: string, rows: Record<string, unknown>[]) {
+  if (!rows.length) return;
+  const headers = Object.keys(rows[0]);
+  const escape = (v: unknown) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = [headers.join(","), ...rows.map(r => headers.map(h => escape(r[h])).join(","))].join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -388,6 +406,23 @@ function InvoiceTracker() {
           >
             <LayoutGrid className="h-3 w-3" /> {grouped ? "Grouped" : "Group by Type"}
           </button>
+          <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={() => {
+            const rows = filtered.map(t => ({
+              Date: t.pickup_datetime ? new Date(t.pickup_datetime).toLocaleDateString("en-GB") : "",
+              Type: TRIP_TYPE_LABEL[t.trip_type] ?? t.trip_type,
+              Yacht: t.yacht?.vessel_name ?? "",
+              Driver: t.driver?.full_name ?? "",
+              Pickup: t.pickup_address ?? "",
+              Dropoff: t.dropoff_address ?? "",
+              Notes: t.notes ?? "",
+              "Billing Status": t.billing_status ?? "",
+              "Invoice Ref": t.invoice_ref ?? "",
+              "Amount (AED)": t.invoice_amount ?? "",
+            }));
+            downloadCSV(`trips-tracker-${new Date().toISOString().slice(0,10)}.csv`, rows);
+          }} disabled={filtered.length === 0}>
+            <Download className="h-3 w-3" /> Export
+          </Button>
           <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={load} disabled={loading}>
             {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Refresh
           </Button>
@@ -623,7 +658,18 @@ function PackagesTracker() {
             <RotateCcw className="h-3 w-3" /> Clear
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={load} disabled={loading}>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={() => {
+          const rows = filtered.map(p => ({
+            "Tracking No": p.tracking_number ?? "", Carrier: p.carrier ?? "", Description: p.description ?? "",
+            Recipient: p.recipient_name ?? "", Yacht: p.yacht?.vessel_name ?? "",
+            "Received Date": p.received_date ?? "", Status: p.status ?? "",
+            "Billing Status": p.billing_status ?? "", "Invoice Ref": p.invoice_ref ?? "", "Amount (AED)": p.invoice_amount ?? "",
+          }));
+          downloadCSV(`packages-tracker-${new Date().toISOString().slice(0,10)}.csv`, rows);
+        }} disabled={filtered.length === 0}>
+          <Download className="h-3 w-3" /> Export
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={load} disabled={loading}>
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Refresh
         </Button>
       </div>
@@ -791,7 +837,19 @@ function YachtItTracker() {
             <RotateCcw className="h-3 w-3" /> Clear
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={load} disabled={loading}>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={() => {
+          const rows = filtered.map(c => ({
+            Service: c.service_name, Vendor: c.vendor ?? "", Category: c.category,
+            Yacht: c.yacht?.vessel_name ?? "", "Charge (AED)": c.charge_amount ?? "",
+            "Billing Cycle": c.billing_cycle, "Expiry Date": c.expiry_date ?? "",
+            Status: c.status, "Billing Status": c.billing_status ?? "",
+            "Invoice Ref": c.invoice_ref ?? "", "Amount (AED)": c.invoice_amount ?? "",
+          }));
+          downloadCSV(`it-tracker-${new Date().toISOString().slice(0,10)}.csv`, rows);
+        }} disabled={filtered.length === 0}>
+          <Download className="h-3 w-3" /> Export
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={load} disabled={loading}>
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Refresh
         </Button>
       </div>
@@ -968,7 +1026,20 @@ function ProcurementTracker() {
             <RotateCcw className="h-3 w-3" /> Clear
           </Button>
         )}
-        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={load} disabled={loading}>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5 ml-auto" onClick={() => {
+          const rows = filtered.map(p => ({
+            Item: p.item_name, Vendor: p.vendor ?? "", Category: p.category,
+            Quantity: p.quantity, "Unit Price (AED)": p.unit_price ?? "",
+            "Total (AED)": p.total_amount ?? "", Yacht: p.yacht?.vessel_name ?? "",
+            "Requested Date": p.requested_date ?? "", Status: p.status,
+            "Billing Status": p.billing_status ?? "", "Invoice Ref": p.invoice_ref ?? "",
+            "Amount (AED)": p.invoice_amount ?? "",
+          }));
+          downloadCSV(`procurement-tracker-${new Date().toISOString().slice(0,10)}.csv`, rows);
+        }} disabled={filtered.length === 0}>
+          <Download className="h-3 w-3" /> Export
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5" onClick={load} disabled={loading}>
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Refresh
         </Button>
       </div>
