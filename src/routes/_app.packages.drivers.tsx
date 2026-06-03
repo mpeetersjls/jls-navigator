@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PackageDriversPage } from "@/components/packages/package-drivers-page";
+import { DriversPage } from "@/components/crew-cab/drivers-page";
 
+// ShipSync drivers share the same pool as Crew Cab — both use crew_drivers table.
 export const Route = createFileRoute("/_app/packages/drivers")({
-  component: PackageDriversPage,
-  head: () => ({ meta: [{ title: "Delivery Drivers — JLS Yachts CRM" }] }),
+  component: DriversPage,
+  head: () => ({ meta: [{ title: "Drivers — JLS Yachts CRM" }] }),
 });
