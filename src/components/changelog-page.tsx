@@ -45,6 +45,18 @@ const RELEASES: Release[] = [
       },
       {
         type: "feature",
+        title: "Crew Documents vault",
+        description:
+          "Central document vault for every crew member — upload passports, visas, seaman's books, STCW and medical certificates with issue/expiry dates. Expiring (≤30d) and expired documents are surfaced automatically.",
+      },
+      {
+        type: "feature",
+        title: "Sign On / Sign Off",
+        description:
+          "Record crew sign-on and sign-off events against a vessel, date and port. Recording an event updates the crew member's status (active / off-signed) automatically.",
+      },
+      {
+        type: "feature",
         title: "Visa Application wizard",
         description:
           "Guided 5-step visa application (Crew Member → Personal Details → Visa Details → Documents → Review & Submit) with a live application summary, status stepper and document checklist. Selecting an existing crew member auto-fills every personal and passport field — collect data once, reuse it everywhere. Submitting saves the crew profile and creates the application in one step.",
