@@ -44,6 +44,12 @@ const RELEASES: Release[] = [
           "New module with reusable crew profiles (enter once, reuse everywhere) and an airline-style Visa Application tracker — pipeline status flow (Draft → Submitted → In Review → Processing → Approved → Completed), priority flags, document checklist and per-application detail panel.",
       },
       {
+        type: "improvement",
+        title: "Visa document uploads & email templates",
+        description:
+          "The visa wizard's document step now supports real file uploads to secure storage (with view/replace). Settings → Email Templates is now fully operational — create, edit and seed default permit email templates.",
+      },
+      {
         type: "feature",
         title: "Roadmap modules — Phases 3–10",
         description:

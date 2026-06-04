@@ -57,9 +57,26 @@ export function VisaWizardPage() {
   const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
   const [isNewCrew, setIsNewCrew] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
-  const [docs, setDocs] = useState<{ name: string; status: DocStatus }[]>(
+  const [docs, setDocs] = useState<{ name: string; status: DocStatus; url?: string }[]>(
     REQUIRED_DOCS.map((name) => ({ name, status: "pending" as DocStatus })),
   );
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  async function uploadDoc(i: number, file: File) {
+    setUploadingIdx(i);
+    try {
+      const path = `visa-docs/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from("permit-documents").upload(path, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("permit-documents").getPublicUrl(path);
+      setDocs((arr) => arr.map((x, xi) => xi === i ? { ...x, status: "uploaded", url: publicUrl } : x));
+      toast.success(`${file.name} attached`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Upload failed");
+    } finally {
+      setUploadingIdx(null);
+    }
+  }
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -322,12 +339,20 @@ export function VisaWizardPage() {
 
               {step === 3 && (
                 <Section title="Required Documents">
-                  <p className="mb-3 text-sm text-muted-foreground">Mark each document as uploaded once collected. Files can be attached after submission.</p>
+                  <p className="mb-3 text-sm text-muted-foreground">Attach each document, or set its status manually. Files upload to secure storage.</p>
                   <div className="space-y-2">
                     {docs.map((d, i) => (
                       <div key={d.name} className="flex items-center gap-3 rounded-lg border border-border px-4 py-2.5">
                         <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span className="flex-1 text-sm font-medium">{d.name}</span>
+                        {/* Upload */}
+                        <label className="flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent transition">
+                          {uploadingIdx === i ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                          {d.url ? "Replace" : "Upload"}
+                          <input type="file" className="hidden" disabled={uploadingIdx !== null}
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadDoc(i, f); }} />
+                        </label>
+                        {d.url && <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline">view</a>}
                         <div className="flex items-center gap-1">
                           {(["pending", "uploaded", "approved"] as DocStatus[]).map((s) => (
                             <button
