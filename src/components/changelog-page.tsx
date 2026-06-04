@@ -45,6 +45,12 @@ const RELEASES: Release[] = [
       },
       {
         type: "feature",
+        title: "Roadmap modules — Phases 3–10",
+        description:
+          "Functional modules rolled out across the roadmap: Yacht IT Solutions Support Tickets (Phase 4), Orbit Planned Maintenance & Defects/Repairs (Phase 7), Crew Placement candidates & vacancies (Phase 8), Agency Network contacts (Phase 3/6), and the Compass vendor directory (Phase 9/10). Each has full create/edit/delete, search, status filtering, vessel linking and CSV export.",
+      },
+      {
+        type: "feature",
         title: "Crew List — CSV import & multiple views",
         description:
           "Bulk-import crew from a CSV (with a downloadable template and live preview), and switch the Crew List between three views: Table, an Excel-style inline-editable Grid (click any cell to edit), and Cards. Import auto-maps common column names and normalises dates and statuses.",

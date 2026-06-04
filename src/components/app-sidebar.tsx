@@ -53,9 +53,9 @@ const NAV: NavItem[] = [
           { label: "Crew Documents",     to: "/crew-immigration/documents",   icon: ClipboardList },
         ],
       },
-      { label: "Logistics",   to: "/packages",   icon: Boxes },
-      { label: "Operations",  to: "/orbit/",     icon: Cog },
-      { label: "Maintenance", to: "/orbit/",     icon: Wrench },
+      { label: "Logistics",   to: "/packages",            icon: Boxes },
+      { label: "Operations",  to: "/orbit/defects",       icon: Cog },
+      { label: "Maintenance", to: "/orbit/maintenance",   icon: Wrench },
       { label: "Finance",     to: "/finance",    icon: BarChart3 },
       { label: "Reports",     to: "/director",   icon: FileText },
       { label: "Settings",    to: "/settings",   icon: Settings },
@@ -66,7 +66,16 @@ const NAV: NavItem[] = [
   {
     label: "Modules",
     children: [
-      { label: "Orbit",                   to: "/orbit/",       icon: LayersIcon },
+      {
+        label: "Orbit",
+        icon: LayersIcon,
+        children: [
+          { label: "Overview",            to: "/orbit/",            icon: LayoutDashboard },
+          { label: "Planned Maintenance", to: "/orbit/maintenance", icon: Wrench },
+          { label: "Defects & Repairs",   to: "/orbit/defects",     icon: Wrench },
+          { label: "Small Boat Mgmt",     to: "/small-boat-registration", icon: Sailboat },
+        ],
+      },
       {
         label: "ShipSync",
         icon: Package,
@@ -91,8 +100,23 @@ const NAV: NavItem[] = [
       { label: "Waypoint",                to: "/waypoint",      icon: ShoppingCart },
       { label: "Superyacht Provisioning", to: "/provisioning",  icon: UtensilsCrossed },
       { label: "JLS Training Institute",  to: "/training",      icon: GraduationCap },
-      { label: "Crew Placement",          to: "/crew-placement",icon: UserPlus },
-      { label: "Yacht IT Solutions",      to: "/yacht-it",      icon: Cpu },
+      { label: "Agency Network",          to: "/agency",        icon: Globe },
+      {
+        label: "Crew Placement",
+        icon: UserPlus,
+        children: [
+          { label: "Candidates", to: "/crew-placement",            icon: UserPlus },
+          { label: "Vacancies",  to: "/crew-placement/vacancies",  icon: ClipboardList },
+        ],
+      },
+      {
+        label: "Yacht IT Solutions",
+        icon: Cpu,
+        children: [
+          { label: "Support Tickets",      to: "/it-tickets", icon: Cpu },
+          { label: "Contracts & Services", to: "/yacht-it",   icon: FileText },
+        ],
+      },
       { label: "AI Assistant",            to: "/ai-assistant",  icon: Bot },
       { label: "Compass",                 to: "/compass",       icon: Compass },
       { label: "Changelog",               to: "/changelog",     icon: ScrollText },
