@@ -83,6 +83,7 @@ const NAV: NavItem[] = [
           { label: "Packages",           to: "/packages",            icon: Package },
           { label: "Drivers",            to: "/packages/drivers",    icon: UserCircle2 },
           { label: "Deliveries / Route", to: "/packages/deliveries", icon: Truck },
+          { label: "Ship Spares",        to: "/ship-spares",         icon: Boxes },
           { label: "Live Tracking",      to: "/fleet-tracking",      icon: Navigation },
         ],
       },
@@ -97,9 +98,23 @@ const NAV: NavItem[] = [
           { label: "Live Tracking", to: "/fleet-tracking",     icon: Navigation },
         ],
       },
-      { label: "Waypoint",                to: "/waypoint",      icon: ShoppingCart },
+      {
+        label: "Waypoint",
+        icon: ShoppingCart,
+        children: [
+          { label: "Suppliers",  to: "/waypoint",            icon: Users },
+          { label: "Quotations", to: "/waypoint/quotations", icon: FileText },
+        ],
+      },
       { label: "Superyacht Provisioning", to: "/provisioning",  icon: UtensilsCrossed },
-      { label: "JLS Training Institute",  to: "/training",      icon: GraduationCap },
+      {
+        label: "JLS Training Institute",
+        icon: GraduationCap,
+        children: [
+          { label: "Training Records", to: "/training",                icon: GraduationCap },
+          { label: "Certifications",   to: "/training/certifications", icon: FileCheck2 },
+        ],
+      },
       { label: "Agency Network",          to: "/agency",        icon: Globe },
       {
         label: "Crew Placement",

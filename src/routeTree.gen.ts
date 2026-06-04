@@ -16,6 +16,7 @@ import { Route as AppYachtItRouteImport } from './routes/_app.yacht-it'
 import { Route as AppWaypointRouteImport } from './routes/_app.waypoint'
 import { Route as AppTrainingRouteImport } from './routes/_app.training'
 import { Route as AppSmallBoatRegistrationRouteImport } from './routes/_app.small-boat-registration'
+import { Route as AppShipSparesRouteImport } from './routes/_app.ship-spares'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppProvisioningRouteImport } from './routes/_app.provisioning'
 import { Route as AppProcurementRouteImport } from './routes/_app.procurement'
@@ -33,11 +34,15 @@ import { Route as AppChangelogRouteImport } from './routes/_app.changelog'
 import { Route as AppAiAssistantRouteImport } from './routes/_app.ai-assistant'
 import { Route as AppAgencyRouteImport } from './routes/_app.agency'
 import { Route as AppYachtsIndexRouteImport } from './routes/_app.yachts.index'
+import { Route as AppWaypointIndexRouteImport } from './routes/_app.waypoint.index'
+import { Route as AppTrainingIndexRouteImport } from './routes/_app.training.index'
 import { Route as AppPackagesIndexRouteImport } from './routes/_app.packages.index'
 import { Route as AppOrbitIndexRouteImport } from './routes/_app.orbit.index'
 import { Route as AppCrewPlacementIndexRouteImport } from './routes/_app.crew-placement.index'
 import { Route as AppYachtsNewRouteImport } from './routes/_app.yachts.new'
 import { Route as AppYachtsIdRouteImport } from './routes/_app.yachts.$id'
+import { Route as AppWaypointQuotationsRouteImport } from './routes/_app.waypoint.quotations'
+import { Route as AppTrainingCertificationsRouteImport } from './routes/_app.training.certifications'
 import { Route as AppPermitsTdraRouteImport } from './routes/_app.permits.tdra'
 import { Route as AppPermitsSanitationRouteImport } from './routes/_app.permits.sanitation'
 import { Route as AppPermitsNavigationLicenseRouteImport } from './routes/_app.permits.navigation-license'
@@ -98,6 +103,11 @@ const AppSmallBoatRegistrationRoute =
     path: '/small-boat-registration',
     getParentRoute: () => AppRoute,
   } as any)
+const AppShipSparesRoute = AppShipSparesRouteImport.update({
+  id: '/ship-spares',
+  path: '/ship-spares',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -183,6 +193,16 @@ const AppYachtsIndexRoute = AppYachtsIndexRouteImport.update({
   path: '/yachts/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWaypointIndexRoute = AppWaypointIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppWaypointRoute,
+} as any)
+const AppTrainingIndexRoute = AppTrainingIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppTrainingRoute,
+} as any)
 const AppPackagesIndexRoute = AppPackagesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -208,6 +228,17 @@ const AppYachtsIdRoute = AppYachtsIdRouteImport.update({
   path: '/yachts/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppWaypointQuotationsRoute = AppWaypointQuotationsRouteImport.update({
+  id: '/quotations',
+  path: '/quotations',
+  getParentRoute: () => AppWaypointRoute,
+} as any)
+const AppTrainingCertificationsRoute =
+  AppTrainingCertificationsRouteImport.update({
+    id: '/certifications',
+    path: '/certifications',
+    getParentRoute: () => AppTrainingRoute,
+  } as any)
 const AppPermitsTdraRoute = AppPermitsTdraRouteImport.update({
   id: '/permits/tdra',
   path: '/permits/tdra',
@@ -355,9 +386,10 @@ export interface FileRoutesByFullPath {
   '/procurement': typeof AppProcurementRoute
   '/provisioning': typeof AppProvisioningRoute
   '/settings': typeof AppSettingsRoute
+  '/ship-spares': typeof AppShipSparesRoute
   '/small-boat-registration': typeof AppSmallBoatRegistrationRoute
-  '/training': typeof AppTrainingRoute
-  '/waypoint': typeof AppWaypointRoute
+  '/training': typeof AppTrainingRouteWithChildren
+  '/waypoint': typeof AppWaypointRouteWithChildren
   '/yacht-it': typeof AppYachtItRoute
   '/crew-cab/drivers': typeof AppCrewCabDriversRoute
   '/crew-cab/locations': typeof AppCrewCabLocationsRoute
@@ -382,11 +414,15 @@ export interface FileRoutesByFullPath {
   '/permits/navigation-license': typeof AppPermitsNavigationLicenseRoute
   '/permits/sanitation': typeof AppPermitsSanitationRoute
   '/permits/tdra': typeof AppPermitsTdraRoute
+  '/training/certifications': typeof AppTrainingCertificationsRoute
+  '/waypoint/quotations': typeof AppWaypointQuotationsRoute
   '/yachts/$id': typeof AppYachtsIdRoute
   '/yachts/new': typeof AppYachtsNewRoute
   '/crew-placement/': typeof AppCrewPlacementIndexRoute
   '/orbit/': typeof AppOrbitIndexRoute
   '/packages/': typeof AppPackagesIndexRoute
+  '/training/': typeof AppTrainingIndexRoute
+  '/waypoint/': typeof AppWaypointIndexRoute
   '/yachts/': typeof AppYachtsIndexRoute
   '/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
 }
@@ -406,9 +442,8 @@ export interface FileRoutesByTo {
   '/procurement': typeof AppProcurementRoute
   '/provisioning': typeof AppProvisioningRoute
   '/settings': typeof AppSettingsRoute
+  '/ship-spares': typeof AppShipSparesRoute
   '/small-boat-registration': typeof AppSmallBoatRegistrationRoute
-  '/training': typeof AppTrainingRoute
-  '/waypoint': typeof AppWaypointRoute
   '/yacht-it': typeof AppYachtItRoute
   '/crew-cab/drivers': typeof AppCrewCabDriversRoute
   '/crew-cab/locations': typeof AppCrewCabLocationsRoute
@@ -433,11 +468,15 @@ export interface FileRoutesByTo {
   '/permits/navigation-license': typeof AppPermitsNavigationLicenseRoute
   '/permits/sanitation': typeof AppPermitsSanitationRoute
   '/permits/tdra': typeof AppPermitsTdraRoute
+  '/training/certifications': typeof AppTrainingCertificationsRoute
+  '/waypoint/quotations': typeof AppWaypointQuotationsRoute
   '/yachts/$id': typeof AppYachtsIdRoute
   '/yachts/new': typeof AppYachtsNewRoute
   '/crew-placement': typeof AppCrewPlacementIndexRoute
   '/orbit': typeof AppOrbitIndexRoute
   '/packages': typeof AppPackagesIndexRoute
+  '/training': typeof AppTrainingIndexRoute
+  '/waypoint': typeof AppWaypointIndexRoute
   '/yachts': typeof AppYachtsIndexRoute
   '/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
 }
@@ -462,9 +501,10 @@ export interface FileRoutesById {
   '/_app/procurement': typeof AppProcurementRoute
   '/_app/provisioning': typeof AppProvisioningRoute
   '/_app/settings': typeof AppSettingsRoute
+  '/_app/ship-spares': typeof AppShipSparesRoute
   '/_app/small-boat-registration': typeof AppSmallBoatRegistrationRoute
-  '/_app/training': typeof AppTrainingRoute
-  '/_app/waypoint': typeof AppWaypointRoute
+  '/_app/training': typeof AppTrainingRouteWithChildren
+  '/_app/waypoint': typeof AppWaypointRouteWithChildren
   '/_app/yacht-it': typeof AppYachtItRoute
   '/_app/crew-cab/drivers': typeof AppCrewCabDriversRoute
   '/_app/crew-cab/locations': typeof AppCrewCabLocationsRoute
@@ -489,11 +529,15 @@ export interface FileRoutesById {
   '/_app/permits/navigation-license': typeof AppPermitsNavigationLicenseRoute
   '/_app/permits/sanitation': typeof AppPermitsSanitationRoute
   '/_app/permits/tdra': typeof AppPermitsTdraRoute
+  '/_app/training/certifications': typeof AppTrainingCertificationsRoute
+  '/_app/waypoint/quotations': typeof AppWaypointQuotationsRoute
   '/_app/yachts/$id': typeof AppYachtsIdRoute
   '/_app/yachts/new': typeof AppYachtsNewRoute
   '/_app/crew-placement/': typeof AppCrewPlacementIndexRoute
   '/_app/orbit/': typeof AppOrbitIndexRoute
   '/_app/packages/': typeof AppPackagesIndexRoute
+  '/_app/training/': typeof AppTrainingIndexRoute
+  '/_app/waypoint/': typeof AppWaypointIndexRoute
   '/_app/yachts/': typeof AppYachtsIndexRoute
   '/_app/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
 }
@@ -518,6 +562,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/provisioning'
     | '/settings'
+    | '/ship-spares'
     | '/small-boat-registration'
     | '/training'
     | '/waypoint'
@@ -545,11 +590,15 @@ export interface FileRouteTypes {
     | '/permits/navigation-license'
     | '/permits/sanitation'
     | '/permits/tdra'
+    | '/training/certifications'
+    | '/waypoint/quotations'
     | '/yachts/$id'
     | '/yachts/new'
     | '/crew-placement/'
     | '/orbit/'
     | '/packages/'
+    | '/training/'
+    | '/waypoint/'
     | '/yachts/'
     | '/crew-immigration/visas/new'
   fileRoutesByTo: FileRoutesByTo
@@ -569,9 +618,8 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/provisioning'
     | '/settings'
+    | '/ship-spares'
     | '/small-boat-registration'
-    | '/training'
-    | '/waypoint'
     | '/yacht-it'
     | '/crew-cab/drivers'
     | '/crew-cab/locations'
@@ -596,11 +644,15 @@ export interface FileRouteTypes {
     | '/permits/navigation-license'
     | '/permits/sanitation'
     | '/permits/tdra'
+    | '/training/certifications'
+    | '/waypoint/quotations'
     | '/yachts/$id'
     | '/yachts/new'
     | '/crew-placement'
     | '/orbit'
     | '/packages'
+    | '/training'
+    | '/waypoint'
     | '/yachts'
     | '/crew-immigration/visas/new'
   id:
@@ -624,6 +676,7 @@ export interface FileRouteTypes {
     | '/_app/procurement'
     | '/_app/provisioning'
     | '/_app/settings'
+    | '/_app/ship-spares'
     | '/_app/small-boat-registration'
     | '/_app/training'
     | '/_app/waypoint'
@@ -651,11 +704,15 @@ export interface FileRouteTypes {
     | '/_app/permits/navigation-license'
     | '/_app/permits/sanitation'
     | '/_app/permits/tdra'
+    | '/_app/training/certifications'
+    | '/_app/waypoint/quotations'
     | '/_app/yachts/$id'
     | '/_app/yachts/new'
     | '/_app/crew-placement/'
     | '/_app/orbit/'
     | '/_app/packages/'
+    | '/_app/training/'
+    | '/_app/waypoint/'
     | '/_app/yachts/'
     | '/_app/crew-immigration/visas/new'
   fileRoutesById: FileRoutesById
@@ -715,6 +772,13 @@ declare module '@tanstack/react-router' {
       path: '/small-boat-registration'
       fullPath: '/small-boat-registration'
       preLoaderRoute: typeof AppSmallBoatRegistrationRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/ship-spares': {
+      id: '/_app/ship-spares'
+      path: '/ship-spares'
+      fullPath: '/ship-spares'
+      preLoaderRoute: typeof AppShipSparesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings': {
@@ -836,6 +900,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppYachtsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/waypoint/': {
+      id: '/_app/waypoint/'
+      path: '/'
+      fullPath: '/waypoint/'
+      preLoaderRoute: typeof AppWaypointIndexRouteImport
+      parentRoute: typeof AppWaypointRoute
+    }
+    '/_app/training/': {
+      id: '/_app/training/'
+      path: '/'
+      fullPath: '/training/'
+      preLoaderRoute: typeof AppTrainingIndexRouteImport
+      parentRoute: typeof AppTrainingRoute
+    }
     '/_app/packages/': {
       id: '/_app/packages/'
       path: '/'
@@ -870,6 +948,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/yachts/$id'
       preLoaderRoute: typeof AppYachtsIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/_app/waypoint/quotations': {
+      id: '/_app/waypoint/quotations'
+      path: '/quotations'
+      fullPath: '/waypoint/quotations'
+      preLoaderRoute: typeof AppWaypointQuotationsRouteImport
+      parentRoute: typeof AppWaypointRoute
+    }
+    '/_app/training/certifications': {
+      id: '/_app/training/certifications'
+      path: '/certifications'
+      fullPath: '/training/certifications'
+      preLoaderRoute: typeof AppTrainingCertificationsRouteImport
+      parentRoute: typeof AppTrainingRoute
     }
     '/_app/permits/tdra': {
       id: '/_app/permits/tdra'
@@ -1138,6 +1230,34 @@ const AppPackagesRouteWithChildren = AppPackagesRoute._addFileChildren(
   AppPackagesRouteChildren,
 )
 
+interface AppTrainingRouteChildren {
+  AppTrainingCertificationsRoute: typeof AppTrainingCertificationsRoute
+  AppTrainingIndexRoute: typeof AppTrainingIndexRoute
+}
+
+const AppTrainingRouteChildren: AppTrainingRouteChildren = {
+  AppTrainingCertificationsRoute: AppTrainingCertificationsRoute,
+  AppTrainingIndexRoute: AppTrainingIndexRoute,
+}
+
+const AppTrainingRouteWithChildren = AppTrainingRoute._addFileChildren(
+  AppTrainingRouteChildren,
+)
+
+interface AppWaypointRouteChildren {
+  AppWaypointQuotationsRoute: typeof AppWaypointQuotationsRoute
+  AppWaypointIndexRoute: typeof AppWaypointIndexRoute
+}
+
+const AppWaypointRouteChildren: AppWaypointRouteChildren = {
+  AppWaypointQuotationsRoute: AppWaypointQuotationsRoute,
+  AppWaypointIndexRoute: AppWaypointIndexRoute,
+}
+
+const AppWaypointRouteWithChildren = AppWaypointRoute._addFileChildren(
+  AppWaypointRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAgencyRoute: typeof AppAgencyRoute
   AppAiAssistantRoute: typeof AppAiAssistantRoute
@@ -1155,9 +1275,10 @@ interface AppRouteChildren {
   AppProcurementRoute: typeof AppProcurementRoute
   AppProvisioningRoute: typeof AppProvisioningRoute
   AppSettingsRoute: typeof AppSettingsRoute
+  AppShipSparesRoute: typeof AppShipSparesRoute
   AppSmallBoatRegistrationRoute: typeof AppSmallBoatRegistrationRoute
-  AppTrainingRoute: typeof AppTrainingRoute
-  AppWaypointRoute: typeof AppWaypointRoute
+  AppTrainingRoute: typeof AppTrainingRouteWithChildren
+  AppWaypointRoute: typeof AppWaypointRouteWithChildren
   AppYachtItRoute: typeof AppYachtItRoute
   AppPermitsAbuDhabiRoute: typeof AppPermitsAbuDhabiRoute
   AppPermitsCruisingMothershipRoute: typeof AppPermitsCruisingMothershipRoute
@@ -1190,9 +1311,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppProcurementRoute: AppProcurementRoute,
   AppProvisioningRoute: AppProvisioningRoute,
   AppSettingsRoute: AppSettingsRoute,
+  AppShipSparesRoute: AppShipSparesRoute,
   AppSmallBoatRegistrationRoute: AppSmallBoatRegistrationRoute,
-  AppTrainingRoute: AppTrainingRoute,
-  AppWaypointRoute: AppWaypointRoute,
+  AppTrainingRoute: AppTrainingRouteWithChildren,
+  AppWaypointRoute: AppWaypointRouteWithChildren,
   AppYachtItRoute: AppYachtItRoute,
   AppPermitsAbuDhabiRoute: AppPermitsAbuDhabiRoute,
   AppPermitsCruisingMothershipRoute: AppPermitsCruisingMothershipRoute,

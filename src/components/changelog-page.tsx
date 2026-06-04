@@ -21,6 +21,37 @@ type Release = {
 
 const RELEASES: Release[] = [
   {
+    version: "2.1.0",
+    date: "2026-06-05",
+    summary: "Procurement, provisioning and training modules go live — completing the Aquila One module roadmap.",
+    entries: [
+      {
+        type: "feature",
+        title: "Waypoint — Suppliers & Quotations",
+        description:
+          "Waypoint chandlery & procurement is now a full module. Maintain an approved supplier network (chandlery, parts, provisions, technical) with preferred-vendor flags, and request, compare and approve supplier quotations through a status pipeline (Requested → Received → Approved → Ordered) with vessel linking and validity dates.",
+      },
+      {
+        type: "feature",
+        title: "Superyacht Provisioning",
+        description:
+          "Manage food, beverage, interior, floral and special-event provisioning requests against a vessel — sourcing status flow (Requested → Sourcing → Confirmed → Delivered), requested-by, delivery dates and cost tracking.",
+      },
+      {
+        type: "feature",
+        title: "JLS Training Institute — Records & Certifications",
+        description:
+          "Track crew course enrolments and completions (Enrolled → In Progress → Completed) and a separate certifications register (STCW, medical, safety, flag) with issue/expiry dates and valid/expiring/expired status flags.",
+      },
+      {
+        type: "feature",
+        title: "ShipSync — Ship Spares",
+        description:
+          "New Ship Spares register under ShipSync for tracking spare parts, stock and orders across the fleet, with full create/edit/delete, search, status filtering, vessel linking and CSV export.",
+      },
+    ],
+  },
+  {
     version: "2.0.0",
     date: "2026-06-04",
     summary: "Aquila One — platform rebrand to The Operating System Behind Yacht Operations, with a new light enterprise theme, Crew & Immigration, live fleet tracking and a full module restructure.",
