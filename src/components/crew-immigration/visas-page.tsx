@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ const EMPTY_FORM = {
 
 export function VisasPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [visas, setVisas] = useState<VisaApplication[]>([]);
   const [crew, setCrew] = useState<CrewMember[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
@@ -220,7 +222,7 @@ export function VisasPage() {
               {Object.entries(STATUS_CONFIG).map(([v, c]) => <SelectItem key={v} value={v}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" onClick={openNew} className="h-9 gap-1.5 px-3.5 font-medium shadow-sm">
+          <Button size="sm" onClick={() => navigate({ to: "/crew-immigration/visas/new" as any })} className="h-9 gap-1.5 px-3.5 font-medium shadow-sm">
             <Plus className="h-3.5 w-3.5" /> New Application
           </Button>
         </div>
@@ -255,7 +257,7 @@ export function VisasPage() {
               <FileText className="h-10 w-10 text-muted-foreground/40 mb-3" />
               <p className="font-display text-base font-semibold">{q ? "No applications match" : "No visa applications yet"}</p>
               <p className="text-sm text-muted-foreground mt-1">Create applications for crew requiring visas or permits.</p>
-              {!q && <Button onClick={openNew} className="mt-4 gap-1.5"><Plus className="h-4 w-4" /> New Application</Button>}
+              {!q && <Button onClick={() => navigate({ to: "/crew-immigration/visas/new" as any })} className="mt-4 gap-1.5"><Plus className="h-4 w-4" /> New Application</Button>}
             </div>
           ) : (
             <div className="p-4 space-y-2">

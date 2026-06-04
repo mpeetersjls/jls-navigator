@@ -55,6 +55,7 @@ import { Route as AppCrewCabVehiclesRouteImport } from './routes/_app.crew-cab.v
 import { Route as AppCrewCabTripsRouteImport } from './routes/_app.crew-cab.trips'
 import { Route as AppCrewCabLocationsRouteImport } from './routes/_app.crew-cab.locations'
 import { Route as AppCrewCabDriversRouteImport } from './routes/_app.crew-cab.drivers'
+import { Route as AppCrewImmigrationVisasNewRouteImport } from './routes/_app.crew-immigration.visas.new'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -291,6 +292,12 @@ const AppCrewCabDriversRoute = AppCrewCabDriversRouteImport.update({
   path: '/drivers',
   getParentRoute: () => AppCrewCabRoute,
 } as any)
+const AppCrewImmigrationVisasNewRoute =
+  AppCrewImmigrationVisasNewRouteImport.update({
+    id: '/new',
+    path: '/new',
+    getParentRoute: () => AppCrewImmigrationVisasRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -320,7 +327,7 @@ export interface FileRoutesByFullPath {
   '/crew-immigration/crew': typeof AppCrewImmigrationCrewRoute
   '/crew-immigration/documents': typeof AppCrewImmigrationDocumentsRoute
   '/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
-  '/crew-immigration/visas': typeof AppCrewImmigrationVisasRoute
+  '/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
   '/orbit/$projectId': typeof AppOrbitProjectIdRoute
   '/packages/deliveries': typeof AppPackagesDeliveriesRoute
   '/packages/drivers': typeof AppPackagesDriversRoute
@@ -338,6 +345,7 @@ export interface FileRoutesByFullPath {
   '/orbit/': typeof AppOrbitIndexRoute
   '/packages/': typeof AppPackagesIndexRoute
   '/yachts/': typeof AppYachtsIndexRoute
+  '/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -365,7 +373,7 @@ export interface FileRoutesByTo {
   '/crew-immigration/crew': typeof AppCrewImmigrationCrewRoute
   '/crew-immigration/documents': typeof AppCrewImmigrationDocumentsRoute
   '/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
-  '/crew-immigration/visas': typeof AppCrewImmigrationVisasRoute
+  '/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
   '/orbit/$projectId': typeof AppOrbitProjectIdRoute
   '/packages/deliveries': typeof AppPackagesDeliveriesRoute
   '/packages/drivers': typeof AppPackagesDriversRoute
@@ -383,6 +391,7 @@ export interface FileRoutesByTo {
   '/orbit': typeof AppOrbitIndexRoute
   '/packages': typeof AppPackagesIndexRoute
   '/yachts': typeof AppYachtsIndexRoute
+  '/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -414,7 +423,7 @@ export interface FileRoutesById {
   '/_app/crew-immigration/crew': typeof AppCrewImmigrationCrewRoute
   '/_app/crew-immigration/documents': typeof AppCrewImmigrationDocumentsRoute
   '/_app/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
-  '/_app/crew-immigration/visas': typeof AppCrewImmigrationVisasRoute
+  '/_app/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
   '/_app/orbit/$projectId': typeof AppOrbitProjectIdRoute
   '/_app/packages/deliveries': typeof AppPackagesDeliveriesRoute
   '/_app/packages/drivers': typeof AppPackagesDriversRoute
@@ -432,6 +441,7 @@ export interface FileRoutesById {
   '/_app/orbit/': typeof AppOrbitIndexRoute
   '/_app/packages/': typeof AppPackagesIndexRoute
   '/_app/yachts/': typeof AppYachtsIndexRoute
+  '/_app/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -481,6 +491,7 @@ export interface FileRouteTypes {
     | '/orbit/'
     | '/packages/'
     | '/yachts/'
+    | '/crew-immigration/visas/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -526,6 +537,7 @@ export interface FileRouteTypes {
     | '/orbit'
     | '/packages'
     | '/yachts'
+    | '/crew-immigration/visas/new'
   id:
     | '__root__'
     | '/'
@@ -574,6 +586,7 @@ export interface FileRouteTypes {
     | '/_app/orbit/'
     | '/_app/packages/'
     | '/_app/yachts/'
+    | '/_app/crew-immigration/visas/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -906,6 +919,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCrewCabDriversRouteImport
       parentRoute: typeof AppCrewCabRoute
     }
+    '/_app/crew-immigration/visas/new': {
+      id: '/_app/crew-immigration/visas/new'
+      path: '/new'
+      fullPath: '/crew-immigration/visas/new'
+      preLoaderRoute: typeof AppCrewImmigrationVisasNewRouteImport
+      parentRoute: typeof AppCrewImmigrationVisasRoute
+    }
   }
 }
 
@@ -927,18 +947,32 @@ const AppCrewCabRouteWithChildren = AppCrewCabRoute._addFileChildren(
   AppCrewCabRouteChildren,
 )
 
+interface AppCrewImmigrationVisasRouteChildren {
+  AppCrewImmigrationVisasNewRoute: typeof AppCrewImmigrationVisasNewRoute
+}
+
+const AppCrewImmigrationVisasRouteChildren: AppCrewImmigrationVisasRouteChildren =
+  {
+    AppCrewImmigrationVisasNewRoute: AppCrewImmigrationVisasNewRoute,
+  }
+
+const AppCrewImmigrationVisasRouteWithChildren =
+  AppCrewImmigrationVisasRoute._addFileChildren(
+    AppCrewImmigrationVisasRouteChildren,
+  )
+
 interface AppCrewImmigrationRouteChildren {
   AppCrewImmigrationCrewRoute: typeof AppCrewImmigrationCrewRoute
   AppCrewImmigrationDocumentsRoute: typeof AppCrewImmigrationDocumentsRoute
   AppCrewImmigrationSignOnOffRoute: typeof AppCrewImmigrationSignOnOffRoute
-  AppCrewImmigrationVisasRoute: typeof AppCrewImmigrationVisasRoute
+  AppCrewImmigrationVisasRoute: typeof AppCrewImmigrationVisasRouteWithChildren
 }
 
 const AppCrewImmigrationRouteChildren: AppCrewImmigrationRouteChildren = {
   AppCrewImmigrationCrewRoute: AppCrewImmigrationCrewRoute,
   AppCrewImmigrationDocumentsRoute: AppCrewImmigrationDocumentsRoute,
   AppCrewImmigrationSignOnOffRoute: AppCrewImmigrationSignOnOffRoute,
-  AppCrewImmigrationVisasRoute: AppCrewImmigrationVisasRoute,
+  AppCrewImmigrationVisasRoute: AppCrewImmigrationVisasRouteWithChildren,
 }
 
 const AppCrewImmigrationRouteWithChildren =

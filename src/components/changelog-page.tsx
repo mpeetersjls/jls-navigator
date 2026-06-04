@@ -45,6 +45,12 @@ const RELEASES: Release[] = [
       },
       {
         type: "feature",
+        title: "Visa Application wizard",
+        description:
+          "Guided 5-step visa application (Crew Member → Personal Details → Visa Details → Documents → Review & Submit) with a live application summary, status stepper and document checklist. Selecting an existing crew member auto-fills every personal and passport field — collect data once, reuse it everywhere. Submitting saves the crew profile and creates the application in one step.",
+      },
+      {
+        type: "feature",
         title: "Light & dark themes",
         description:
           "Toggle between the light enterprise theme (white surfaces, navy sidebar) and a full dark theme from the top bar. Your choice persists and applies before the page paints — no flash.",
