@@ -63,6 +63,7 @@ export default function FleetMap({
             <div style={{ minWidth: 160 }}>
               <div style={{ fontWeight: 700, marginBottom: 2 }}>{v.name}</div>
               <div style={{ fontSize: 12, color: "#475569" }}>
+                {v.appVehicleId ? <div style={{ color: "#1e40af" }}>✓ {v.appMake} {v.appModel}</div> : <div style={{ color: "#b45309" }}>Not linked to a fleet vehicle</div>}
                 {v.driver ? <div>Driver: {v.driver}</div> : null}
                 {v.driverPhone ? <div>{v.driverPhone}</div> : null}
                 <div>Status: {v.status ?? "—"}</div>

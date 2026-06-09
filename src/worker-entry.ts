@@ -1,6 +1,7 @@
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
 import { syncFromSharePoint, downloadPendingImages } from './lib/sharepoint-sync.server'
 import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
+import { syncFleetPositions } from './lib/mygps.server'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -60,6 +61,13 @@ export default {
         })
         .then((imgs) => { if (imgs) console.log(`[sp-cron] images downloaded=${imgs}`) })
         .catch((e) => console.error('[sp-cron] error:', e))
+    )
+
+    // Sync live myGPS vehicle positions onto crew_vehicles every run (~15 min)
+    ctx.waitUntil(
+      syncFleetPositions()
+        .then(({ fetched, updated }) => console.log(`[mygps-cron] fetched=${fetched} updated=${updated}`))
+        .catch((e) => console.error('[mygps-cron] error:', e))
     )
 
     // Send expiry alerts once daily at 08:00 UTC

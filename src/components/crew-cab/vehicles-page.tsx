@@ -25,7 +25,39 @@ type Vehicle = {
   status: string;
   insurance_expiry: string | null;
   notes: string | null;
+  last_lat: number | null;
+  last_lon: number | null;
+  last_location_at: string | null;
+  last_status: string | null;
+  last_driver_name: string | null;
 };
+
+function relTime(iso: string | null): string {
+  if (!iso) return "";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+function LiveLocation({ v }: { v: Vehicle }) {
+  if (v.last_lat == null || v.last_lon == null) return <span className="text-muted-foreground/40">—</span>;
+  const fresh = v.last_location_at ? (Date.now() - new Date(v.last_location_at).getTime()) < 30 * 60000 : false;
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${v.last_lat},${v.last_lon}`}
+      target="_blank" rel="noreferrer"
+      className="inline-flex items-center gap-1.5 hover:underline"
+      title={v.last_driver_name ? `Driver: ${v.last_driver_name}` : undefined}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${fresh ? "bg-emerald-500" : "bg-slate-400"}`} />
+      <span className="text-foreground/80">{v.last_status ?? "Tracked"}</span>
+      <span className="text-muted-foreground">{relTime(v.last_location_at)}</span>
+    </a>
+  );
+}
 
 const EMPTY = {
   make: "", model: "", year: "", registration: "", color: "",
@@ -211,10 +243,10 @@ export function VehiclesPage() {
           </div>
         ) : (
           <div className="rounded-lg border border-border overflow-x-auto">
-            <table className="w-full text-xs min-w-[900px]">
+            <table className="w-full text-xs min-w-[1040px]">
               <thead className="bg-muted/40 border-b border-border">
                 <tr>
-                  {["Make", "Model", "Year", "Registration", "Color", "Capacity", "Mileage", "Insurance Expiry", "Status", ""].map((h) => (
+                  {["Make", "Model", "Year", "Registration", "Live Location", "Color", "Capacity", "Mileage", "Insurance Expiry", "Status", ""].map((h) => (
                     <th key={h} className="px-3 py-2 text-left font-medium uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                       {h}
                     </th>
@@ -228,6 +260,7 @@ export function VehiclesPage() {
                     <td className="px-3 py-1.5">{v.model}</td>
                     <td className="px-3 py-1.5 text-muted-foreground">{v.year ?? "—"}</td>
                     <td className="px-3 py-1.5 text-muted-foreground font-mono">{v.registration ?? "—"}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap"><LiveLocation v={v} /></td>
                     <td className="px-3 py-1.5 text-muted-foreground">{v.color ?? "—"}</td>
                     <td className="px-3 py-1.5 text-muted-foreground">{v.capacity}</td>
                     <td className="px-3 py-1.5 text-muted-foreground">{v.mileage?.toLocaleString()} km</td>
