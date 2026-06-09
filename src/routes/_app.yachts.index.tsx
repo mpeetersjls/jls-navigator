@@ -545,6 +545,24 @@ function fmt(v: unknown) {
   return String(v);
 }
 
+const NAVSTAT_LABEL: Record<number, string> = {
+  0: "Under way", 1: "At anchor", 2: "Not under command", 3: "Restricted",
+  4: "Constrained", 5: "Moored", 6: "Aground", 7: "Fishing", 8: "Sailing",
+};
+
+/** Relative "Xm ago / Xh ago / date" for AIS timestamps. */
+function relWhen(v: unknown): string {
+  if (!v) return "—";
+  const d = new Date(String(v));
+  if (isNaN(d.getTime())) return "—";
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h}h ago`;
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
+
 /** Returns a MarineTraffic deep-link using IMO → MMSI → name as fallback */
 function trackUrl(y: Yacht): string {
   const imo = String(y.imo_no ?? "").trim();
@@ -624,6 +642,22 @@ function ListView({
                         <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/status:opacity-60 transition-opacity" />
                       </div>
                     )
+                  ) : c.key === "ais_location" ? (
+                    (y.ais_lat != null && y.ais_lon != null) ? (
+                      <a
+                        href={`https://www.google.com/maps?q=${y.ais_lat},${y.ais_lon}`}
+                        target="_blank" rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 hover:underline"
+                        title={y.ais_destination ? `Destination: ${y.ais_destination}` : undefined}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${y.ais_synced_at && (Date.now() - new Date(String(y.ais_synced_at)).getTime()) < 3600000 ? "bg-emerald-500" : "bg-slate-400"}`} />
+                        <span className="text-foreground/80">{NAVSTAT_LABEL[Number(y.ais_navstat)] ?? "Tracked"}</span>
+                        <span className="text-muted-foreground">{relWhen(y.ais_position_at)}</span>
+                      </a>
+                    ) : <span className="text-muted-foreground/40">—</span>
+                  ) : (c.key === "underway_since" || c.key === "last_departed_at" || c.key === "last_arrived_at") ? (
+                    <span className="text-foreground/80">{relWhen(y[c.key])}</span>
                   ) : (
                     <span className="text-foreground/80">{fmt(y[c.key])}</span>
                   )}

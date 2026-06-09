@@ -42,6 +42,11 @@ export const YACHT_COLUMNS = [
   { key: "planner_id", label: "Planner ID" },
   { key: "engine", label: "Engine" },
   { key: "vessel_image", label: "Vessel Image URL" },
+  // ── Live AIS (VesselFinder) ──
+  { key: "ais_location", label: "Live Location" },
+  { key: "underway_since", label: "Underway Since" },
+  { key: "last_departed_at", label: "Departed" },
+  { key: "last_arrived_at", label: "Arrived" },
 ] as const;
 
 export type YachtColumnKey = (typeof YACHT_COLUMNS)[number]["key"];
@@ -56,5 +61,8 @@ export const DEFAULT_VISIBLE_COLUMNS: YachtColumnKey[] = [
   "eta",
   "etd",
   "location",
+  "ais_location",
+  "last_departed_at",
+  "last_arrived_at",
   "owners_name",
 ];

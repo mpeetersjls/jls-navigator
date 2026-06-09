@@ -2,6 +2,7 @@ import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/
 import { syncFromSharePoint, downloadPendingImages } from './lib/sharepoint-sync.server'
 import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
 import { syncFleetPositions } from './lib/mygps.server'
+import { syncVesselPositions } from './lib/vesselfinder.server'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -68,6 +69,13 @@ export default {
       syncFleetPositions()
         .then(({ fetched, updated }) => console.log(`[mygps-cron] fetched=${fetched} updated=${updated}`))
         .catch((e) => console.error('[mygps-cron] error:', e))
+    )
+
+    // Sync live VesselFinder AIS positions onto yachts (no-op until userkey set)
+    ctx.waitUntil(
+      syncVesselPositions()
+        .then(({ matched, updated }) => console.log(`[vesselfinder-cron] matched=${matched} updated=${updated}`))
+        .catch((e) => console.error('[vesselfinder-cron] error:', e))
     )
 
     // Send expiry alerts once daily at 08:00 UTC
