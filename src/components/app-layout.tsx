@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/top-bar";
+import { LeoBubble } from "@/components/leo-bubble";
 import { useAuth } from "@/lib/auth";
 
 export function AppLayout() {
@@ -30,6 +31,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <LeoBubble />
     </div>
   );
 }
