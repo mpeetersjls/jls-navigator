@@ -29,6 +29,7 @@ const NAV: NavItem[] = [
     children: [
       { label: "Dashboard",        to: "/director", icon: LayoutDashboard },
       { label: "Vessel Overview",  to: "/yachts",   icon: Ship },
+      { label: "My Fleet (Live)",  to: "/my-fleet", icon: Navigation },
       { label: "Crew",             to: "/crew-immigration/crew", icon: Users },
       {
         label: "Crew & Immigration",

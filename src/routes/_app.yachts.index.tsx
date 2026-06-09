@@ -425,6 +425,10 @@ function YachtsPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button asChild variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+            <Link to="/my-fleet"><Radar className="h-3.5 w-3.5" /> Live Fleet Map</Link>
+          </Button>
+
           <Button asChild size="sm" className="h-8 gap-1.5 text-xs">
             <Link to="/yachts/new"><Plus className="h-3.5 w-3.5" /> Add Yacht</Link>
           </Button>

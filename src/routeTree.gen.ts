@@ -23,6 +23,7 @@ import { Route as AppProvisioningRouteImport } from './routes/_app.provisioning'
 import { Route as AppProcurementRouteImport } from './routes/_app.procurement'
 import { Route as AppPackagesRouteImport } from './routes/_app.packages'
 import { Route as AppOrbitRouteImport } from './routes/_app.orbit'
+import { Route as AppMyFleetRouteImport } from './routes/_app.my-fleet'
 import { Route as AppItTicketsRouteImport } from './routes/_app.it-tickets'
 import { Route as AppGuidesRouteImport } from './routes/_app.guides'
 import { Route as AppFleetTrackingRouteImport } from './routes/_app.fleet-tracking'
@@ -147,6 +148,11 @@ const AppPackagesRoute = AppPackagesRouteImport.update({
 const AppOrbitRoute = AppOrbitRouteImport.update({
   id: '/orbit',
   path: '/orbit',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMyFleetRoute = AppMyFleetRouteImport.update({
+  id: '/my-fleet',
+  path: '/my-fleet',
   getParentRoute: () => AppRoute,
 } as any)
 const AppItTicketsRoute = AppItTicketsRouteImport.update({
@@ -451,6 +457,7 @@ export interface FileRoutesByFullPath {
   '/fleet-tracking': typeof AppFleetTrackingRoute
   '/guides': typeof AppGuidesRouteWithChildren
   '/it-tickets': typeof AppItTicketsRouteWithChildren
+  '/my-fleet': typeof AppMyFleetRoute
   '/orbit': typeof AppOrbitRouteWithChildren
   '/packages': typeof AppPackagesRouteWithChildren
   '/procurement': typeof AppProcurementRoute
@@ -517,6 +524,7 @@ export interface FileRoutesByTo {
   '/director': typeof AppDirectorRoute
   '/finance': typeof AppFinanceRoute
   '/fleet-tracking': typeof AppFleetTrackingRoute
+  '/my-fleet': typeof AppMyFleetRoute
   '/procurement': typeof AppProcurementRoute
   '/provisioning': typeof AppProvisioningRoute
   '/settings': typeof AppSettingsRoute
@@ -584,6 +592,7 @@ export interface FileRoutesById {
   '/_app/fleet-tracking': typeof AppFleetTrackingRoute
   '/_app/guides': typeof AppGuidesRouteWithChildren
   '/_app/it-tickets': typeof AppItTicketsRouteWithChildren
+  '/_app/my-fleet': typeof AppMyFleetRoute
   '/_app/orbit': typeof AppOrbitRouteWithChildren
   '/_app/packages': typeof AppPackagesRouteWithChildren
   '/_app/procurement': typeof AppProcurementRoute
@@ -656,6 +665,7 @@ export interface FileRouteTypes {
     | '/fleet-tracking'
     | '/guides'
     | '/it-tickets'
+    | '/my-fleet'
     | '/orbit'
     | '/packages'
     | '/procurement'
@@ -722,6 +732,7 @@ export interface FileRouteTypes {
     | '/director'
     | '/finance'
     | '/fleet-tracking'
+    | '/my-fleet'
     | '/procurement'
     | '/provisioning'
     | '/settings'
@@ -788,6 +799,7 @@ export interface FileRouteTypes {
     | '/_app/fleet-tracking'
     | '/_app/guides'
     | '/_app/it-tickets'
+    | '/_app/my-fleet'
     | '/_app/orbit'
     | '/_app/packages'
     | '/_app/procurement'
@@ -948,6 +960,13 @@ declare module '@tanstack/react-router' {
       path: '/orbit'
       fullPath: '/orbit'
       preLoaderRoute: typeof AppOrbitRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/my-fleet': {
+      id: '/_app/my-fleet'
+      path: '/my-fleet'
+      fullPath: '/my-fleet'
+      preLoaderRoute: typeof AppMyFleetRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/it-tickets': {
@@ -1531,6 +1550,7 @@ interface AppRouteChildren {
   AppFleetTrackingRoute: typeof AppFleetTrackingRoute
   AppGuidesRoute: typeof AppGuidesRouteWithChildren
   AppItTicketsRoute: typeof AppItTicketsRouteWithChildren
+  AppMyFleetRoute: typeof AppMyFleetRoute
   AppOrbitRoute: typeof AppOrbitRouteWithChildren
   AppPackagesRoute: typeof AppPackagesRouteWithChildren
   AppProcurementRoute: typeof AppProcurementRoute
@@ -1569,6 +1589,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFleetTrackingRoute: AppFleetTrackingRoute,
   AppGuidesRoute: AppGuidesRouteWithChildren,
   AppItTicketsRoute: AppItTicketsRouteWithChildren,
+  AppMyFleetRoute: AppMyFleetRoute,
   AppOrbitRoute: AppOrbitRouteWithChildren,
   AppPackagesRoute: AppPackagesRouteWithChildren,
   AppProcurementRoute: AppProcurementRoute,
