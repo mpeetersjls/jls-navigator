@@ -76,15 +76,27 @@ function inviteHtml(doc: any, link: string): string {
 
 // ── send for signature ──────────────────────────────────────────────────────
 
+// Surface the real Supabase error instead of masking it. A 401/JWT/permission
+// error here means the SUPABASE_SERVICE_ROLE_KEY worker secret is invalid.
+function adminError(error: any, context: string): Error {
+  const m = String(error?.message ?? error?.code ?? "");
+  if (/jwt|api ?key|unauthorized|permission denied|not authorized|401/i.test(m)) {
+    return new Error("Server database access denied — the SUPABASE_SERVICE_ROLE_KEY secret is invalid or expired. Update it in the Cloudflare Worker.");
+  }
+  return new Error(`${context}: ${m || "unknown error"}`);
+}
+
 export const doSendForSignature = createServerFn({ method: "POST" })
   // @ts-expect-error — TanStack Start v1 serverFn type requires explicit ctx typing
   .handler(async (ctx: { data: { documentId: string; senderEmail?: string } }) => {
-    const { documentId, senderEmail } = ctx.data;
+    const { documentId, senderEmail } = ctx.data ?? {};
+    if (!documentId) throw new Error("No document id was supplied to the signing request.");
     const meta = reqMeta();
 
     const { data: doc, error } = await (supabaseAdmin as any)
-      .from("esign_documents").select("*").eq("id", documentId).single();
-    if (error || !doc) throw new Error("Document not found");
+      .from("esign_documents").select("*").eq("id", documentId).maybeSingle();
+    if (error) throw adminError(error, "Could not load the document");
+    if (!doc) throw new Error("Document not found");
     if (doc.status === "signed") throw new Error("This document is already signed.");
 
     const token = doc.signing_token || randomToken();
@@ -116,8 +128,9 @@ export const getSigningDocument = createServerFn({ method: "POST" })
     const { token } = ctx.data;
     const meta = reqMeta();
 
-    const { data: doc } = await (supabaseAdmin as any)
+    const { data: doc, error } = await (supabaseAdmin as any)
       .from("esign_documents").select("*").eq("signing_token", token).maybeSingle();
+    if (error) throw adminError(error, "Could not load the document");
     if (!doc) throw new Error("This signing link is invalid.");
 
     if (doc.status === "signed") return responseFor(doc, "signed");
@@ -157,8 +170,9 @@ export const doSubmitSignature = createServerFn({ method: "POST" })
     const { token, signatureDataUrl, typedName } = ctx.data;
     const meta = reqMeta();
 
-    const { data: doc } = await (supabaseAdmin as any)
+    const { data: doc, error } = await (supabaseAdmin as any)
       .from("esign_documents").select("*").eq("signing_token", token).maybeSingle();
+    if (error) throw adminError(error, "Could not load the document");
     if (!doc) throw new Error("This signing link is invalid.");
     if (doc.status === "signed") throw new Error("This document is already signed.");
     if (!["sent", "viewed"].includes(doc.status)) throw new Error("This document can no longer be signed.");
