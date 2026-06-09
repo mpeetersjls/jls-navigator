@@ -6,7 +6,7 @@ import {
   Route, UserCircle2, Car, MapPin, ScrollText, X, ShoppingCart, Truck,
   GraduationCap, Bot, Layers as LayersIcon, UserPlus, LayoutDashboard,
   FileText, Wrench, UtensilsCrossed, Cpu, IdCard, Boxes, Cog, ClipboardList,
-  Globe, Headset, BookOpen,
+  Globe, Headset, BookOpen, FileSignature,
 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { DEPARTMENTS } from "@/components/guides/guide-meta";
@@ -134,6 +134,7 @@ const NAV: NavItem[] = [
           { label: "Contracts & Services", to: "/yacht-it",   icon: FileText },
         ],
       },
+      { label: "Documents & e-Sign",     to: "/esign",         icon: FileSignature },
       { label: "AI Assistant",            to: "/ai-assistant",  icon: Bot },
       { label: "Compass",                 to: "/compass",       icon: Compass },
       { label: "Changelog",               to: "/changelog",     icon: ScrollText },

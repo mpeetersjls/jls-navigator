@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SignTokenRouteImport } from './routes/sign.$token'
 import { Route as AppYachtItRouteImport } from './routes/_app.yacht-it'
 import { Route as AppWaypointRouteImport } from './routes/_app.waypoint'
 import { Route as AppTrainingRouteImport } from './routes/_app.training'
@@ -26,6 +27,7 @@ import { Route as AppItTicketsRouteImport } from './routes/_app.it-tickets'
 import { Route as AppGuidesRouteImport } from './routes/_app.guides'
 import { Route as AppFleetTrackingRouteImport } from './routes/_app.fleet-tracking'
 import { Route as AppFinanceRouteImport } from './routes/_app.finance'
+import { Route as AppEsignRouteImport } from './routes/_app.esign'
 import { Route as AppDirectorRouteImport } from './routes/_app.director'
 import { Route as AppCrewPlacementRouteImport } from './routes/_app.crew-placement'
 import { Route as AppCrewImmigrationRouteImport } from './routes/_app.crew-immigration'
@@ -41,6 +43,7 @@ import { Route as AppPackagesIndexRouteImport } from './routes/_app.packages.ind
 import { Route as AppOrbitIndexRouteImport } from './routes/_app.orbit.index'
 import { Route as AppItTicketsIndexRouteImport } from './routes/_app.it-tickets.index'
 import { Route as AppGuidesIndexRouteImport } from './routes/_app.guides.index'
+import { Route as AppEsignIndexRouteImport } from './routes/_app.esign.index'
 import { Route as AppCrewPlacementIndexRouteImport } from './routes/_app.crew-placement.index'
 import { Route as AppYachtsNewRouteImport } from './routes/_app.yachts.new'
 import { Route as AppYachtsIdRouteImport } from './routes/_app.yachts.$id'
@@ -62,6 +65,7 @@ import { Route as AppOrbitDefectsRouteImport } from './routes/_app.orbit.defects
 import { Route as AppOrbitProjectIdRouteImport } from './routes/_app.orbit.$projectId'
 import { Route as AppItTicketsTicketIdRouteImport } from './routes/_app.it-tickets.$ticketId'
 import { Route as AppGuidesDepartmentRouteImport } from './routes/_app.guides.$department'
+import { Route as AppEsignDocumentIdRouteImport } from './routes/_app.esign.$documentId'
 import { Route as AppCrewPlacementVacanciesRouteImport } from './routes/_app.crew-placement.vacancies'
 import { Route as AppCrewImmigrationVisasRouteImport } from './routes/_app.crew-immigration.visas'
 import { Route as AppCrewImmigrationSignOnOffRouteImport } from './routes/_app.crew-immigration.sign-on-off'
@@ -87,6 +91,11 @@ const AppRoute = AppRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignTokenRoute = SignTokenRouteImport.update({
+  id: '/sign/$token',
+  path: '/sign/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppYachtItRoute = AppYachtItRouteImport.update({
@@ -158,6 +167,11 @@ const AppFleetTrackingRoute = AppFleetTrackingRouteImport.update({
 const AppFinanceRoute = AppFinanceRouteImport.update({
   id: '/finance',
   path: '/finance',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppEsignRoute = AppEsignRouteImport.update({
+  id: '/esign',
+  path: '/esign',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDirectorRoute = AppDirectorRouteImport.update({
@@ -234,6 +248,11 @@ const AppGuidesIndexRoute = AppGuidesIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppGuidesRoute,
+} as any)
+const AppEsignIndexRoute = AppEsignIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppEsignRoute,
 } as any)
 const AppCrewPlacementIndexRoute = AppCrewPlacementIndexRouteImport.update({
   id: '/',
@@ -344,6 +363,11 @@ const AppGuidesDepartmentRoute = AppGuidesDepartmentRouteImport.update({
   path: '/$department',
   getParentRoute: () => AppGuidesRoute,
 } as any)
+const AppEsignDocumentIdRoute = AppEsignDocumentIdRouteImport.update({
+  id: '/$documentId',
+  path: '/$documentId',
+  getParentRoute: () => AppEsignRoute,
+} as any)
 const AppCrewPlacementVacanciesRoute =
   AppCrewPlacementVacanciesRouteImport.update({
     id: '/vacancies',
@@ -422,6 +446,7 @@ export interface FileRoutesByFullPath {
   '/crew-immigration': typeof AppCrewImmigrationRouteWithChildren
   '/crew-placement': typeof AppCrewPlacementRouteWithChildren
   '/director': typeof AppDirectorRoute
+  '/esign': typeof AppEsignRouteWithChildren
   '/finance': typeof AppFinanceRoute
   '/fleet-tracking': typeof AppFleetTrackingRoute
   '/guides': typeof AppGuidesRouteWithChildren
@@ -436,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/training': typeof AppTrainingRouteWithChildren
   '/waypoint': typeof AppWaypointRouteWithChildren
   '/yacht-it': typeof AppYachtItRoute
+  '/sign/$token': typeof SignTokenRoute
   '/crew-cab/drivers': typeof AppCrewCabDriversRoute
   '/crew-cab/locations': typeof AppCrewCabLocationsRoute
   '/crew-cab/trips': typeof AppCrewCabTripsRoute
@@ -445,6 +471,7 @@ export interface FileRoutesByFullPath {
   '/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
   '/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
   '/crew-placement/vacancies': typeof AppCrewPlacementVacanciesRoute
+  '/esign/$documentId': typeof AppEsignDocumentIdRoute
   '/guides/$department': typeof AppGuidesDepartmentRouteWithChildren
   '/it-tickets/$ticketId': typeof AppItTicketsTicketIdRoute
   '/orbit/$projectId': typeof AppOrbitProjectIdRoute
@@ -466,6 +493,7 @@ export interface FileRoutesByFullPath {
   '/yachts/$id': typeof AppYachtsIdRoute
   '/yachts/new': typeof AppYachtsNewRoute
   '/crew-placement/': typeof AppCrewPlacementIndexRoute
+  '/esign/': typeof AppEsignIndexRoute
   '/guides/': typeof AppGuidesIndexRoute
   '/it-tickets/': typeof AppItTicketsIndexRoute
   '/orbit/': typeof AppOrbitIndexRoute
@@ -495,6 +523,7 @@ export interface FileRoutesByTo {
   '/ship-spares': typeof AppShipSparesRoute
   '/small-boat-registration': typeof AppSmallBoatRegistrationRoute
   '/yacht-it': typeof AppYachtItRoute
+  '/sign/$token': typeof SignTokenRoute
   '/crew-cab/drivers': typeof AppCrewCabDriversRoute
   '/crew-cab/locations': typeof AppCrewCabLocationsRoute
   '/crew-cab/trips': typeof AppCrewCabTripsRoute
@@ -504,6 +533,7 @@ export interface FileRoutesByTo {
   '/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
   '/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
   '/crew-placement/vacancies': typeof AppCrewPlacementVacanciesRoute
+  '/esign/$documentId': typeof AppEsignDocumentIdRoute
   '/it-tickets/$ticketId': typeof AppItTicketsTicketIdRoute
   '/orbit/$projectId': typeof AppOrbitProjectIdRoute
   '/orbit/defects': typeof AppOrbitDefectsRoute
@@ -524,6 +554,7 @@ export interface FileRoutesByTo {
   '/yachts/$id': typeof AppYachtsIdRoute
   '/yachts/new': typeof AppYachtsNewRoute
   '/crew-placement': typeof AppCrewPlacementIndexRoute
+  '/esign': typeof AppEsignIndexRoute
   '/guides': typeof AppGuidesIndexRoute
   '/it-tickets': typeof AppItTicketsIndexRoute
   '/orbit': typeof AppOrbitIndexRoute
@@ -548,6 +579,7 @@ export interface FileRoutesById {
   '/_app/crew-immigration': typeof AppCrewImmigrationRouteWithChildren
   '/_app/crew-placement': typeof AppCrewPlacementRouteWithChildren
   '/_app/director': typeof AppDirectorRoute
+  '/_app/esign': typeof AppEsignRouteWithChildren
   '/_app/finance': typeof AppFinanceRoute
   '/_app/fleet-tracking': typeof AppFleetTrackingRoute
   '/_app/guides': typeof AppGuidesRouteWithChildren
@@ -562,6 +594,7 @@ export interface FileRoutesById {
   '/_app/training': typeof AppTrainingRouteWithChildren
   '/_app/waypoint': typeof AppWaypointRouteWithChildren
   '/_app/yacht-it': typeof AppYachtItRoute
+  '/sign/$token': typeof SignTokenRoute
   '/_app/crew-cab/drivers': typeof AppCrewCabDriversRoute
   '/_app/crew-cab/locations': typeof AppCrewCabLocationsRoute
   '/_app/crew-cab/trips': typeof AppCrewCabTripsRoute
@@ -571,6 +604,7 @@ export interface FileRoutesById {
   '/_app/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
   '/_app/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
   '/_app/crew-placement/vacancies': typeof AppCrewPlacementVacanciesRoute
+  '/_app/esign/$documentId': typeof AppEsignDocumentIdRoute
   '/_app/guides/$department': typeof AppGuidesDepartmentRouteWithChildren
   '/_app/it-tickets/$ticketId': typeof AppItTicketsTicketIdRoute
   '/_app/orbit/$projectId': typeof AppOrbitProjectIdRoute
@@ -592,6 +626,7 @@ export interface FileRoutesById {
   '/_app/yachts/$id': typeof AppYachtsIdRoute
   '/_app/yachts/new': typeof AppYachtsNewRoute
   '/_app/crew-placement/': typeof AppCrewPlacementIndexRoute
+  '/_app/esign/': typeof AppEsignIndexRoute
   '/_app/guides/': typeof AppGuidesIndexRoute
   '/_app/it-tickets/': typeof AppItTicketsIndexRoute
   '/_app/orbit/': typeof AppOrbitIndexRoute
@@ -616,6 +651,7 @@ export interface FileRouteTypes {
     | '/crew-immigration'
     | '/crew-placement'
     | '/director'
+    | '/esign'
     | '/finance'
     | '/fleet-tracking'
     | '/guides'
@@ -630,6 +666,7 @@ export interface FileRouteTypes {
     | '/training'
     | '/waypoint'
     | '/yacht-it'
+    | '/sign/$token'
     | '/crew-cab/drivers'
     | '/crew-cab/locations'
     | '/crew-cab/trips'
@@ -639,6 +676,7 @@ export interface FileRouteTypes {
     | '/crew-immigration/sign-on-off'
     | '/crew-immigration/visas'
     | '/crew-placement/vacancies'
+    | '/esign/$documentId'
     | '/guides/$department'
     | '/it-tickets/$ticketId'
     | '/orbit/$projectId'
@@ -660,6 +698,7 @@ export interface FileRouteTypes {
     | '/yachts/$id'
     | '/yachts/new'
     | '/crew-placement/'
+    | '/esign/'
     | '/guides/'
     | '/it-tickets/'
     | '/orbit/'
@@ -689,6 +728,7 @@ export interface FileRouteTypes {
     | '/ship-spares'
     | '/small-boat-registration'
     | '/yacht-it'
+    | '/sign/$token'
     | '/crew-cab/drivers'
     | '/crew-cab/locations'
     | '/crew-cab/trips'
@@ -698,6 +738,7 @@ export interface FileRouteTypes {
     | '/crew-immigration/sign-on-off'
     | '/crew-immigration/visas'
     | '/crew-placement/vacancies'
+    | '/esign/$documentId'
     | '/it-tickets/$ticketId'
     | '/orbit/$projectId'
     | '/orbit/defects'
@@ -718,6 +759,7 @@ export interface FileRouteTypes {
     | '/yachts/$id'
     | '/yachts/new'
     | '/crew-placement'
+    | '/esign'
     | '/guides'
     | '/it-tickets'
     | '/orbit'
@@ -741,6 +783,7 @@ export interface FileRouteTypes {
     | '/_app/crew-immigration'
     | '/_app/crew-placement'
     | '/_app/director'
+    | '/_app/esign'
     | '/_app/finance'
     | '/_app/fleet-tracking'
     | '/_app/guides'
@@ -755,6 +798,7 @@ export interface FileRouteTypes {
     | '/_app/training'
     | '/_app/waypoint'
     | '/_app/yacht-it'
+    | '/sign/$token'
     | '/_app/crew-cab/drivers'
     | '/_app/crew-cab/locations'
     | '/_app/crew-cab/trips'
@@ -764,6 +808,7 @@ export interface FileRouteTypes {
     | '/_app/crew-immigration/sign-on-off'
     | '/_app/crew-immigration/visas'
     | '/_app/crew-placement/vacancies'
+    | '/_app/esign/$documentId'
     | '/_app/guides/$department'
     | '/_app/it-tickets/$ticketId'
     | '/_app/orbit/$projectId'
@@ -785,6 +830,7 @@ export interface FileRouteTypes {
     | '/_app/yachts/$id'
     | '/_app/yachts/new'
     | '/_app/crew-placement/'
+    | '/_app/esign/'
     | '/_app/guides/'
     | '/_app/it-tickets/'
     | '/_app/orbit/'
@@ -801,6 +847,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  SignTokenRoute: typeof SignTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -824,6 +871,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign/$token': {
+      id: '/sign/$token'
+      path: '/sign/$token'
+      fullPath: '/sign/$token'
+      preLoaderRoute: typeof SignTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/yacht-it': {
@@ -922,6 +976,13 @@ declare module '@tanstack/react-router' {
       path: '/finance'
       fullPath: '/finance'
       preLoaderRoute: typeof AppFinanceRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/esign': {
+      id: '/_app/esign'
+      path: '/esign'
+      fullPath: '/esign'
+      preLoaderRoute: typeof AppEsignRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/director': {
@@ -1028,6 +1089,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/guides/'
       preLoaderRoute: typeof AppGuidesIndexRouteImport
       parentRoute: typeof AppGuidesRoute
+    }
+    '/_app/esign/': {
+      id: '/_app/esign/'
+      path: '/'
+      fullPath: '/esign/'
+      preLoaderRoute: typeof AppEsignIndexRouteImport
+      parentRoute: typeof AppEsignRoute
     }
     '/_app/crew-placement/': {
       id: '/_app/crew-placement/'
@@ -1175,6 +1243,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/guides/$department'
       preLoaderRoute: typeof AppGuidesDepartmentRouteImport
       parentRoute: typeof AppGuidesRoute
+    }
+    '/_app/esign/$documentId': {
+      id: '/_app/esign/$documentId'
+      path: '/$documentId'
+      fullPath: '/esign/$documentId'
+      preLoaderRoute: typeof AppEsignDocumentIdRouteImport
+      parentRoute: typeof AppEsignRoute
     }
     '/_app/crew-placement/vacancies': {
       id: '/_app/crew-placement/vacancies'
@@ -1325,6 +1400,20 @@ const AppCrewPlacementRouteChildren: AppCrewPlacementRouteChildren = {
 const AppCrewPlacementRouteWithChildren =
   AppCrewPlacementRoute._addFileChildren(AppCrewPlacementRouteChildren)
 
+interface AppEsignRouteChildren {
+  AppEsignDocumentIdRoute: typeof AppEsignDocumentIdRoute
+  AppEsignIndexRoute: typeof AppEsignIndexRoute
+}
+
+const AppEsignRouteChildren: AppEsignRouteChildren = {
+  AppEsignDocumentIdRoute: AppEsignDocumentIdRoute,
+  AppEsignIndexRoute: AppEsignIndexRoute,
+}
+
+const AppEsignRouteWithChildren = AppEsignRoute._addFileChildren(
+  AppEsignRouteChildren,
+)
+
 interface AppGuidesDepartmentRouteChildren {
   AppGuidesDepartmentGuideIdRoute: typeof AppGuidesDepartmentGuideIdRoute
   AppGuidesDepartmentIndexRoute: typeof AppGuidesDepartmentIndexRoute
@@ -1437,6 +1526,7 @@ interface AppRouteChildren {
   AppCrewImmigrationRoute: typeof AppCrewImmigrationRouteWithChildren
   AppCrewPlacementRoute: typeof AppCrewPlacementRouteWithChildren
   AppDirectorRoute: typeof AppDirectorRoute
+  AppEsignRoute: typeof AppEsignRouteWithChildren
   AppFinanceRoute: typeof AppFinanceRoute
   AppFleetTrackingRoute: typeof AppFleetTrackingRoute
   AppGuidesRoute: typeof AppGuidesRouteWithChildren
@@ -1474,6 +1564,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCrewImmigrationRoute: AppCrewImmigrationRouteWithChildren,
   AppCrewPlacementRoute: AppCrewPlacementRouteWithChildren,
   AppDirectorRoute: AppDirectorRoute,
+  AppEsignRoute: AppEsignRouteWithChildren,
   AppFinanceRoute: AppFinanceRoute,
   AppFleetTrackingRoute: AppFleetTrackingRoute,
   AppGuidesRoute: AppGuidesRouteWithChildren,
@@ -1508,6 +1599,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  SignTokenRoute: SignTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
