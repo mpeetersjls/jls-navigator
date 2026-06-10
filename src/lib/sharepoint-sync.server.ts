@@ -680,18 +680,28 @@ async function _syncYachts(
       (record.imo_no ? byImo.get(String(record.imo_no).toLowerCase()) : undefined) ??
       byName.get(String(record.vessel_name).toLowerCase())
 
-    const { error } = existingId
-      ? await supabaseAdmin.from('yachts').update(record as never).eq('id', existingId)
-      : await supabaseAdmin.from('yachts').insert({ ...record, status: record.status ?? 'Active' } as never)
+    let rowId: string | undefined = existingId
+    let error: any
+    if (existingId) {
+      ({ error } = await (supabaseAdmin as any).from('yachts').update(record).eq('id', existingId))
+    } else {
+      const ins = await (supabaseAdmin as any).from('yachts')
+        .insert({ ...record, status: record.status ?? 'Active' }).select('id').single()
+      error = ins.error
+      rowId = ins.data?.id
+    }
 
     if (error) {
       errors++
     } else {
       synced++
-      // Update local maps so subsequent items in the same batch can match
-      bySpId.set(String(item.id), existingId ?? record.vessel_name)
-      if (record.imo_no) byImo.set(String(record.imo_no).toLowerCase(), existingId ?? '')
-      byName.set(String(record.vessel_name).toLowerCase(), existingId ?? '')
+      // Update local maps with the REAL row id so subsequent items in the same
+      // batch that share a key UPDATE this row instead of erroring on a sentinel.
+      if (rowId) {
+        bySpId.set(String(item.id), rowId)
+        if (record.imo_no) byImo.set(String(record.imo_no).toLowerCase(), rowId)
+        byName.set(String(record.vessel_name).toLowerCase(), rowId)
+      }
     }
   }
 
@@ -786,18 +796,26 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
         ? byHolderName.get(String(record.holder_name).toLowerCase())
         : undefined)
 
-    const { error } = existingId
-      ? await (supabaseAdmin as any).from('permits').update(record).eq('id', existingId)
-      : await (supabaseAdmin as any).from('permits').insert({ ...record })
+    let rowId: string | undefined = existingId
+    let error: any
+    if (existingId) {
+      ({ error } = await (supabaseAdmin as any).from('permits').update(record).eq('id', existingId))
+    } else {
+      const ins = await (supabaseAdmin as any).from('permits').insert({ ...record }).select('id').single()
+      error = ins.error
+      rowId = ins.data?.id
+    }
 
     if (error) {
       errors++
     } else {
       synced++
-      if (record.permit_number)
-        byPermitNo.set(String(record.permit_number).toLowerCase(), existingId ?? 'new')
-      if (record.holder_name)
-        byHolderName.set(String(record.holder_name).toLowerCase(), existingId ?? 'new')
+      if (rowId) {
+        if (record.permit_number)
+          byPermitNo.set(String(record.permit_number).toLowerCase(), rowId)
+        if (record.holder_name)
+          byHolderName.set(String(record.holder_name).toLowerCase(), rowId)
+      }
     }
   }
 
@@ -846,15 +864,21 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
 
     const existingId = byName.get(String(record.boat_name).toLowerCase())
 
-    const { error } = existingId
-      ? await (supabaseAdmin as any).from('small_boats').update(record).eq('id', existingId)
-      : await (supabaseAdmin as any).from('small_boats').insert({ ...record })
+    let rowId: string | undefined = existingId
+    let error: any
+    if (existingId) {
+      ({ error } = await (supabaseAdmin as any).from('small_boats').update(record).eq('id', existingId))
+    } else {
+      const ins = await (supabaseAdmin as any).from('small_boats').insert({ ...record }).select('id').single()
+      error = ins.error
+      rowId = ins.data?.id
+    }
 
     if (error) {
       errors++
     } else {
       synced++
-      byName.set(String(record.boat_name).toLowerCase(), existingId ?? 'new')
+      if (rowId) byName.set(String(record.boat_name).toLowerCase(), rowId)
     }
   }
 
@@ -935,16 +959,25 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
       bySpId.get(String(item.id)) ??
       (record.jls_reference ? byRef.get(String(record.jls_reference).toLowerCase()) : undefined)
 
-    const { error } = existingId
-      ? await (supabaseAdmin as any).from('visa_applications').update(record).eq('id', existingId)
-      : await (supabaseAdmin as any).from('visa_applications').insert({ status: 'submitted', ...record })
+    let rowId: string | undefined = existingId
+    let error: any
+    if (existingId) {
+      ({ error } = await (supabaseAdmin as any).from('visa_applications').update(record).eq('id', existingId))
+    } else {
+      const ins = await (supabaseAdmin as any).from('visa_applications')
+        .insert({ status: 'submitted', ...record }).select('id').single()
+      error = ins.error
+      rowId = ins.data?.id
+    }
 
     if (error) {
       errors++
     } else {
       synced++
-      bySpId.set(String(item.id), existingId ?? 'new')
-      if (record.jls_reference) byRef.set(String(record.jls_reference).toLowerCase(), existingId ?? 'new')
+      if (rowId) {
+        bySpId.set(String(item.id), rowId)
+        if (record.jls_reference) byRef.set(String(record.jls_reference).toLowerCase(), rowId)
+      }
     }
   }
 
@@ -1019,17 +1052,26 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
     // Inserts require first + last name (NOT NULL); updates can be partial.
     if (!existingId && (!record.first_name || !record.last_name)) { errors++; continue }
 
-    const { error } = existingId
-      ? await (supabaseAdmin as any).from('crew_members').update(record).eq('id', existingId)
-      : await (supabaseAdmin as any).from('crew_members').insert({ status: 'active', ...record })
+    let rowId: string | undefined = existingId
+    let error: any
+    if (existingId) {
+      ({ error } = await (supabaseAdmin as any).from('crew_members').update(record).eq('id', existingId))
+    } else {
+      const ins = await (supabaseAdmin as any).from('crew_members')
+        .insert({ status: 'active', ...record }).select('id').single()
+      error = ins.error
+      rowId = ins.data?.id
+    }
 
     if (error) {
       errors++
     } else {
       synced++
-      bySpId.set(String(item.id), existingId ?? 'new')
-      if (record.passport_number) byPassport.set(String(record.passport_number).toLowerCase().trim(), existingId ?? 'new')
-      if (record.first_name && record.last_name) byName.set(nameKey(record.first_name, record.last_name), existingId ?? 'new')
+      if (rowId) {
+        bySpId.set(String(item.id), rowId)
+        if (record.passport_number) byPassport.set(String(record.passport_number).toLowerCase().trim(), rowId)
+        if (record.first_name && record.last_name) byName.set(nameKey(record.first_name, record.last_name), rowId)
+      }
     }
   }
 
