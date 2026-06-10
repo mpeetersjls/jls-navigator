@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,8 +77,8 @@ export function LicensingPage() {
   async function load() {
     setLoading(true);
     const [lRes, yRes] = await Promise.all([
-      (supabase as any).from("yacht_licenses").select("*").order("expiration_date", { ascending: true, nullsFirst: false }),
-      supabase.from("yachts").select("id, vessel_name").order("vessel_name"),
+      fetchAllRows(() => (supabase as any).from("yacht_licenses").select("*").order("expiration_date", { ascending: true, nullsFirst: false })),
+      fetchAllRows(() => supabase.from("yachts").select("id, vessel_name").order("vessel_name")),
     ]);
     if (lRes.error) toast.error(lRes.error.message);
     setRows((lRes.data ?? []) as License[]);

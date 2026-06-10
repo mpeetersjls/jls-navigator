@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/integrations/supabase/client.server'
+import { fetchAllRows } from './fetch-all'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -698,9 +699,10 @@ async function _syncYachts(
   }
 
   // Load ALL existing yachts once — avoids N per-item DB round trips
-  const { data: existingYachts } = await supabaseAdmin
+  const { data: existingYachts } = await fetchAllRows(() => supabaseAdmin
     .from('yachts')
     .select('id, vessel_name, imo_no, sharepoint_item_id')
+    .order('id'))
   const bySpId = new Map<string, string>()
   const byImo = new Map<string, string>()
   const byName = new Map<string, string>()
@@ -773,9 +775,10 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
   }
 
   // Load existing permits for matching (sp item id first, then permit no / holder)
-  const { data: existingPermits } = await (supabaseAdmin as any)
+  const { data: existingPermits } = await fetchAllRows(() => (supabaseAdmin as any)
     .from('permits')
     .select('id, permit_number, holder_name, sharepoint_item_id')
+    .order('id'))
   const bySpId = new Map<string, string>()
   const byPermitNo = new Map<string, string>()
   const byHolderName = new Map<string, string>()
@@ -786,7 +789,7 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
   }
 
   // Preload yachts for vessel_name → yacht_id resolution
-  const { data: yachts } = await supabaseAdmin.from('yachts').select('id, vessel_name')
+  const { data: yachts } = await fetchAllRows(() => supabaseAdmin.from('yachts').select('id, vessel_name').order('id'))
   const yachtByName = new Map<string, string>()
   for (const y of (yachts ?? []) as Record<string, any>[]) {
     if (y.vessel_name) yachtByName.set(String(y.vessel_name).toLowerCase(), String(y.id))
@@ -854,9 +857,10 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
   }
 
   // Load existing small_boats for matching (table keys on boat_name; there is no reg_no column)
-  const { data: existing } = await (supabaseAdmin as any)
+  const { data: existing } = await fetchAllRows(() => (supabaseAdmin as any)
     .from('small_boats')
     .select('id, boat_name')
+    .order('id'))
   const byName = new Map<string, string>()
   for (const b of (existing ?? []) as Record<string, any>[]) {
     if (b.boat_name) byName.set(String(b.boat_name).toLowerCase(), String(b.id))
@@ -907,20 +911,20 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
   }
 
   // Lookups for resolving foreign keys by name.
-  const { data: crew } = await (supabaseAdmin as any).from('crew_members').select('id, full_name')
+  const { data: crew } = await fetchAllRows(() => (supabaseAdmin as any).from('crew_members').select('id, full_name').order('id'))
   const crewByName = new Map<string, string>()
   for (const c of (crew ?? []) as Record<string, any>[]) {
     if (c.full_name) crewByName.set(String(c.full_name).toLowerCase().trim(), String(c.id))
   }
-  const { data: yachts } = await supabaseAdmin.from('yachts').select('id, vessel_name')
+  const { data: yachts } = await fetchAllRows(() => supabaseAdmin.from('yachts').select('id, vessel_name').order('id'))
   const yachtByName = new Map<string, string>()
   for (const y of (yachts ?? []) as Record<string, any>[]) {
     if (y.vessel_name) yachtByName.set(String(y.vessel_name).toLowerCase().trim(), String(y.id))
   }
 
   // Existing visa rows for matching.
-  const { data: existing } = await (supabaseAdmin as any)
-    .from('visa_applications').select('id, jls_reference, sharepoint_item_id')
+  const { data: existing } = await fetchAllRows(() => (supabaseAdmin as any)
+    .from('visa_applications').select('id, jls_reference, sharepoint_item_id').order('id'))
   const bySpId = new Map<string, string>()
   const byRef = new Map<string, string>()
   for (const v of (existing ?? []) as Record<string, any>[]) {
@@ -987,14 +991,14 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
     nextUrl = page['@odata.nextLink'] ?? null
   }
 
-  const { data: yachts } = await supabaseAdmin.from('yachts').select('id, vessel_name')
+  const { data: yachts } = await fetchAllRows(() => supabaseAdmin.from('yachts').select('id, vessel_name').order('id'))
   const yachtByName = new Map<string, string>()
   for (const y of (yachts ?? []) as Record<string, any>[]) {
     if (y.vessel_name) yachtByName.set(String(y.vessel_name).toLowerCase().trim(), String(y.id))
   }
 
-  const { data: existing } = await (supabaseAdmin as any)
-    .from('crew_members').select('id, first_name, last_name, passport_number, sharepoint_item_id')
+  const { data: existing } = await fetchAllRows(() => (supabaseAdmin as any)
+    .from('crew_members').select('id, first_name, last_name, passport_number, sharepoint_item_id').order('id'))
   const bySpId = new Map<string, string>()
   const byPassport = new Map<string, string>()
   const byName = new Map<string, string>()

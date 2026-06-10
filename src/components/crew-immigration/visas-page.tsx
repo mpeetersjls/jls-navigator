@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Search, FileText, Pencil, Trash2, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { doPushToSharePoint } from "@/lib/sharepoint-push.server";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { cn } from "@/lib/utils";
 import { useActiveVessel } from "@/components/vessel-switcher";
 
@@ -94,22 +95,22 @@ export function VisasPage() {
 
   async function load() {
     setLoading(true);
-    const { data, error } = await (supabase as any)
+    const { data, error } = await fetchAllRows(() => (supabase as any)
       .from("visa_applications")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }));
     if (error) toast.error(error.message);
     else setVisas(data ?? []);
     setLoading(false);
   }
 
   async function loadCrew() {
-    const { data } = await (supabase as any).from("crew_members").select("id, first_name, last_name, rank, yacht_id").order("last_name");
+    const { data } = await fetchAllRows(() => (supabase as any).from("crew_members").select("id, first_name, last_name, rank, yacht_id").order("last_name"));
     setCrew(data ?? []);
   }
 
   async function loadYachts() {
-    const { data } = await supabase.from("yachts").select("id, vessel_name").order("vessel_name");
+    const { data } = await fetchAllRows(() => supabase.from("yachts").select("id, vessel_name").order("vessel_name"));
     setYachts((data ?? []) as Yacht[]);
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/fetch-all";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,9 +72,9 @@ export function ServiceDeskPage() {
   async function load() {
     setLoading(true);
     const [tRes, yRes, pRes] = await Promise.all([
-      (supabase as any).from("it_tickets").select("*").order("updated_at", { ascending: false }),
-      supabase.from("yachts").select("id, vessel_name").order("vessel_name"),
-      (supabase as any).from("profiles").select("id, display_name").order("display_name"),
+      fetchAllRows(() => (supabase as any).from("it_tickets").select("*").order("updated_at", { ascending: false })),
+      fetchAllRows(() => supabase.from("yachts").select("id, vessel_name").order("vessel_name")),
+      fetchAllRows(() => (supabase as any).from("profiles").select("id, display_name").order("display_name")),
     ]);
     if (tRes.error) toast.error(tRes.error.message);
     setRows((tRes.data ?? []) as Ticket[]);
