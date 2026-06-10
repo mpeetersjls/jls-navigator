@@ -1423,12 +1423,50 @@ const VISA_DB_FIELDS = [
   { value: 'rejection_reason', label: 'Rejection Reason' },
 ]
 
+const CREW_DB_FIELDS = [
+  { value: '', label: '— Skip —' },
+  { value: 'first_name', label: 'First / Given Name' },
+  { value: 'middle_name', label: 'Middle Name' },
+  { value: 'last_name', label: 'Surname / Last Name' },
+  { value: 'date_of_birth', label: 'Date of Birth' },
+  { value: 'place_of_birth', label: 'Place of Birth' },
+  { value: 'nationality', label: 'Nationality' },
+  { value: 'gender', label: 'Gender' },
+  { value: 'marital_status', label: 'Marital Status' },
+  { value: 'religion', label: 'Religion' },
+  { value: 'native_language', label: 'Native Language' },
+  { value: 'mother_name', label: "Mother's Name" },
+  { value: 'father_name', label: "Father's Name" },
+  { value: 'rank', label: 'Rank' },
+  { value: 'department', label: 'Department' },
+  { value: 'occupation', label: 'Occupation' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'status', label: 'Status' },
+  { value: 'passport_number', label: 'Passport Number' },
+  { value: 'passport_issue_country', label: 'Passport Issue Country' },
+  { value: 'passport_issue_authority', label: "Passport Issuing Gov't" },
+  { value: 'passport_place_of_issue', label: 'Passport Place of Issue' },
+  { value: 'passport_issue_date', label: 'Passport Issue Date' },
+  { value: 'passport_expiry_date', label: 'Passport Expiry Date' },
+  { value: 'seamans_book_number', label: "Seaman's Book No." },
+  { value: 'seamans_book_expiry', label: "Seaman's Book Expiry" },
+  { value: 'vessel_name', label: 'Vessel (match by name)' },
+  { value: 'notes', label: 'Notes' },
+]
+
 /** App Field dropdown list for the explicitly-selected sync target. */
 function getFieldSetForTarget(target: string): typeof YACHT_DB_FIELDS {
   if (target === 'permits') return PERMIT_DB_FIELDS
   if (target === 'small_boats') return SMALL_BOAT_DB_FIELDS
   if (target === 'visa_applications') return VISA_DB_FIELDS
+  if (target === 'crew_members') return CREW_DB_FIELDS
   return YACHT_DB_FIELDS
+}
+
+const TARGET_LABELS: Record<string, string> = {
+  yachts: 'Yachts', permits: 'Permits', small_boats: 'Small Boats',
+  crew_members: 'Crew Members', visa_applications: 'Visa Applications',
 }
 
 /** Per-list auto-suggest for permit fields */
@@ -1474,6 +1512,38 @@ function autoSuggestSmallBoat(displayName: string): string {
     status: 'status',
     registrationexpiry: 'registration_expiry', regexpiry: 'registration_expiry',
     insuranceexpiry: 'insurance_expiry',
+    notes: 'notes', remarks: 'notes',
+  }
+  return map[n] ?? ''
+}
+
+function autoSuggestCrew(displayName: string): string {
+  const n = displayName.toLowerCase().replace(/[\s._\-()+#]/g, '')
+  const map: Record<string, string> = {
+    givenname: 'first_name', firstname: 'first_name', given: 'first_name', forename: 'first_name',
+    middlename: 'middle_name', middle: 'middle_name',
+    surname: 'last_name', lastname: 'last_name', familyname: 'last_name',
+    dob: 'date_of_birth', dateofbirth: 'date_of_birth', birthdate: 'date_of_birth',
+    placeofbirth: 'place_of_birth', birthplace: 'place_of_birth',
+    nationality: 'nationality', citizenship: 'nationality',
+    gender: 'gender', sex: 'gender',
+    maritalstatus: 'marital_status', religion: 'religion',
+    nativelanguage: 'native_language', language: 'native_language',
+    mothername: 'mother_name', mothersname: 'mother_name',
+    fathername: 'father_name', fathersname: 'father_name',
+    rank: 'rank', position: 'rank', department: 'department',
+    occupation: 'occupation', profession: 'occupation',
+    email: 'email', phone: 'phone', mobile: 'phone', contactno: 'phone',
+    status: 'status',
+    passport: 'passport_number', passportno: 'passport_number', passportnumber: 'passport_number',
+    passportissuecountry: 'passport_issue_country', issuecountry: 'passport_issue_country', passportcountry: 'passport_issue_country',
+    passportissuegovt: 'passport_issue_authority', issuinggovernment: 'passport_issue_authority', passportauthority: 'passport_issue_authority',
+    placeofissue: 'passport_place_of_issue', passportplaceofissue: 'passport_place_of_issue',
+    passportissuedate: 'passport_issue_date', issuedate: 'passport_issue_date',
+    passportexpiry: 'passport_expiry_date', passportexpirydate: 'passport_expiry_date', expirydate: 'passport_expiry_date',
+    seamansbook: 'seamans_book_number', seamanbook: 'seamans_book_number', seamansbookno: 'seamans_book_number', sbno: 'seamans_book_number',
+    seamansbookexpiry: 'seamans_book_expiry',
+    vessel: 'vessel_name', yacht: 'vessel_name', vesselname: 'vessel_name',
     notes: 'notes', remarks: 'notes',
   }
   return map[n] ?? ''
@@ -1542,9 +1612,10 @@ function SyncTargetBadge({ target }: { target: string }) {
     permits: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
     small_boats: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
     visa_applications: 'bg-violet-500/15 text-violet-400 border-violet-500/20',
+    crew_members: 'bg-sky-500/15 text-sky-400 border-sky-500/20',
   }
   const label: Record<string, string> = {
-    yachts: 'Yachts', permits: 'Permits', small_boats: 'Small Boats', visa_applications: 'Visa Applications',
+    yachts: 'Yachts', permits: 'Permits', small_boats: 'Small Boats', visa_applications: 'Visa Applications', crew_members: 'Crew Members',
   }
   return (
     <span className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-semibold ${map[target] ?? 'bg-muted text-muted-foreground border-border'}`}>
@@ -1652,8 +1723,8 @@ function SyncEditPanel({
       setSyncTarget('permits')
     } else if (n.includes('small boat') || n.includes('smallboat') || n.includes('boat reg') || n.includes('boatreg')) {
       setSyncTarget('small_boats')
-    } else if (n.includes('visa')) {
-      setSyncTarget('visa_applications')
+    } else if (n.includes('crew') || n.includes('visa')) {
+      setSyncTarget('crew_members')
     } else {
       setSyncTarget('yachts')
     }
@@ -1665,6 +1736,7 @@ function SyncEditPanel({
     if (syncTarget === 'permits') return autoSuggestPermit
     if (syncTarget === 'small_boats') return autoSuggestSmallBoat
     if (syncTarget === 'visa_applications') return autoSuggestVisa
+    if (syncTarget === 'crew_members') return autoSuggestCrew
     return autoSuggest
   }
 
@@ -1741,7 +1813,7 @@ function SyncEditPanel({
         <div className="space-y-1">
           <Label className="text-xs">Syncs To</Label>
           <div className="flex gap-1.5">
-            {(['yachts', 'permits', 'small_boats', 'visa_applications'] as const).map(t => (
+            {(['yachts', 'permits', 'small_boats', 'crew_members', 'visa_applications'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setSyncTarget(t)}
@@ -1749,7 +1821,7 @@ function SyncEditPanel({
                   syncTarget === t ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'
                 }`}
               >
-                {t === 'yachts' ? 'Yachts' : t === 'permits' ? 'Permits' : t === 'small_boats' ? 'Small Boats' : 'Visa Applications'}
+                {TARGET_LABELS[t]}
               </button>
             ))}
           </div>
@@ -1774,7 +1846,7 @@ function SyncEditPanel({
       {columns.length > 0 && (
         <div className="rounded-lg border border-border overflow-hidden text-sm">
           <div className="grid grid-cols-[1fr_20px_1fr] gap-2 bg-muted/40 border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>SharePoint Column</span><span /><span>App Field ({syncTarget === 'yachts' ? 'Yachts' : syncTarget === 'permits' ? 'Permits' : syncTarget === 'small_boats' ? 'Small Boats' : 'Visa Applications'})</span>
+            <span>SharePoint Column</span><span /><span>App Field ({TARGET_LABELS[syncTarget] ?? syncTarget})</span>
           </div>
           <div className="divide-y divide-border max-h-64 overflow-auto">
             {columns.map(col => (

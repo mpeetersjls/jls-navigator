@@ -18,7 +18,7 @@ export interface SpSyncConfig {
   id: string
   name: string
   listName: string
-  syncTarget: 'yachts' | 'permits' | 'small_boats' | 'visa_applications'
+  syncTarget: 'yachts' | 'permits' | 'small_boats' | 'visa_applications' | 'crew_members'
   fieldMapping: Record<string, string>
   enabled: boolean
   deltaToken: string | null
@@ -434,6 +434,7 @@ export async function syncFromSharePoint(): Promise<{ synced: number; errors: nu
   if (Object.keys(cfg.fieldMapping).length === 0) return { synced: 0, errors: 0 }
   if (cfg.syncTarget === 'permits') return _syncPermits(cfg)
   if (cfg.syncTarget === 'visa_applications') return _syncVisas(cfg)
+  if (cfg.syncTarget === 'crew_members') return _syncCrew(cfg)
   if (cfg.syncTarget === 'small_boats') return { synced: 0, errors: 0 }
   return _syncYachts(cfg)
 }
@@ -453,6 +454,8 @@ async function _syncWithConfig(cfg: SpConfig, sync: SpSyncConfig): Promise<{ syn
     result = await _syncSmallBoats(merged)
   } else if (sync.syncTarget === 'visa_applications') {
     result = await _syncVisas(merged)
+  } else if (sync.syncTarget === 'crew_members') {
+    result = await _syncCrew(merged)
   } else {
     result = await _syncYachts(merged, sync.id, sync.deltaToken)
   }
@@ -822,6 +825,91 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
       synced++
       bySpId.set(String(item.id), existingId ?? 'new')
       if (record.jls_reference) byRef.set(String(record.jls_reference).toLowerCase(), existingId ?? 'new')
+    }
+  }
+
+  return { synced, errors }
+}
+
+// Crew sync: a SharePoint crew/visa list (people with passports) → crew_members.
+// Resolves vessel name → yacht_id; matches existing crew by SP item id, then
+// passport number, then first+last name. Date-typed targets truncated to date.
+async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: number }> {
+  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+
+  let allItems: any[] = []
+  let nextUrl: string | null =
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items?$expand=fields&$top=200`
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const page = await res.json() as Record<string, any>
+    if (!page.value) break
+    allItems = allItems.concat(page.value as any[])
+    nextUrl = page['@odata.nextLink'] ?? null
+  }
+
+  const { data: yachts } = await supabaseAdmin.from('yachts').select('id, vessel_name')
+  const yachtByName = new Map<string, string>()
+  for (const y of (yachts ?? []) as Record<string, any>[]) {
+    if (y.vessel_name) yachtByName.set(String(y.vessel_name).toLowerCase().trim(), String(y.id))
+  }
+
+  const { data: existing } = await (supabaseAdmin as any)
+    .from('crew_members').select('id, first_name, last_name, passport_number, sharepoint_item_id')
+  const bySpId = new Map<string, string>()
+  const byPassport = new Map<string, string>()
+  const byName = new Map<string, string>()
+  const nameKey = (f: any, l: any) => `${String(f ?? '').toLowerCase().trim()}|${String(l ?? '').toLowerCase().trim()}`
+  for (const c of (existing ?? []) as Record<string, any>[]) {
+    if (c.sharepoint_item_id) bySpId.set(String(c.sharepoint_item_id), String(c.id))
+    if (c.passport_number) byPassport.set(String(c.passport_number).toLowerCase().trim(), String(c.id))
+    if (c.first_name && c.last_name) byName.set(nameKey(c.first_name, c.last_name), String(c.id))
+  }
+
+  const DATE_FIELDS = new Set(['date_of_birth', 'passport_issue_date', 'passport_expiry_date', 'seamans_book_expiry'])
+  let synced = 0, errors = 0
+
+  for (const item of allItems) {
+    if (item['@removed']) continue
+    const fields = item.fields ?? {}
+    const record: Record<string, any> = {
+      sharepoint_item_id: item.id,
+      sharepoint_synced_at: new Date().toISOString(),
+    }
+
+    for (const [spField, dbField] of Object.entries(cfg.fieldMapping)) {
+      if (!dbField || !(spField in fields)) continue
+      const raw = fields[spField]
+      if (dbField === 'vessel_name') {
+        const id = yachtByName.get(String(raw ?? '').toLowerCase().trim())
+        if (id) record.yacht_id = id
+        continue
+      }
+      let val: any = raw === '' || raw === undefined ? null : raw
+      if (val != null && DATE_FIELDS.has(dbField)) val = String(val).slice(0, 10)
+      record[dbField] = val
+    }
+
+    const existingId =
+      bySpId.get(String(item.id)) ??
+      (record.passport_number ? byPassport.get(String(record.passport_number).toLowerCase().trim()) : undefined) ??
+      ((record.first_name && record.last_name) ? byName.get(nameKey(record.first_name, record.last_name)) : undefined)
+
+    // Inserts require first + last name (NOT NULL); updates can be partial.
+    if (!existingId && (!record.first_name || !record.last_name)) { errors++; continue }
+
+    const { error } = existingId
+      ? await (supabaseAdmin as any).from('crew_members').update(record).eq('id', existingId)
+      : await (supabaseAdmin as any).from('crew_members').insert({ status: 'active', ...record })
+
+    if (error) {
+      errors++
+    } else {
+      synced++
+      bySpId.set(String(item.id), existingId ?? 'new')
+      if (record.passport_number) byPassport.set(String(record.passport_number).toLowerCase().trim(), existingId ?? 'new')
+      if (record.first_name && record.last_name) byName.set(nameKey(record.first_name, record.last_name), existingId ?? 'new')
     }
   }
 
