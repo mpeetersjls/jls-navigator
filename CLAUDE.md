@@ -1,6 +1,6 @@
 # CLAUDE.md — Polaris / Leo Platform
 > Claude Code reads this file automatically. Follow every instruction here precisely.
-> Last updated: June 2026 — v1.3 (added Seaport Immigration module)
+> Last updated: June 2026 — v1.4 (added Access Control & Identity architecture)
 
 ---
 
@@ -23,6 +23,7 @@ trading name in user-facing UI — always "our Port & Agency Team".
 Stack: **React · Supabase · Anthropic API (claude-sonnet-4-20250514)**
 
 Companion spec files — drop all alongside this file in the project root:
+- `POLARIS_ACCESS_CONTROL.md` — **READ FIRST** — identity, permissions, routing, audit layer
 - `POLARIS_VISA_MODULE.md` — visa module architecture, schema, 7-country config, logic
 - `POLARIS_VISA_HANDBOOK.md` — UAE operational detail, process flows, handbook link
 - `POLARIS_SEAPORT_IMMIGRATION.md` — seaport sign-on/off request form, SLA tracking, reports
@@ -57,7 +58,28 @@ Companion spec files — drop all alongside this file in the project root:
 │   │       │       └── page.tsx          # Country visa info page (handbook link lives here)
 │   │       └── offices/
 │   │           └── page.tsx              # Admin: offices + vessel access
+│   ├── portal/
+│   │   ├── crew/
+│   │   │   └── page.tsx              # Crew member portal
+│   │   ├── owner/
+│   │   │   └── page.tsx              # Owner / family office portal
+│   │   ├── supplier/
+│   │   │   └── page.tsx              # Supplier portal
+│   │   ├── training/
+│   │   │   └── page.tsx              # Training Institute portal
+│   │   ├── crew-placement/
+│   │   │   └── page.tsx              # Crew placement portal
+│   │   ├── finance/
+│   │   │   └── page.tsx              # Finance portal
+│   │   └── agency/
+│   │       └── page.tsx              # Agency portal
+│   ├── auth/
+│   │   ├── login/
+│   │   │   └── page.tsx              # Login page
+│   │   └── mfa-setup/
+│   │       └── page.tsx              # MFA enrolment (mandatory before access)
 │   └── layout.tsx
+├── middleware.ts                     # Auth + access check on every request
 ├── components/
 │   ├── leo/
 │   │   ├── LeoPanel.tsx                  # Streaming briefing panel
@@ -111,6 +133,13 @@ Companion spec files — drop all alongside this file in the project root:
 │   │   ├── helpText.ts                 # Contextual help strings (tooltips)
 │   │   ├── contacts.ts                 # Port & Agency Team contact details
 │   │   └── companyContext.ts           # Internal team context for Leo
+│   ├── auth/
+│   │   ├── mfa.ts                    # MFA enforcement
+│   │   ├── routing.ts                # getLandingPath() per role
+│   │   ├── access.ts                 # requireAccess() — all routes must call this
+│   │   ├── audit.ts                  # logAuditEvent()
+│   │   ├── branding.ts               # getPageBranding() per org/location
+│   │   └── claims.ts                 # JWT custom claims management
 │   ├── seaport/
 │   │   ├── slaTracking.ts              # SLA compute + updateSLA()
 │   │   ├── reportGenerator.ts          # Build completion report data
@@ -123,6 +152,7 @@ Companion spec files — drop all alongside this file in the project root:
 │       ├── 003_visa_offices.sql         # offices, office_vessel_access, office_members
 │       ├── 004_seaport_events.sql       # UAE visa seaport compliance events
 │       └── 005_seaport_requests.sql     # Immigration request form, SLA, arrivals/departures
+├── POLARIS_ACCESS_CONTROL.md           # Identity & access control spec — READ FIRST
 ├── POLARIS_SEAPORT_IMMIGRATION.md      # Seaport immigration module spec
 ├── CLAUDE.md                           # This file
 ├── POLARIS_VISA_MODULE.md              # Visa module full spec
@@ -411,6 +441,20 @@ Full schema in `POLARIS_SEAPORT_IMMIGRATION.md` section 1. Summary:
 -- seaport_departures — individual crew departure rows (up to 15 per request)
 -- seaport_sla       — SLA timing: submitted → acknowledged → completed → report sent
 -- Enable RLS on all four tables (see POLARIS_SEAPORT_IMMIGRATION.md for policies)
+```
+
+### Migrations 010–014 — Access Control & Identity (POLARIS_ACCESS_CONTROL.md)
+
+Full schema in `POLARIS_ACCESS_CONTROL.md` section 3. Summary:
+
+```sql
+-- 010: organisations, locations
+-- 011: roles (seeded), modules (seeded)
+-- 012: user_profiles v2 (expanded with role_id, org_id, mfa_enabled),
+--       user_vessel_access, user_module_access, user_location_access
+-- 013: permission_rules (fine-grained per-user overrides)
+-- 014: audit_log (all platform activity — indexed for performance)
+-- Run AFTER 001–005. Migration 012 ALTERs user_profiles from 001.
 ```
 
 ### Row-level security — enable on all tables
@@ -898,10 +942,15 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 9. **Fetch context in parallel** — `Promise.all`, never sequential awaits on login.
 10. **`UserContextSwitcher` is dev/demo only** — gated behind env check + `devMode` param.
 11. **Visa rules from section 11 above are absolute** — do not work around them.
-12. **Run migrations in order** — 001 → 002 → 003 → 004 → 005.
+12. **Run migrations in order** — 001 → 002 → 003 → 004 → 005 → 010 → 011 → 012 → 013 → 014.
 13. **Seaport SLA is tracked on every status transition** — call `updateSLA()` without exception.
 14. **Seaport report is only sent after all crew rows are terminal** — never send early.
 15. **Seaport module integrates with Migration 004** — completing a sign-on/off row also writes to `seaport_events`.
+16. **Every API route calls `requireAccess()`** — no unprotected routes under any circumstances.
+17. **MFA is mandatory** — no user accesses the platform without a verified TOTP factor.
+18. **Landing page routing is role-driven** — call `getLandingPath()`, never hardcode `/dashboard` for all users.
+19. **Every action is audit logged** — call `logAuditEvent()` from middleware, all API routes, and admin panel.
+20. **Access layer is built before operational module UI** — see `POLARIS_ACCESS_CONTROL.md` build order.
 
 ---
 
@@ -919,7 +968,16 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 | #125   | Matt Tighe | MED      | SLA timer component and seaport_sla auto-update on status transitions |
 | #126   | Matt Tighe | MED      | Completion report PDF generation and send to vessel |
 | #127   | Matt Tighe | LOW      | Add seaport section to vessel detail page |
+| #128   | Matt Tighe | CRITICAL | Migrations 010–014 — access control schema (POLARIS_ACCESS_CONTROL.md) |
+| #129   | Matt Tighe | CRITICAL | MFA setup + enforcement — block platform access until enrolled |
+| #130   | Matt Tighe | CRITICAL | JWT custom claims — role, org, vessel list, module list on every login |
+| #131   | Matt Tighe | CRITICAL | Landing page routing — getLandingPath() per role, all portal pages |
+| #132   | Matt Tighe | HIGH     | requireAccess() middleware — wrap all existing API routes |
+| #133   | Matt Tighe | HIGH     | Admin panel — user management, vessel assignment, module permissions |
+| #134   | Matt Tighe | HIGH     | Audit log — logAuditEvent() wired into middleware + all API routes |
+| #135   | Matt Tighe | MED      | Branding layer — org/location context on stakeholder landing pages |
+| #136   | Matt Tighe | MED      | Leo access-aware briefings — scope context in system prompt |
 
 ---
 
-*Polaris / Leo — Internal · Confidential · v1.3 — June 2026*
+*Polaris / Leo — Internal · Confidential · v1.4 — June 2026*
