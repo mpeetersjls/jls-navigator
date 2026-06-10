@@ -11,7 +11,7 @@ function Index() {
   const navigate = useNavigate();
   useEffect(() => {
     if (loading) return;
-    navigate({ to: user ? "/yachts" : "/auth" });
+    navigate({ to: user ? "/dashboard" : "/auth" });
   }, [loading, user, navigate]);
   return (
     <div className="flex h-screen items-center justify-center bg-background">
