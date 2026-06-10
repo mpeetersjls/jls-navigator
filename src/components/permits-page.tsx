@@ -33,6 +33,7 @@ import { AbuDhabiDialog } from "@/components/abu-dhabi-dialog";
 import { doSendPermitEmail } from "@/lib/permit-email.server";
 import { Plus, Search, FileCheck2, Pencil, Trash2, AlertTriangle, CheckCircle2, Clock, Mail, MailCheck, Loader2 as SpinnerIcon } from "lucide-react";
 import { toast } from "sonner";
+import { doPushToSharePoint } from "@/lib/sharepoint-push.server";
 import { cn } from "@/lib/utils";
 
 type Yacht = { id: string; vessel_name: string };
@@ -401,10 +402,12 @@ function PermitDialog({
         const { error } = await db.from("permits").update(payload).eq("id", editing.id);
         if (error) throw error;
         toast.success("Permit updated");
+        doPushToSharePoint({ data: { target: "permits", id: editing.id } } as any).catch(() => {});
       } else {
-        const { error } = await db.from("permits").insert([{ ...payload, created_by: userId }]);
+        const { data: ins, error } = await db.from("permits").insert([{ ...payload, created_by: userId }]).select("id").single();
         if (error) throw error;
         toast.success("Permit created");
+        if (ins?.id) doPushToSharePoint({ data: { target: "permits", id: ins.id } } as any).catch(() => {});
       }
       onSaved();
     } catch (err) {

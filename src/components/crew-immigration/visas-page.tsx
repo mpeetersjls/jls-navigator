@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, FileText, Pencil, Trash2, Loader2, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { doPushToSharePoint } from "@/lib/sharepoint-push.server";
 import { cn } from "@/lib/utils";
 import { useActiveVessel } from "@/components/vessel-switcher";
 
@@ -156,11 +157,12 @@ export function VisasPage() {
         updated_at: new Date().toISOString(),
       };
       const db = supabase as any;
-      const { error } = editing
-        ? await db.from("visa_applications").update(payload).eq("id", editing.id)
-        : await db.from("visa_applications").insert([payload]);
+      const { data: saved, error } = editing
+        ? await db.from("visa_applications").update(payload).eq("id", editing.id).select("id").single()
+        : await db.from("visa_applications").insert([payload]).select("id").single();
       if (error) throw error;
       toast.success(editing ? "Application updated" : "Visa application created");
+      if (saved?.id) doPushToSharePoint({ data: { target: "visa_applications", id: saved.id } } as any).catch(() => {});
       setOpen(false);
       void load();
     } catch (e: any) {

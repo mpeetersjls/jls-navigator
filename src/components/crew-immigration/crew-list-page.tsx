@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Search, UserCircle2, Pencil, Trash2, Loader2, FileText, Table2, LayoutGrid, Rows3, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { doPushToSharePoint } from "@/lib/sharepoint-push.server";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useActiveVessel } from "@/components/vessel-switcher";
@@ -157,11 +158,12 @@ export function CrewListPage() {
         updated_at: new Date().toISOString(),
       };
       const db = supabase as any;
-      const { error } = editing
-        ? await db.from("crew_members").update(payload).eq("id", editing.id)
-        : await db.from("crew_members").insert([payload]);
+      const { data: saved, error } = editing
+        ? await db.from("crew_members").update(payload).eq("id", editing.id).select("id").single()
+        : await db.from("crew_members").insert([payload]).select("id").single();
       if (error) throw error;
       toast.success(editing ? "Crew member updated" : "Crew member added");
+      if (saved?.id) doPushToSharePoint({ data: { target: "crew_members", id: saved.id } } as any).catch(() => {});
       setOpen(false);
       void load();
     } catch (e: any) {
