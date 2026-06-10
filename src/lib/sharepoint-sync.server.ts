@@ -595,6 +595,34 @@ function coerceNumeric(v: any): number | null {
   return m ? Number(m[0]) : null
 }
 
+// Bulk-write collected records in chunks. Per-row writes (one Supabase call each)
+// blow Cloudflare's per-invocation subrequest limit on any large list — this
+// reduces hundreds of subrequests to a handful. updateById: rows with a known id
+// (upsert on the PK); insertByKey: new rows (de-duped by SharePoint item id).
+async function bulkPersist(
+  table: string,
+  updateById: Map<string, Record<string, any>>,
+  insertByKey: Map<string, Record<string, any>>,
+): Promise<{ synced: number; errors: number; samples: string[] }> {
+  const samples: string[] = []
+  let synced = 0, errors = 0
+  const addSample = (m: string) => { if (m && samples.length < 8 && !samples.includes(m)) samples.push(m) }
+  const chunks = (arr: Record<string, any>[], n: number) => {
+    const out: Record<string, any>[][] = []
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n))
+    return out
+  }
+  for (const c of chunks([...insertByKey.values()], 100)) {
+    const { error } = await (supabaseAdmin as any).from(table).insert(c)
+    if (error) { errors += c.length; addSample(`insert: ${error.message}`) } else synced += c.length
+  }
+  for (const c of chunks([...updateById.values()], 100)) {
+    const { error } = await (supabaseAdmin as any).from(table).upsert(c, { onConflict: 'id' })
+    if (error) { errors += c.length; addSample(`update: ${error.message}`) } else synced += c.length
+  }
+  return { synced, errors, samples }
+}
+
 async function _syncYachts(
   cfg: SpConfig,
   syncId?: string,
@@ -631,8 +659,8 @@ async function _syncYachts(
     if (y.vessel_name) byName.set(String(y.vessel_name).toLowerCase(), String(y.id))
   }
 
-  let synced = 0, errors = 0
-  const errSamples: string[] = []
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
   for (const item of allChanged) {
     if (item['@removed']) continue
     const fields = item.fields ?? {}
@@ -659,39 +687,20 @@ async function _syncYachts(
     record.sharepoint_item_id = item.id
     record.sharepoint_synced_at = new Date().toISOString()
 
-    // In-memory match — no extra DB queries
+    // Match against pre-loaded existing yachts (sp id → imo → name).
     const existingId =
       bySpId.get(String(item.id)) ??
       (record.imo_no ? byImo.get(String(record.imo_no).toLowerCase()) : undefined) ??
       byName.get(String(record.vessel_name).toLowerCase())
 
-    let rowId: string | undefined = existingId
-    let error: any
     if (existingId) {
-      ({ error } = await (supabaseAdmin as any).from('yachts').update(record).eq('id', existingId))
+      updateById.set(existingId, { ...record, id: existingId })
     } else {
-      const ins = await (supabaseAdmin as any).from('yachts')
-        .insert({ ...record, status: record.status ?? 'Active' }).select('id').single()
-      error = ins.error
-      rowId = ins.data?.id
-    }
-
-    if (error) {
-      errors++
-      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
-    } else {
-      synced++
-      // Update local maps with the REAL row id so subsequent items in the same
-      // batch that share a key UPDATE this row instead of erroring on a sentinel.
-      if (rowId) {
-        bySpId.set(String(item.id), rowId)
-        if (record.imo_no) byImo.set(String(record.imo_no).toLowerCase(), rowId)
-        byName.set(String(record.vessel_name).toLowerCase(), rowId)
-      }
+      insertByKey.set(String(item.id), { ...record, status: record.status ?? 'Active' })
     }
   }
 
-  return { synced, errors, samples: errSamples }
+  return bulkPersist('yachts', updateById, insertByKey)
 }
 
 async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
@@ -730,8 +739,8 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
     if (y.vessel_name) yachtByName.set(String(y.vessel_name).toLowerCase(), String(y.id))
   }
 
-  let synced = 0, errors = 0
-  const errSamples: string[] = []
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -757,6 +766,7 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
     }
 
     if (!record.holder_name && !record.permit_number) continue
+    record.sharepoint_item_id = item.id
 
     const existingId =
       (record.permit_number
@@ -766,31 +776,11 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
         ? byHolderName.get(String(record.holder_name).toLowerCase())
         : undefined)
 
-    let rowId: string | undefined = existingId
-    let error: any
-    if (existingId) {
-      ({ error } = await (supabaseAdmin as any).from('permits').update(record).eq('id', existingId))
-    } else {
-      const ins = await (supabaseAdmin as any).from('permits').insert({ ...record }).select('id').single()
-      error = ins.error
-      rowId = ins.data?.id
-    }
-
-    if (error) {
-      errors++
-      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
-    } else {
-      synced++
-      if (rowId) {
-        if (record.permit_number)
-          byPermitNo.set(String(record.permit_number).toLowerCase(), rowId)
-        if (record.holder_name)
-          byHolderName.set(String(record.holder_name).toLowerCase(), rowId)
-      }
-    }
+    if (existingId) updateById.set(existingId, { ...record, id: existingId })
+    else insertByKey.set(String(item.id), { ...record })
   }
 
-  return { synced, errors, samples: errSamples }
+  return bulkPersist('permits', updateById, insertByKey)
 }
 
 // Small boats sync: same pattern as permits but targets small_boats table
@@ -818,8 +808,8 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
     if (b.boat_name) byName.set(String(b.boat_name).toLowerCase(), String(b.id))
   }
 
-  let synced = 0, errors = 0
-  const errSamples: string[] = []
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -833,29 +823,14 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
     }
 
     if (!record.boat_name) continue
+    record.sharepoint_item_id = item.id
 
     const existingId = byName.get(String(record.boat_name).toLowerCase())
-
-    let rowId: string | undefined = existingId
-    let error: any
-    if (existingId) {
-      ({ error } = await (supabaseAdmin as any).from('small_boats').update(record).eq('id', existingId))
-    } else {
-      const ins = await (supabaseAdmin as any).from('small_boats').insert({ ...record }).select('id').single()
-      error = ins.error
-      rowId = ins.data?.id
-    }
-
-    if (error) {
-      errors++
-      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
-    } else {
-      synced++
-      if (rowId) byName.set(String(record.boat_name).toLowerCase(), rowId)
-    }
+    if (existingId) updateById.set(existingId, { ...record, id: existingId })
+    else insertByKey.set(String(item.id), { ...record })
   }
 
-  return { synced, errors, samples: errSamples }
+  return bulkPersist('small_boats', updateById, insertByKey)
 }
 
 // Visa applications sync: SharePoint Visa list → visa_applications.
@@ -900,8 +875,8 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
   }
 
   const DATE_FIELDS = new Set(['planned_arrival', 'planned_departure'])
-  let synced = 0, errors = 0
-  const errSamples: string[] = []
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -933,30 +908,11 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
       bySpId.get(String(item.id)) ??
       (record.jls_reference ? byRef.get(String(record.jls_reference).toLowerCase()) : undefined)
 
-    let rowId: string | undefined = existingId
-    let error: any
-    if (existingId) {
-      ({ error } = await (supabaseAdmin as any).from('visa_applications').update(record).eq('id', existingId))
-    } else {
-      const ins = await (supabaseAdmin as any).from('visa_applications')
-        .insert({ ...record, status: record.status || 'submitted' }).select('id').single()
-      error = ins.error
-      rowId = ins.data?.id
-    }
-
-    if (error) {
-      errors++
-      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
-    } else {
-      synced++
-      if (rowId) {
-        bySpId.set(String(item.id), rowId)
-        if (record.jls_reference) byRef.set(String(record.jls_reference).toLowerCase(), rowId)
-      }
-    }
+    if (existingId) updateById.set(existingId, { ...record, id: existingId })
+    else insertByKey.set(String(item.id), { ...record, status: record.status || 'submitted' })
   }
 
-  return { synced, errors, samples: errSamples }
+  return bulkPersist('visa_applications', updateById, insertByKey)
 }
 
 // Crew sync: a SharePoint crew/visa list (people with passports) → crew_members.
@@ -996,8 +952,10 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
   }
 
   const DATE_FIELDS = new Set(['date_of_birth', 'passport_issue_date', 'passport_expiry_date', 'seamans_book_expiry'])
-  let synced = 0, errors = 0
-  const errSamples: string[] = []
+  let skipped = 0
+  const skipSamples: string[] = []
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -1027,39 +985,20 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
 
     // Inserts require first + last name (NOT NULL); updates can be partial.
     if (!existingId && (!record.first_name || !record.last_name)) {
-      errors++
+      skipped++
       const msg = 'Row skipped: SharePoint item has no first/last name mapped or populated'
-      if (errSamples.length < 8 && !errSamples.includes(msg)) errSamples.push(msg)
+      if (!skipSamples.includes(msg)) skipSamples.push(msg)
       continue
     }
 
-    let rowId: string | undefined = existingId
-    let error: any
-    if (existingId) {
-      ({ error } = await (supabaseAdmin as any).from('crew_members').update(record).eq('id', existingId))
-    } else {
-      // status AFTER the spread so a blank mapped SP "Status" can't clobber the
-      // NOT NULL column with null (that failed every insert: 0 synced / N errors).
-      const ins = await (supabaseAdmin as any).from('crew_members')
-        .insert({ ...record, status: record.status || 'active' }).select('id').single()
-      error = ins.error
-      rowId = ins.data?.id
-    }
-
-    if (error) {
-      errors++
-      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
-    } else {
-      synced++
-      if (rowId) {
-        bySpId.set(String(item.id), rowId)
-        if (record.passport_number) byPassport.set(String(record.passport_number).toLowerCase().trim(), rowId)
-        if (record.first_name && record.last_name) byName.set(nameKey(record.first_name, record.last_name), rowId)
-      }
-    }
+    if (existingId) updateById.set(existingId, { ...record, id: existingId })
+    // status AFTER the spread so a blank mapped SP "Status" can't clobber the
+    // NOT NULL column with null (that failed every insert: 0 synced / N errors).
+    else insertByKey.set(String(item.id), { ...record, status: record.status || 'active' })
   }
 
-  return { synced, errors, samples: errSamples }
+  const r = await bulkPersist('crew_members', updateById, insertByKey)
+  return { synced: r.synced, errors: r.errors + skipped, samples: [...skipSamples, ...r.samples].slice(0, 8) }
 }
 
 function _permitTypeFromListName(listName: string): string | null {
