@@ -1,5 +1,6 @@
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
 import { syncFromSharePoint, downloadPendingImages, pushChangedRecords, discoverSharePoint, syncById, getSpSyncs, syncStalestList } from './lib/sharepoint-sync.server'
+import { syncAisPositions } from './lib/aisstream.server'
 import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
 import { syncFleetPositions } from './lib/mygps.server'
 import { syncVesselPositions } from './lib/vesselfinder.server'
@@ -39,6 +40,19 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
       })
     } catch (e) {
       return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Manual AIS run: `?ais=1` collects live vessel positions from AISStream and
+  // writes them to the yachts table, returning the JSON result.
+  if (url.searchParams.get('ais') === '1') {
+    try {
+      const r = await syncAisPositions(15000)
+      return new Response(JSON.stringify(r), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
         status: 500, headers: { 'Content-Type': 'application/json' },
       })
     }
@@ -105,6 +119,18 @@ export default {
     const cron = (_event as { cron?: string } | undefined)?.cron;
     const isHourly = cron === '0 * * * *' || (cron == null && new Date().getUTCMinutes() < 15);
     const isQuarterly = cron === '*/15 * * * *' || cron == null;
+    const isAis = cron === '5,20,35,50 * * * *';
+
+    // ── AIS tick: collect live vessel positions in its own invocation (own
+    //    subrequest budget) and write them to the yachts table. ──
+    if (isAis) {
+      ctx.waitUntil(
+        syncAisPositions()
+          .then((r) => console.log(`[ais-cron] tracked=${r.tracked} received=${r.received} updated=${r.updated}${r.note ? ' note=' + r.note : ''}`))
+          .catch((e) => console.error('[ais-cron] error:', e))
+      );
+      return;
+    }
 
     // ── Hourly: push in-app edits OUT to SharePoint ──
     if (isHourly) {
