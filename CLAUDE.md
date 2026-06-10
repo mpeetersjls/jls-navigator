@@ -1,20 +1,23 @@
 # CLAUDE.md — Polaris / Leo Platform
 > Claude Code reads this file automatically. Follow every instruction here precisely.
-> Last updated: June 2026 — v1.2 (added Visa Module + Handbook integration)
+> Last updated: June 2026 — v1.3 (added Seaport Immigration module)
 ---
 ## 1. What We Are Building
 **Polaris** is a yacht management platform. It is a technology product — not a yacht operator.
 **Leo** is the AI intelligence engine embedded inside Polaris.
 On every login, Leo immediately delivers a personalised briefing to the authenticated user.
 The user does not ask anything — Leo speaks first. This is the core product experience.
-The platform also includes a **Visa Module** — a full crew visa management system covering
-UAE, Oman, Maldives, Saudi Arabia, Qatar, Bahrain, and Egypt. This is built and maintained
-internally. Visa operational knowledge comes from **our Port & Agency Team** (never refer to
-them by company name in user-facing UI — always "our Port & Agency Team").
+The platform includes three core operational modules:
+- **Leo Intelligence** — AI briefing engine, Lean/6 Sigma signals, compliance alerts
+- **Visa Module** — crew visa management across UAE, Oman, Maldives, KSA, Qatar, Bahrain, Egypt
+- **Seaport Immigration** — digitised sign-on/off request workflow with SLA tracking and reporting
+All operational knowledge comes from **our Port & Agency Team**. Never use the company
+trading name in user-facing UI — always "our Port & Agency Team".
 Stack: **React · Supabase · Anthropic API (claude-sonnet-4-20250514)**
-Companion spec files (drop alongside this file in the project root):
-- `POLARIS_VISA_MODULE.md` — full visa module architecture, schema, and logic
-- `POLARIS_VISA_HANDBOOK.md` — UAE operational detail, process flows, handbook integration
+Companion spec files — drop all alongside this file in the project root:
+- `POLARIS_VISA_MODULE.md` — visa module architecture, schema, 7-country config, logic
+- `POLARIS_VISA_HANDBOOK.md` — UAE operational detail, process flows, handbook link
+- `POLARIS_SEAPORT_IMMIGRATION.md` — seaport sign-on/off request form, SLA tracking, reports
 ---
 ## 2. Project Structure
 ```
@@ -68,6 +71,14 @@ Companion spec files (drop alongside this file in the project root):
 │   │   ├── ComplianceAlertBanner.tsx     # Alert display with severity styling
 │   │   ├── MultiPassportForm.tsx         # Add/edit multiple passports
 │   │   └── HandbookLink.tsx              # Link to Port & Agency Team handbook
+│   ├── seaport/
+│   │   ├── SeaportRequestForm.tsx        # Main form — arrivals + departures sections
+│   │   ├── ArrivalRow.tsx                # Single arrival crew row
+│   │   ├── DepartureRow.tsx              # Single departure crew row
+│   │   ├── RequestStatusBadge.tsx        # Status pill with colour coding
+│   │   ├── SLATimer.tsx                  # Live elapsed/remaining time display
+│   │   ├── ExecutionQueue.tsx            # Team queue view
+│   │   └── CompletionReport.tsx          # Report component
 │   └── ui/
 │       └── TopBar.tsx
 ├── lib/
@@ -89,13 +100,19 @@ Companion spec files (drop alongside this file in the project root):
 │   │   ├── helpText.ts                 # Contextual help strings (tooltips)
 │   │   ├── contacts.ts                 # Port & Agency Team contact details
 │   │   └── companyContext.ts           # Internal team context for Leo
+│   ├── seaport/
+│   │   ├── slaTracking.ts              # SLA compute + updateSLA()
+│   │   ├── reportGenerator.ts          # Build completion report data
+│   │   └── notifications.ts            # Notify team on new; notify vessel on complete
 │   └── types.ts                        # Shared TypeScript types
 ├── schema/
 │   └── migrations/
 │       ├── 001_core.sql                 # user_profiles, tasks, changelog, alerts
 │       ├── 002_visa_core.sql            # crew_members, passports, vessels, applications
 │       ├── 003_visa_offices.sql         # offices, office_vessel_access, office_members
-│       └── 004_seaport_events.sql       # UAE seaport sign-on/sign-off tracking
+│       ├── 004_seaport_events.sql       # UAE visa seaport compliance events
+│       └── 005_seaport_requests.sql     # Immigration request form, SLA, arrivals/departures
+├── POLARIS_SEAPORT_IMMIGRATION.md      # Seaport immigration module spec
 ├── CLAUDE.md                           # This file
 ├── POLARIS_VISA_MODULE.md              # Visa module full spec
 ├── POLARIS_VISA_HANDBOOK.md            # UAE handbook integration spec
@@ -320,7 +337,7 @@ create table office_members (
   primary key (office_id, user_id)
 );
 ```
-### Migration 004 — UAE seaport events
+### Migration 004 — UAE seaport events (visa compliance)
 ```sql
 create table seaport_events (
   event_id       uuid primary key default gen_random_uuid(),
@@ -334,6 +351,15 @@ create table seaport_events (
   notes          text,
   created_at     timestamptz default now()
 );
+```
+### Migration 005 — Seaport immigration requests
+Full schema in `POLARIS_SEAPORT_IMMIGRATION.md` section 1. Summary:
+```sql
+-- seaport_requests  — one request per vessel per week, tracks lifecycle status
+-- seaport_arrivals  — individual crew arrival rows (up to 15 per request)
+-- seaport_departures — individual crew departure rows (up to 15 per request)
+-- seaport_sla       — SLA timing: submitted → acknowledged → completed → report sent
+-- Enable RLS on all four tables (see POLARIS_SEAPORT_IMMIGRATION.md for policies)
 ```
 ### Row-level security — enable on all tables
 ```sql
@@ -395,8 +421,13 @@ export async function fetchLeoContext(userId: string) {
         .in('severity', ['warn','critical'])
         .order('due_date', { ascending: true })
         .limit(5),
+      supabase.from('seaport_requests')
+        .select('*, vessels(vessel_name), seaport_sla(*)')
+        .in('status', ['submitted','acknowledged','in_progress'])
+        .order('created_at', { ascending: true })
+        .limit(5),
     ]);
-  return { profile, session, tasks, changelog, alerts, visaAlerts };
+  return { profile, session, tasks, changelog, alerts, visaAlerts, seaportRequests };
 }
 ```
 ---
@@ -473,6 +504,13 @@ export function assembleContext(data: LeoContextData): LeoContext {
       message:  a.message,
       due_date: a.due_date,
       crew:     a.crew_members?.full_name ?? null,
+    })),
+    seaport_pending: (seaportRequests ?? []).map(r => ({
+      vessel:       r.vessels?.vessel_name,
+      submitted:    relativeTime(r.created_at),
+      status:       r.status,
+      sla_breached: r.seaport_sla?.[0]?.sla_breached ?? false,
+      mins_elapsed: Math.round((Date.now() - new Date(r.created_at).getTime()) / 60000),
     })),
     process_metrics: metrics,
   };
@@ -562,6 +600,11 @@ BRIEFING STRUCTURE — follow this order exactly:
    Name the crew member and the expiry date. Be specific.
    Example: "Ahmed Al Rashidi's UAE visa expires in 4 days — renewal has not been initiated."
    One alert maximum. Prioritise critical over warn.
+7. SEAPORT IMMIGRATION (only if seaport_pending contains time-sensitive items)
+   Surface only if a request has been waiting > 2 hours without completion, or SLA is breached.
+   Name the vessel and time elapsed. One item maximum.
+   Example: "M/Y Seraphina submitted a seaport sign-on request 3 hours ago — SLA expires in 1 hour."
+   Never surface completed or report_sent requests.
 UAE VISA PROCESS KNOWLEDGE:
 - UAE crew visas MUST be pre-approved before crew arrives. Non-negotiable.
 - Minimum processing time is 1–2 working days. Never promise same-day.
@@ -729,7 +772,10 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 9. **Fetch context in parallel** — `Promise.all`, never sequential awaits on login.
 10. **`UserContextSwitcher` is dev/demo only** — gated behind env check + `devMode` param.
 11. **Visa rules from section 11 above are absolute** — do not work around them.
-12. **Run migrations in order** — 001 → 002 → 003 → 004.
+12. **Run migrations in order** — 001 → 002 → 003 → 004 → 005.
+13. **Seaport SLA is tracked on every status transition** — call `updateSLA()` without exception.
+14. **Seaport report is only sent after all crew rows are terminal** — never send early.
+15. **Seaport module integrates with Migration 004** — completing a sign-on/off row also writes to `seaport_events`.
 ---
 ## 15. Open Tickets (as of June 2026)
 | Ticket | Assigned   | Priority | Description |
@@ -739,5 +785,10 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 | #120   | Matt Tighe | MED      | Supabase connection pool config — review for production load |
 | #121   | Matt Tighe | MED      | Mobile viewport breakpoints — LeoPanel and insight cards below 768px |
 | #122   | Matt Tighe | LOW      | Write CHANGELOG entry for v1.2 Leo briefing deploy |
+| #123   | Matt Tighe | HIGH     | Build seaport immigration request form — POLARIS_SEAPORT_IMMIGRATION.md section 3 |
+| #124   | Matt Tighe | HIGH     | Build Port & Agency Team queue view and execution detail — section 9 |
+| #125   | Matt Tighe | MED      | SLA timer component and seaport_sla auto-update on status transitions |
+| #126   | Matt Tighe | MED      | Completion report PDF generation and send to vessel |
+| #127   | Matt Tighe | LOW      | Add seaport section to vessel detail page |
 ---
-*Polaris / Leo — Internal · Confidential · v1.2 — June 2026*
+*Polaris / Leo — Internal · Confidential · v1.3 — June 2026*
