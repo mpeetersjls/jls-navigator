@@ -10,6 +10,25 @@ const handleRequest = createStartHandler(defaultStreamHandler)
 async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: Promise<unknown>) => void }): Promise<Response> {
   const url = new URL(request.url)
 
+  // Manual run: `?run=1` awaits the full inbound sync and returns the JSON
+  // result (synced/errors). Per-sync error samples are persisted to
+  // sharepoint_sync_configs.last_sync_error_sample for diagnosis.
+  if (url.searchParams.get('run') === '1') {
+    try {
+      const r = await syncFromSharePoint()
+      ctx.waitUntil(downloadPendingImages().catch(() => 0))
+      return new Response(JSON.stringify({ ok: true, ...r }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
   // SharePoint sends GET with validationToken when registering a subscription.
   // Must echo the raw token back as text/plain within 5 seconds.
   // NOTE: url.searchParams.get() already URL-decodes the value — do NOT

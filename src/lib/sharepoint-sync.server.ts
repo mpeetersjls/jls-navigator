@@ -129,7 +129,7 @@ export async function deleteSpSync(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-export async function syncById(id: string): Promise<{ synced: number; errors: number }> {
+export async function syncById(id: string): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const syncs = await getSpSyncs()
   const sync = syncs.find(s => s.id === id)
   if (!sync) throw new Error(`Sync config not found: ${id}`)
@@ -523,7 +523,7 @@ export async function pushChangedRecords(): Promise<{ pushed: number }> {
   return { pushed };
 }
 
-export async function syncFromSharePoint(): Promise<{ synced: number; errors: number }> {
+export async function syncFromSharePoint(): Promise<{ synced: number; errors: number; samples?: string[] }> {
   // ── Multi-sync path (new table) ──────────────────────────────────────────────
   const syncs = await getSpSyncs().catch(() => [] as SpSyncConfig[])
   const enabled = syncs.filter(s => s.enabled)
@@ -550,14 +550,14 @@ export async function syncFromSharePoint(): Promise<{ synced: number; errors: nu
 }
 
 /** Dispatch a single SpSyncConfig row using the given credentials. */
-async function _syncWithConfig(cfg: SpConfig, sync: SpSyncConfig): Promise<{ synced: number; errors: number }> {
+async function _syncWithConfig(cfg: SpConfig, sync: SpSyncConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const merged: SpConfig = {
     ...cfg,
     listName: sync.listName,
     fieldMapping: sync.fieldMapping,
     syncTarget: sync.syncTarget,
   }
-  let result: { synced: number; errors: number }
+  let result: { synced: number; errors: number; samples?: string[] }
   if (sync.syncTarget === 'permits') {
     result = await _syncPermits(merged)
   } else if (sync.syncTarget === 'small_boats') {
@@ -576,6 +576,7 @@ async function _syncWithConfig(cfg: SpConfig, sync: SpSyncConfig): Promise<{ syn
       last_synced_at: new Date().toISOString(),
       last_sync_synced: result.synced,
       last_sync_errors: result.errors,
+      last_sync_error_sample: result.samples ?? [],
     })
     .eq('id', sync.id)
   return result
@@ -598,7 +599,7 @@ async function _syncYachts(
   cfg: SpConfig,
   syncId?: string,
   preloadedDeltaToken?: string | null,
-): Promise<{ synced: number; errors: number }> {
+): Promise<{ synced: number; errors: number; samples?: string[] }> {
   void syncId; void preloadedDeltaToken; // delta sync retired — always full-pull (see below)
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
@@ -631,6 +632,7 @@ async function _syncYachts(
   }
 
   let synced = 0, errors = 0
+  const errSamples: string[] = []
   for (const item of allChanged) {
     if (item['@removed']) continue
     const fields = item.fields ?? {}
@@ -676,6 +678,7 @@ async function _syncYachts(
 
     if (error) {
       errors++
+      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
     } else {
       synced++
       // Update local maps with the REAL row id so subsequent items in the same
@@ -688,10 +691,10 @@ async function _syncYachts(
     }
   }
 
-  return { synced, errors }
+  return { synced, errors, samples: errSamples }
 }
 
-async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: number }> {
+async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
 
@@ -728,6 +731,7 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
   }
 
   let synced = 0, errors = 0
+  const errSamples: string[] = []
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -774,6 +778,7 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
 
     if (error) {
       errors++
+      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
     } else {
       synced++
       if (rowId) {
@@ -785,11 +790,11 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
     }
   }
 
-  return { synced, errors }
+  return { synced, errors, samples: errSamples }
 }
 
 // Small boats sync: same pattern as permits but targets small_boats table
-async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors: number }> {
+async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
 
@@ -814,6 +819,7 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
   }
 
   let synced = 0, errors = 0
+  const errSamples: string[] = []
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -842,20 +848,21 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
 
     if (error) {
       errors++
+      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
     } else {
       synced++
       if (rowId) byName.set(String(record.boat_name).toLowerCase(), rowId)
     }
   }
 
-  return { synced, errors }
+  return { synced, errors, samples: errSamples }
 }
 
 // Visa applications sync: SharePoint Visa list → visa_applications.
 // Resolves crew name → crew_member_id and vessel name → yacht_id; matches
 // existing rows by SharePoint item id, then jls_reference. Date-typed targets
 // are truncated to YYYY-MM-DD.
-async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: number }> {
+async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
 
@@ -894,6 +901,7 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
 
   const DATE_FIELDS = new Set(['planned_arrival', 'planned_departure'])
   let synced = 0, errors = 0
+  const errSamples: string[] = []
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -931,13 +939,14 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
       ({ error } = await (supabaseAdmin as any).from('visa_applications').update(record).eq('id', existingId))
     } else {
       const ins = await (supabaseAdmin as any).from('visa_applications')
-        .insert({ status: 'submitted', ...record }).select('id').single()
+        .insert({ ...record, status: record.status || 'submitted' }).select('id').single()
       error = ins.error
       rowId = ins.data?.id
     }
 
     if (error) {
       errors++
+      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
     } else {
       synced++
       if (rowId) {
@@ -947,13 +956,13 @@ async function _syncVisas(cfg: SpConfig): Promise<{ synced: number; errors: numb
     }
   }
 
-  return { synced, errors }
+  return { synced, errors, samples: errSamples }
 }
 
 // Crew sync: a SharePoint crew/visa list (people with passports) → crew_members.
 // Resolves vessel name → yacht_id; matches existing crew by SP item id, then
 // passport number, then first+last name. Date-typed targets truncated to date.
-async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: number }> {
+async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
 
@@ -988,6 +997,7 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
 
   const DATE_FIELDS = new Set(['date_of_birth', 'passport_issue_date', 'passport_expiry_date', 'seamans_book_expiry'])
   let synced = 0, errors = 0
+  const errSamples: string[] = []
 
   for (const item of allItems) {
     if (item['@removed']) continue
@@ -1016,21 +1026,29 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
       ((record.first_name && record.last_name) ? byName.get(nameKey(record.first_name, record.last_name)) : undefined)
 
     // Inserts require first + last name (NOT NULL); updates can be partial.
-    if (!existingId && (!record.first_name || !record.last_name)) { errors++; continue }
+    if (!existingId && (!record.first_name || !record.last_name)) {
+      errors++
+      const msg = 'Row skipped: SharePoint item has no first/last name mapped or populated'
+      if (errSamples.length < 8 && !errSamples.includes(msg)) errSamples.push(msg)
+      continue
+    }
 
     let rowId: string | undefined = existingId
     let error: any
     if (existingId) {
       ({ error } = await (supabaseAdmin as any).from('crew_members').update(record).eq('id', existingId))
     } else {
+      // status AFTER the spread so a blank mapped SP "Status" can't clobber the
+      // NOT NULL column with null (that failed every insert: 0 synced / N errors).
       const ins = await (supabaseAdmin as any).from('crew_members')
-        .insert({ status: 'active', ...record }).select('id').single()
+        .insert({ ...record, status: record.status || 'active' }).select('id').single()
       error = ins.error
       rowId = ins.data?.id
     }
 
     if (error) {
       errors++
+      if (error.message && errSamples.length < 8 && !errSamples.includes(error.message)) errSamples.push(error.message)
     } else {
       synced++
       if (rowId) {
@@ -1041,7 +1059,7 @@ async function _syncCrew(cfg: SpConfig): Promise<{ synced: number; errors: numbe
     }
   }
 
-  return { synced, errors }
+  return { synced, errors, samples: errSamples }
 }
 
 function _permitTypeFromListName(listName: string): string | null {
