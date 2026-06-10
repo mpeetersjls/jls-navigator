@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, LogOut, Settings, Search,
   LogIn, ShieldCheck, Compass, Anchor, DoorOpen, Radio, Navigation, FileBadge,
   Route, UserCircle2, Car, MapPin, ScrollText, X, ShoppingCart, Truck,
-  GraduationCap, Bot, Layers as LayersIcon, UserPlus, LayoutDashboard,
+  GraduationCap, Sparkles, Layers as LayersIcon, UserPlus, LayoutDashboard,
   FileText, Wrench, UtensilsCrossed, Cpu, IdCard, Boxes, Cog, ClipboardList,
   Globe, Headset, BookOpen, FileSignature,
 } from "lucide-react";
@@ -137,7 +137,7 @@ const NAV: NavItem[] = [
         ],
       },
       { label: "Documents & e-Sign",     to: "/esign",         icon: FileSignature },
-      { label: "AI Assistant",            to: "/ai-assistant",  icon: Bot },
+      { label: "Leo",                      to: "/ai-assistant",  icon: Sparkles },
       { label: "Compass",                 to: "/compass",       icon: Compass },
       { label: "Changelog",               to: "/changelog",     icon: ScrollText },
       { label: "Small Boat Registration", to: "/small-boat-registration", icon: Sailboat },
