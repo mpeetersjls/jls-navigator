@@ -193,6 +193,39 @@ export async function getSpListId(token: string, siteId: string, listName: strin
   return data.id as string
 }
 
+// ─── Discovery: enumerate lists + their columns (for auto-creating syncs) ──────
+
+export async function discoverSharePoint(): Promise<{
+  lists: Array<{ name: string; displayName: string; itemCount?: number; columns: Array<{ name: string; displayName: string }> }>
+}> {
+  const cfg = await getSpConfig()
+  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+
+  const listsRes = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$select=name,displayName,list&$top=100`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  const listsData = await listsRes.json() as Record<string, any>
+  const rawLists = (listsData.value ?? []) as Record<string, any>[]
+  // Skip hidden/system lists (document libraries, app lists etc.)
+  const userLists = rawLists.filter(l => l.list?.hidden !== true && l.list?.template === 'genericList')
+
+  const out: Array<{ name: string; displayName: string; columns: Array<{ name: string; displayName: string }> }> = []
+  for (const l of userLists) {
+    const colRes = await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${encodeURIComponent(l.name)}/columns?$select=name,displayName,readOnly,hidden`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    )
+    const colData = await colRes.json() as Record<string, any>
+    const cols = ((colData.value ?? []) as Record<string, any>[])
+      .filter(c => c.hidden !== true && c.readOnly !== true && !String(c.name).startsWith('_') && !String(c.name).startsWith('@'))
+      .map(c => ({ name: String(c.name), displayName: String(c.displayName ?? c.name) }))
+    out.push({ name: String(l.name), displayName: String(l.displayName ?? l.name), columns: cols })
+  }
+  return { lists: out }
+}
+
 // ─── Outbound: App → SharePoint ────────────────────────────────────────────────
 
 export async function pushYachtToSharePoint(yachtId: string): Promise<void> {

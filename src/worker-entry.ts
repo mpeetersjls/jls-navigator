@@ -1,5 +1,5 @@
 import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
-import { syncFromSharePoint, downloadPendingImages, pushChangedRecords } from './lib/sharepoint-sync.server'
+import { syncFromSharePoint, downloadPendingImages, pushChangedRecords, discoverSharePoint } from './lib/sharepoint-sync.server'
 import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
 import { syncFleetPositions } from './lib/mygps.server'
 import { syncVesselPositions } from './lib/vesselfinder.server'
@@ -25,6 +25,19 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
       return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Discovery: `?discover=1` returns all user lists + their columns (no row data,
+  // no secrets) so syncs can be created with correct field mappings.
+  if (url.searchParams.get('discover') === '1') {
+    try {
+      const d = await discoverSharePoint()
+      return new Response(JSON.stringify(d), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    } catch (e) {
+      return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
       })
     }
   }
