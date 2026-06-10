@@ -754,13 +754,15 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
     nextUrl = page['@odata.nextLink'] ?? null
   }
 
-  // Load existing permits for matching
+  // Load existing permits for matching (sp item id first, then permit no / holder)
   const { data: existingPermits } = await (supabaseAdmin as any)
     .from('permits')
-    .select('id, permit_number, holder_name')
+    .select('id, permit_number, holder_name, sharepoint_item_id')
+  const bySpId = new Map<string, string>()
   const byPermitNo = new Map<string, string>()
   const byHolderName = new Map<string, string>()
   for (const p of (existingPermits ?? []) as Record<string, any>[]) {
+    if (p.sharepoint_item_id) bySpId.set(String(p.sharepoint_item_id), String(p.id))
     if (p.permit_number) byPermitNo.set(String(p.permit_number).toLowerCase(), String(p.id))
     if (p.holder_name) byHolderName.set(String(p.holder_name).toLowerCase(), String(p.id))
   }
@@ -802,6 +804,7 @@ async function _syncPermits(cfg: SpConfig): Promise<{ synced: number; errors: nu
     record.sharepoint_item_id = item.id
 
     const existingId =
+      bySpId.get(String(item.id)) ??
       (record.permit_number
         ? byPermitNo.get(String(record.permit_number).toLowerCase())
         : undefined) ??
