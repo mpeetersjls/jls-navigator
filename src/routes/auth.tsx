@@ -101,7 +101,8 @@ function AuthPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="absolute inset-0 -z-10 opacity-40 [background-image:radial-gradient(circle_at_25%_15%,oklch(0.62_0.18_245/.25),transparent_45%),radial-gradient(circle_at_80%_80%,oklch(0.74_0.18_155/.18),transparent_50%)]" />
+      {/* Polaris ambient glow — signal cyan top-left, leoAmber bottom-right */}
+      <div className="absolute inset-0 -z-10 opacity-30 [background-image:radial-gradient(circle_at_20%_15%,rgba(0,196,204,0.35),transparent_45%),radial-gradient(circle_at_80%_85%,rgba(232,160,32,0.20),transparent_50%)]" />
       <div className="w-full max-w-sm rounded-xl border border-border bg-card/80 p-6 backdrop-blur-md shadow-2xl">
         <div className="flex flex-col items-center mb-7">
           <PolarisLogo className="w-60 max-w-full" />
