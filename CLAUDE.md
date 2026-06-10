@@ -1,21 +1,38 @@
 # CLAUDE.md — Polaris / Leo Platform
 > Claude Code reads this file automatically. Follow every instruction here precisely.
-> Last updated: June 2026 — v1.4 (added Access Control & Identity architecture)
+> Last updated: June 2026 — v1.5 (added Platform UX, Login & Ecosystem spec)
 
 ---
 
 ## 1. What We Are Building
 
-**Polaris** is a yacht management platform. It is a technology product — not a yacht operator.
+**Polaris** is the operating system behind yacht operations.
 **Leo** is the AI intelligence engine embedded inside Polaris.
 
-On every login, Leo immediately delivers a personalised briefing to the authenticated user.
-The user does not ask anything — Leo speaks first. This is the core product experience.
+Polaris is a multi-stakeholder, multi-vessel, multi-location platform. Every user
+lands on a dashboard built specifically for who they are, which vessel or organisation
+they are connected to, and which modules they are approved to access.
 
-The platform includes three core operational modules:
-- **Leo Intelligence** — AI briefing engine, Lean/6 Sigma signals, compliance alerts
-- **Visa Module** — crew visa management across UAE, Oman, Maldives, KSA, Qatar, Bahrain, Egypt
-- **Seaport Immigration** — digitised sign-on/off request workflow with SLA tracking and reporting
+On every login, Leo immediately delivers a personalised, workspace-aware briefing.
+Leo speaks first. The user does not need to ask anything.
+
+**Platform scale:** 350+ yachts · 11+ locations · 2,500+ crew · 10 connected stakeholder types
+
+**Operational modules:**
+- **Leo** — AI briefing engine, Lean/6 Sigma signals, compliance and visa alerts
+- **Crew & Immigration** — visa management across UAE, Oman, Maldives, KSA, Qatar, Bahrain, Egypt
+- **Seaport Immigration** — sign-on/off request workflow with SLA tracking and reports
+- **ORBIT** — operations & small boat management
+- **ShipSync** — ship spares, logistics, customs, storage
+- **Waypoint** — chandlery & procurement
+- **Superyacht Provisioning** — provisions, interiors, events, special orders
+- **JLS Yacht Training Institute** — training, certification, development
+- **Crew Placement** — placements, daywork, crew solutions
+- **Finance** — invoices, SOA, payments, QuickBooks integration
+- **Transport & Fleet** — vessel deliveries, logistics
+- **Compass Card** — crew benefit card
+- **Yacht IT Solutions** — IT support, cyber security, connectivity
+- **Agency (Superyacht Middle East)** — port calls, clearances, berthing, fuel, local support
 
 All operational knowledge comes from **our Port & Agency Team**. Never use the company
 trading name in user-facing UI — always "our Port & Agency Team".
@@ -24,6 +41,7 @@ Stack: **React · Supabase · Anthropic API (claude-sonnet-4-20250514)**
 
 Companion spec files — drop all alongside this file in the project root:
 - `POLARIS_ACCESS_CONTROL.md` — **READ FIRST** — identity, permissions, routing, audit layer
+- `POLARIS_PLATFORM_UX.md` — login experience, landing pages, workspace routing, ecosystem map
 - `POLARIS_VISA_MODULE.md` — visa module architecture, schema, 7-country config, logic
 - `POLARIS_VISA_HANDBOOK.md` — UAE operational detail, process flows, handbook link
 - `POLARIS_SEAPORT_IMMIGRATION.md` — seaport sign-on/off request form, SLA tracking, reports
@@ -71,8 +89,20 @@ Companion spec files — drop all alongside this file in the project root:
 │   │   │   └── page.tsx              # Crew placement portal
 │   │   ├── finance/
 │   │   │   └── page.tsx              # Finance portal
-│   │   └── agency/
-│   │       └── page.tsx              # Agency portal
+│   │   ├── agency/
+│   │   │   └── page.tsx              # Agency portal
+│   │   ├── shipsync/
+│   │   │   └── page.tsx              # ShipSync logistics portal
+│   │   ├── waypoint/
+│   │   │   └── page.tsx              # Waypoint chandlery portal
+│   │   ├── provisioning/
+│   │   │   └── page.tsx              # Provisioning portal
+│   │   ├── transport/
+│   │   │   └── page.tsx              # Transport & fleet portal
+│   │   ├── compass-card/
+│   │   │   └── page.tsx              # Compass Card portal
+│   │   └── yacht-it/
+│   │       └── page.tsx              # Yacht IT portal
 │   ├── auth/
 │   │   ├── login/
 │   │   │   └── page.tsx              # Login page
@@ -81,6 +111,14 @@ Companion spec files — drop all alongside this file in the project root:
 │   └── layout.tsx
 ├── middleware.ts                     # Auth + access check on every request
 ├── components/
+│   ├── auth/
+│   │   ├── LoginBrandPanel.tsx           # Login left panel — branding + security badges
+│   │   ├── LoginForm.tsx                 # Login form — email, password, SSO
+│   │   └── WorkspaceSelector.tsx         # Post-auth workspace chooser
+│   ├── ui/
+│   │   ├── PolarisShell.tsx              # Persistent shell — topbar + sidebar + main
+│   │   ├── Sidebar.tsx                   # Module nav — filtered by user access
+│   │   └── MetricCard.tsx                # Reusable metric tile for dashboards
 │   ├── leo/
 │   │   ├── LeoPanel.tsx                  # Streaming briefing panel
 │   │   ├── InsightCards.tsx              # 3 post-briefing insight cards
@@ -144,6 +182,8 @@ Companion spec files — drop all alongside this file in the project root:
 │   │   ├── slaTracking.ts              # SLA compute + updateSLA()
 │   │   ├── reportGenerator.ts          # Build completion report data
 │   │   └── notifications.ts            # Notify team on new; notify vessel on complete
+│   ├── platform/
+│   │   └── ecosystem.ts                # POLARIS_MODULES + CONNECTED_STAKEHOLDERS
 │   └── types.ts                        # Shared TypeScript types
 ├── schema/
 │   └── migrations/
@@ -153,6 +193,7 @@ Companion spec files — drop all alongside this file in the project root:
 │       ├── 004_seaport_events.sql       # UAE visa seaport compliance events
 │       └── 005_seaport_requests.sql     # Immigration request form, SLA, arrivals/departures
 ├── POLARIS_ACCESS_CONTROL.md           # Identity & access control spec — READ FIRST
+├── POLARIS_PLATFORM_UX.md             # Login, landing pages, ecosystem — READ SECOND
 ├── POLARIS_SEAPORT_IMMIGRATION.md      # Seaport immigration module spec
 ├── CLAUDE.md                           # This file
 ├── POLARIS_VISA_MODULE.md              # Visa module full spec
@@ -951,6 +992,11 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 18. **Landing page routing is role-driven** — call `getLandingPath()`, never hardcode `/dashboard` for all users.
 19. **Every action is audit logged** — call `logAuditEvent()` from middleware, all API routes, and admin panel.
 20. **Access layer is built before operational module UI** — see `POLARIS_ACCESS_CONTROL.md` build order.
+21. **Workspace selector is shown after auth** if user has >1 workspace — never skip it.
+22. **Every authenticated page uses `PolarisShell`** — never build a dashboard without the shell wrapper.
+23. **Sidebar filters by user's module access** — never show a nav item the user cannot enter.
+24. **Leo briefing is workspace-scoped** — always pass `workspaceType` and `workspaceId` to the briefing API.
+25. **Financial tiles are permission-gated** — never render without checking `finance` permission first.
 
 ---
 
@@ -977,7 +1023,16 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 | #134   | Matt Tighe | HIGH     | Audit log — logAuditEvent() wired into middleware + all API routes |
 | #135   | Matt Tighe | MED      | Branding layer — org/location context on stakeholder landing pages |
 | #136   | Matt Tighe | MED      | Leo access-aware briefings — scope context in system prompt |
+| #137   | Matt Tighe | CRITICAL | Login page — two-panel layout + workspace selector |
+| #138   | Matt Tighe | CRITICAL | Workspace routing engine — getLandingPath + workspace context |
+| #139   | Matt Tighe | HIGH     | Captain dashboard — vessel ops overview with Leo panel |
+| #140   | Matt Tighe | HIGH     | Owner portal — financial & performance overview |
+| #141   | Matt Tighe | HIGH     | Crew portal — personal & development hub |
+| #142   | Matt Tighe | HIGH     | Location dashboard — regional ops overview |
+| #143   | Matt Tighe | HIGH     | Polaris shell — sidebar with filtered module navigation |
+| #144   | Matt Tighe | MED      | ShipSync, Training, Supplier portals |
+| #145   | Matt Tighe | MED      | Ecosystem module map — lib/platform/ecosystem.ts |
 
 ---
 
-*Polaris / Leo — Internal · Confidential · v1.4 — June 2026*
+*Polaris / Leo — Internal · Confidential · v1.5 — June 2026*
