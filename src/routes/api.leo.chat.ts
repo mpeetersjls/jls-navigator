@@ -34,6 +34,19 @@ Use plain text only, no markdown headers, no bullet lists.`
 
 export const APIRoute = createAPIFileRoute('/api/leo/chat')({
   POST: async ({ request }) => {
+    try {
+      return await leoChatHandler(request)
+    } catch (e: any) {
+      console.error('Leo chat unhandled error:', e)
+      return new Response(
+        JSON.stringify({ error: `Leo error: ${e?.message ?? String(e)}` }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+  },
+})
+
+export async function leoChatHandler(request: Request): Promise<Response> {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return new Response(
@@ -79,7 +92,7 @@ export const APIRoute = createAPIFileRoute('/api/leo/chat')({
     const safeMessages = messages
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .filter(m => typeof m.content === 'string' && m.content.trim().length > 0)
-      .slice(-20)  // cap at last 20 turns to manage token budget
+      .slice(-20)
 
     if (safeMessages.length === 0 || safeMessages[safeMessages.length - 1].role !== 'user') {
       return new Response(JSON.stringify({ error: 'Last message must be from user' }), {
@@ -159,5 +172,4 @@ export const APIRoute = createAPIFileRoute('/api/leo/chat')({
         'X-Accel-Buffering': 'no',
       },
     })
-  },
-})
+}

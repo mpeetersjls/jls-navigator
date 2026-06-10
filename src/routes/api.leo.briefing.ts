@@ -284,7 +284,7 @@ export const APIRoute = createAPIFileRoute('/api/leo/briefing')({
   },
 })
 
-async function leoBriefingHandler(request: Request): Promise<Response> {
+export async function leoBriefingHandler(request: Request): Promise<Response> {
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       return new Response(

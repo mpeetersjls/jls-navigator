@@ -5,6 +5,8 @@ import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
 import { syncFleetPositions } from './lib/mygps.server'
 import { syncVesselPositions } from './lib/vesselfinder.server'
 import { runDailyComplianceChecks } from './lib/visa/complianceMonitor.server'
+import { leoBriefingHandler } from './routes/api.leo.briefing'
+import { leoChatHandler } from './routes/api.leo.chat'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -107,6 +109,14 @@ export default {
 
     if (url.pathname === '/sp-hook' || url.pathname === '/api/sharepoint-webhook' || url.pathname === '/api/sharepoint-webhook/') {
       return handleSharePointWebhook(request, ctx)
+    }
+
+    if (url.pathname === '/api/leo/briefing' && request.method === 'POST') {
+      return leoBriefingHandler(request)
+    }
+
+    if (url.pathname === '/api/leo/chat' && request.method === 'POST') {
+      return leoChatHandler(request)
     }
 
     return handleRequest(request, env, ctx)
