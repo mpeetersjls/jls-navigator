@@ -599,31 +599,15 @@ async function _syncYachts(
   syncId?: string,
   preloadedDeltaToken?: string | null,
 ): Promise<{ synced: number; errors: number }> {
+  void syncId; void preloadedDeltaToken; // delta sync retired — always full-pull (see below)
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
 
-  // Load stored delta token for incremental sync
-  let storedDeltaToken: string | null
-  if (preloadedDeltaToken !== undefined) {
-    // Multi-sync path: delta token comes from sharepoint_sync_configs row
-    storedDeltaToken = preloadedDeltaToken
-  } else {
-    // Legacy path: read from integration_settings
-    const { data: settingsRow } = await (supabaseAdmin as any)
-      .from('integration_settings')
-      .select('config')
-      .eq('integration_name', 'sharepoint')
-      .maybeSingle()
-    storedDeltaToken = settingsRow?.config?.delta_token ?? null
-  }
-
-  const baseUrl = storedDeltaToken
-    ? `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items/delta?$deltatoken=${encodeURIComponent(storedDeltaToken)}&$expand=fields`
-    : `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items/delta?$expand=fields`
-
+  // Full pull every run (like the other lists). Delta sync was skipping rows that
+  // errored on a previous run — they never came back unless edited in SharePoint.
   let allChanged: any[] = []
-  let nextUrl: string | null = baseUrl
-  let newDeltaLink: string | null = null
+  let nextUrl: string | null =
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items?$expand=fields&$top=200`
 
   while (nextUrl) {
     const res = await fetch(nextUrl, { headers: { Authorization: `Bearer ${token}` } })
@@ -631,7 +615,6 @@ async function _syncYachts(
     if (!page.value) break
     allChanged = allChanged.concat(page.value as any[])
     nextUrl = page['@odata.nextLink'] ?? null
-    if (page['@odata.deltaLink']) newDeltaLink = page['@odata.deltaLink'] as string
   }
 
   // Load ALL existing yachts once — avoids N per-item DB round trips
@@ -701,23 +684,6 @@ async function _syncYachts(
         bySpId.set(String(item.id), rowId)
         if (record.imo_no) byImo.set(String(record.imo_no).toLowerCase(), rowId)
         byName.set(String(record.vessel_name).toLowerCase(), rowId)
-      }
-    }
-  }
-
-  // Persist new delta token so next run is incremental
-  if (newDeltaLink) {
-    const newToken = new URL(newDeltaLink).searchParams.get('$deltatoken')
-    if (newToken) {
-      if (syncId) {
-        // Multi-sync path: save to the sync config row
-        await (supabaseAdmin as any)
-          .from('sharepoint_sync_configs')
-          .update({ delta_token: newToken })
-          .eq('id', syncId)
-      } else {
-        // Legacy path: save to integration_settings
-        await saveSpConfigPatch({ delta_token: newToken })
       }
     }
   }
