@@ -88,26 +88,34 @@ export const APIRoute = createAPIFileRoute('/api/leo/chat')({
       })
     }
 
-    const anthropicRes = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key':         apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type':      'application/json',
-      },
-      body: JSON.stringify({
-        model:      LEO_MODEL,
-        max_tokens: 800,
-        stream:     true,
-        system:     systemPrompt,
-        messages:   safeMessages,
-      }),
-    })
+    let anthropicRes: Response
+    try {
+      anthropicRes = await fetch(ANTHROPIC_URL, {
+        method: 'POST',
+        headers: {
+          'x-api-key':         apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+        },
+        body: JSON.stringify({
+          model:      LEO_MODEL,
+          max_tokens: 800,
+          stream:     true,
+          system:     systemPrompt,
+          messages:   safeMessages,
+        }),
+      })
+    } catch (e: any) {
+      return new Response(
+        JSON.stringify({ error: `Failed to reach Anthropic: ${e?.message ?? 'network error'}` }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
 
     if (!anthropicRes.ok) {
       const err = await anthropicRes.text()
       return new Response(
-        JSON.stringify({ error: `Anthropic error: ${anthropicRes.status} — ${err}` }),
+        JSON.stringify({ error: `Anthropic error ${anthropicRes.status}: ${err}` }),
         { status: 502, headers: { 'Content-Type': 'application/json' } },
       )
     }

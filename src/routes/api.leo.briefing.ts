@@ -322,26 +322,36 @@ export const APIRoute = createAPIFileRoute('/api/leo/briefing')({
     const systemPrompt = buildSystemPrompt(userName, accessLabel, context)
 
     // Call Anthropic — stream the response
-    const anthropicRes = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key':         apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type':      'application/json',
-      },
-      body: JSON.stringify({
-        model:      LEO_MODEL,
-        max_tokens: 1200,
-        stream:     true,
-        system:     systemPrompt,
-        messages:   [{ role: 'user', content: 'Deliver my briefing now.' }],
-      }),
-    })
+    let anthropicRes: Response
+    try {
+      anthropicRes = await fetch(ANTHROPIC_URL, {
+        method: 'POST',
+        headers: {
+          'x-api-key':         apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type':      'application/json',
+        },
+        body: JSON.stringify({
+          model:      LEO_MODEL,
+          max_tokens: 1200,
+          stream:     true,
+          system:     systemPrompt,
+          messages:   [{ role: 'user', content: 'Deliver my briefing now.' }],
+        }),
+      })
+    } catch (e: any) {
+      console.error('Leo Anthropic fetch failed:', e)
+      return new Response(
+        JSON.stringify({ error: `Failed to reach Anthropic: ${e?.message ?? 'network error'}` }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
 
     if (!anthropicRes.ok) {
       const err = await anthropicRes.text()
+      console.error('Leo Anthropic non-OK:', anthropicRes.status, err)
       return new Response(
-        JSON.stringify({ error: `Anthropic error: ${anthropicRes.status} — ${err}` }),
+        JSON.stringify({ error: `Anthropic error ${anthropicRes.status}: ${err}` }),
         { status: 502, headers: { 'Content-Type': 'application/json' } },
       )
     }
