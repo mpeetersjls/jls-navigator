@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getAccessLevel, ACCESS_LABELS } from '@/lib/leo-access'
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const LEO_MODEL     = 'claude-opus-4-5'
+const LEO_MODEL     = 'claude-sonnet-4-6'
 
 function getAdmin() {
   const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? ''

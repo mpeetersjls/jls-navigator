@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js'
 import { getAccessLevel, ACCESS_CAPS } from '@/lib/leo-access'
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const LEO_MODEL     = 'claude-opus-4-5'   // update to latest available model
+const LEO_MODEL     = 'claude-sonnet-4-6'
 
 // ── Supabase admin client (server-only) ─────────────────────────────────────
 function getAdmin() {
