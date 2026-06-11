@@ -44,9 +44,12 @@ export function MyFleetPage() {
   async function syncNow() {
     setSyncing(true);
     try {
-      const r = await (doSyncAis as any)() as { tracked: number; received: number; updated: number; note?: string };
+      const r = await (doSyncAis as any)() as { tracked: number; received: number; updated: number; invalidMmsi?: number; note?: string };
       if (r.note) toast.message(r.note);
-      else toast.success(`Updated ${r.updated} of ${r.tracked} vessels (${r.received} reporting).`);
+      else {
+        const suffix = r.invalidMmsi ? ` · ${r.invalidMmsi} skipped (bad MMSI)` : "";
+        toast.success(`Updated ${r.updated} of ${r.tracked} vessels (${r.received} reporting)${suffix}.`);
+      }
       await load();
     } catch (e: any) {
       toast.error(e?.message ?? "AIS sync failed.");

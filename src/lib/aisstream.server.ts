@@ -35,12 +35,22 @@ export interface AisYacht {
 }
 
 /**
+ * A valid MMSI is exactly nine digits. AISStream's FiltersShipMMSI silently
+ * matches nothing when fed malformed values (IMO numbers, blanks, short codes),
+ * so we normalise and validate before subscribing. Returns null if unusable.
+ */
+function normaliseMmsi(raw: string | null): string | null {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  return /^\d{9}$/.test(digits) ? digits : null;
+}
+
+/**
  * Connect to AISStream, collect the latest position for each fleet MMSI over
  * `collectMs`, and bulk-upsert onto yachts. Safe no-op if no key / no MMSIs.
  */
 export async function syncAisPositions(
-  collectMs = 18000,
-): Promise<{ tracked: number; received: number; updated: number; note?: string }> {
+  collectMs = 25000,
+): Promise<{ tracked: number; received: number; updated: number; invalidMmsi?: number; note?: string }> {
   const apiKey = process.env.AISSTREAM_API_KEY as string | undefined;
   if (!apiKey) {
     return { tracked: 0, received: 0, updated: 0, note: "AISStream not configured — set the AISSTREAM_API_KEY secret." };
@@ -49,13 +59,21 @@ export async function syncAisPositions(
   // Fleet MMSIs (+ vessel_name, required NOT NULL for the upsert insert-path).
   const { data: yachts } = await fetchAllRows<{ id: string; mmsi: string | null; vessel_name: string }>(() =>
     supabaseAdmin.from("yachts").select("id, mmsi, vessel_name").not("mmsi", "is", null).order("id"));
+
+  // Keyed by normalised 9-digit MMSI so the filter we send matches the metadata
+  // AISStream returns (it reports plain numeric MMSIs).
   const byMmsi = new Map<string, { id: string; vessel_name: string }>();
+  let invalidMmsi = 0;
   for (const y of yachts ?? []) {
-    const m = String(y.mmsi ?? "").trim();
+    const m = normaliseMmsi(y.mmsi);
     if (m) byMmsi.set(m, { id: y.id, vessel_name: y.vessel_name });
+    else if (String(y.mmsi ?? "").trim()) invalidMmsi++;
   }
   if (byMmsi.size === 0) {
-    return { tracked: 0, received: 0, updated: 0, note: "No yachts have an MMSI set — add MMSIs to track them." };
+    const note = invalidMmsi > 0
+      ? `No valid MMSIs to track — ${invalidMmsi} vessel(s) have a malformed MMSI (must be exactly 9 digits).`
+      : "No yachts have an MMSI set — add MMSIs to track them.";
+    return { tracked: 0, received: 0, updated: 0, invalidMmsi, note };
   }
 
   const resp = await fetch(STREAM_URL, { headers: { Upgrade: "websocket" } });
@@ -105,7 +123,14 @@ export async function syncAisPositions(
   try { ws.close(); } catch { /* already closed */ }
 
   if (latest.size === 0) {
-    return { tracked: byMmsi.size, received: 0, updated: 0, note: streamError ?? "No positions received this window (vessels may be offshore / out of terrestrial range)." };
+    const invalidNote = invalidMmsi > 0 ? ` (${invalidMmsi} more have a malformed MMSI and can't be tracked)` : "";
+    return {
+      tracked: byMmsi.size,
+      received: 0,
+      updated: 0,
+      invalidMmsi,
+      note: streamError ?? `No positions received for any of ${byMmsi.size} tracked vessel(s) this window — they may be offshore / out of terrestrial AIS range, or anchored and broadcasting infrequently${invalidNote}.`,
+    };
   }
 
   // Bulk upsert (one call) so the per-invocation subrequest budget isn't blown.
@@ -122,15 +147,15 @@ export async function syncAisPositions(
       ais_position_at: p.time ?? nowIso, ais_synced_at: nowIso,
     });
   }
-  if (!rows.length) return { tracked: byMmsi.size, received: latest.size, updated: 0 };
+  if (!rows.length) return { tracked: byMmsi.size, received: latest.size, updated: 0, invalidMmsi };
   const { error } = await (supabaseAdmin as any).from("yachts").upsert(rows, { onConflict: "id" });
   if (error) throw new Error(error.message);
-  return { tracked: byMmsi.size, received: latest.size, updated: rows.length };
+  return { tracked: byMmsi.size, received: latest.size, updated: rows.length, invalidMmsi };
 }
 
 /** Manually trigger an AIS collection now (used by the "Sync positions" button). */
 export const doSyncAis = createServerFn({ method: "POST" }).handler(async () => {
-  return await syncAisPositions(12000);
+  return await syncAisPositions(25000);
 });
 
 /** Read the fleet's latest known AIS positions for the live map. */
