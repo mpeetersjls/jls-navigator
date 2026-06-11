@@ -39,7 +39,6 @@ export function AdminSidebarSection() {
         borderRadius: 8,
         border:       '1px solid rgba(232,160,32,0.18)',
         background:   'rgba(232,160,32,0.055)',
-        overflow:     'hidden',
       }}
     >
       {/* Header row — always visible, click to toggle */}
