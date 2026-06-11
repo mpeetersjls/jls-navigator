@@ -1,0 +1,89 @@
+'use client'
+import { useState } from 'react'
+import { useAuth } from '@/lib/auth'
+import type { UserRole, PolarisRole } from '@/lib/admin/types'
+
+const ROLES: PolarisRole[] = [
+  'global_admin', 'org_admin', 'jls_staff', 'vessel_owner',
+  'captain', 'crew', 'supplier', 'port_agent', 'training_user', 'placement_user',
+]
+
+interface Props {
+  userRole: UserRole
+  onClose: () => void
+  onSuccess: () => void
+}
+
+export function EditRoleModal({ userRole, onClose, onSuccess }: Props) {
+  const { session } = useAuth()
+  const [role, setRole]     = useState<PolarisRole>(userRole.role)
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+
+  async function handleSave() {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/users/${userRole.id}`, {
+        method:  'PATCH',
+        headers: {
+          'Content-Type':  'application/json',
+          Authorization:   `Bearer ${(session as any)?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ action: 'role', role }),
+      })
+      if (!res.ok) {
+        const j = await res.json()
+        setError(j.error ?? 'Failed to update role')
+        return
+      }
+      onSuccess()
+      onClose()
+    } catch {
+      setError('Network error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="w-80 rounded-xl border border-white/10 bg-[#0d1520] p-5 shadow-2xl">
+        <h3 className="mb-4 text-sm font-semibold text-white">Change role</h3>
+        <p className="mb-3 text-[11px] text-white/50">{(userRole as any).user?.email ?? userRole.user_id}</p>
+
+        <select
+          value={role}
+          onChange={e => setRole(e.target.value as PolarisRole)}
+          className="w-full rounded-md border border-white/10 bg-[#0f1d2e] px-3 py-2
+                     text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+        >
+          {ROLES.map(r => (
+            <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+          ))}
+        </select>
+
+        {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+
+        <div className="mt-4 flex gap-2 justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/60
+                       hover:bg-white/5 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || role === userRole.role}
+            className="rounded-md bg-amber-500/15 border border-amber-500/25 px-3 py-1.5
+                       text-xs text-amber-400 hover:bg-amber-500/25 transition-colors
+                       disabled:opacity-40"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

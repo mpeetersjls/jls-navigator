@@ -8,6 +8,7 @@ import {
   FileText, Wrench, UtensilsCrossed, Cpu, IdCard, Boxes, Cog, ClipboardList,
   Globe, Headset, BookOpen, FileSignature,
 } from "lucide-react";
+import { AdminSidebarSection } from "@/components/admin/AdminSidebarSection";
 import { useState, useMemo } from "react";
 import { DEPARTMENTS } from "@/components/guides/guide-meta";
 import { PolarisLogo } from "@/components/polaris-logo";
@@ -312,6 +313,9 @@ export function AppSidebar() {
           ))
         )}
       </nav>
+
+      {/* Admin section — renders only for global_admin / org_admin */}
+      <AdminSidebarSection />
 
       {/* User footer */}
       <div className="border-t border-sidebar-border/70 p-2.5 space-y-1">
