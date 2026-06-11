@@ -15,6 +15,7 @@ export type AccessLevel = 'developer' | 'manager' | 'user' | 'guest'
 export const DEVELOPER_EMAILS: string[] = [
   'm.peeters@jlsyachts.com',   // Matt Peeters
   'm.fetton@jlsyachts.com',    // Mike Fetton
+  'md@jlsyachts.com',          // Mike Fetton (primary account)
   // 't.fetton@jlsyachts.com', // Tighe Fetton — uncomment when access is granted
 ]
 
