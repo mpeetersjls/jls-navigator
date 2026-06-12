@@ -1,739 +1,842 @@
 # POLARIS_CAPTAIN_DASHBOARD_BUILD.md
-# Claude Code Build Instructions — Captain Dashboard
-# Tickets: #139, #150–#165
+# Claude Code — Step-by-step build instructions for the Captain Dashboard
+# Read CLAUDE.md first, then POLARIS_CAPTAIN_DASHBOARD.md, then follow this file.
 #
-# HOW TO USE:
-# Read CLAUDE.md → POLARIS_ACCESS_CONTROL.md → POLARIS_CAPTAIN_DASHBOARD.md
-# then follow this file phase by phase. Complete each phase fully before
-# starting the next. Do not skip phases.
+# This file is written for Claude Code.
+# Every instruction is an explicit action. No ambiguity. No assumptions.
 #
-# Authors: Mike Fetton / Matt Tighe
+# Author: Mike Fetton — JLS Yachts LLC
 # Version: 1.0 — June 2026
-
+# Tickets: #146–#165
 ---
-
-## PHASE 1 — Database Migrations
-
-Run these in Supabase SQL editor IN ORDER before writing any code.
-
-### Migration 015 — vessel_documents
-
+## READ FIRST — BEFORE TOUCHING ANY CODE
+1. Read `CLAUDE.md` (v1.5) completely before writing a single line.
+2. Read `POLARIS_CAPTAIN_DASHBOARD.md` completely.
+3. Read `POLARIS_ACCESS_CONTROL.md` — the `requireAccess()` middleware
+   and `logAuditEvent()` helpers must already exist before this build starts.
+4. Read `POLARIS_VISA_MODULE.md` — the visa tables and API routes already
+   exist and must not be duplicated.
+5. Confirm migrations 001–014 have been run. If not, stop and run them first.
+---
+## PHASE 1 — DATABASE (Ticket #154)
+Run these migrations IN ORDER in the Supabase SQL editor.
+Do not skip. Do not reorder.
+### Migration 015 — operations_requests
 ```sql
-create table vessel_documents (
-  doc_id          uuid primary key default gen_random_uuid(),
-  vessel_id       uuid not null references vessels(vessel_id) on delete cascade,
-  doc_type        text not null check (doc_type in (
-                    'signed_tariff',
-                    'agency_appointment',
-                    'port_clearance_inward',
-                    'port_clearance_outward',
-                    'general_declaration',
-                    'other'
+CREATE TABLE IF NOT EXISTS operations_requests (
+  request_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vessel_id     UUID NOT NULL REFERENCES vessels(vessel_id) ON DELETE CASCADE,
+  submitted_by  UUID NOT NULL REFERENCES auth.users(id),
+  category      TEXT NOT NULL CHECK (category IN (
+                  'immigration','bunkering','berthing','visa',
+                  'technical','logistics','provisioning','crew_care'
+                )),
+  description   TEXT NOT NULL,
+  priority      TEXT NOT NULL DEFAULT 'routine'
+                  CHECK (priority IN ('routine','urgent','emergency')),
+  required_date DATE,
+  status        TEXT NOT NULL DEFAULT 'open'
+                  CHECK (status IN (
+                    'open','in_progress','pending_captain','complete','cancelled'
                   )),
-  title           text not null,
-  version_year    int not null,
-  port            text,
-  valid_from      date,
-  valid_to        date,
-  status          text not null default 'draft'
-                  check (status in ('draft','pending_signature','signed','expired','superseded')),
-  file_url        text,
-  metadata        jsonb default '{}',
-  signed_by_captain   text,
-  signed_by_agent     text,
-  signed_at       timestamptz,
-  uploaded_by     uuid references auth.users(id),
-  created_at      timestamptz default now(),
-  updated_at      timestamptz default now()
+  assigned_to   UUID REFERENCES auth.users(id),
+  notes         TEXT,
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  updated_at    TIMESTAMPTZ DEFAULT now(),
+  closed_at     TIMESTAMPTZ
 );
-
-alter table vessel_documents enable row level security;
-
-create policy "captain_vessel_docs" on vessel_documents
-  for select using (
-    vessel_id = (auth.jwt() ->> 'vessel_id')::uuid
+ALTER TABLE operations_requests ENABLE ROW LEVEL SECURITY;
+-- Captain can see own vessel requests only
+CREATE POLICY "captain_vessel_requests" ON operations_requests
+  FOR SELECT USING (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
   );
-
-create policy "staff_manage_vessel_docs" on vessel_documents
-  for all using (
-    (auth.jwt() ->> 'role') in ('global_admin', 'jls_staff')
+-- Captain can create requests for own vessel
+CREATE POLICY "captain_create_request" ON operations_requests
+  FOR INSERT WITH CHECK (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
+    AND submitted_by = auth.uid()
   );
+-- Captain can add notes to own requests (no status change)
+CREATE POLICY "captain_note_request" ON operations_requests
+  FOR UPDATE USING (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
+    AND submitted_by = auth.uid()
+  ) WITH CHECK (
+    -- Captain can only update the notes field
+    status = (SELECT status FROM operations_requests WHERE request_id = operations_requests.request_id)
+  );
+-- JLS staff can see and update all
+CREATE POLICY "jls_all_requests" ON operations_requests
+  FOR ALL USING (
+    (auth.jwt() ->> 'role') IN ('global_admin','jls_staff')
+  );
+CREATE INDEX idx_ops_requests_vessel ON operations_requests(vessel_id);
+CREATE INDEX idx_ops_requests_status ON operations_requests(status);
 ```
-
-### Migration 016 — operations_requests
-
+### Migration 016 — bunkering_requests
 ```sql
-create table operations_requests (
-  request_id      uuid primary key default gen_random_uuid(),
-  vessel_id       uuid not null references vessels(vessel_id) on delete cascade,
-  request_type    text not null check (request_type in (
-                    'permit', 'gate_pass', 'bunkering', 'port_clearance', 'other'
-                  )),
-  title           text not null,
-  description     text,
-  status          text not null default 'draft'
-                  check (status in (
-                    'draft','submitted','acknowledged','approved',
-                    'rejected','completed','cancelled'
-                  )),
-  priority        text not null default 'normal'
-                  check (priority in ('urgent','normal','low')),
-  requested_by    uuid references auth.users(id),
-  assigned_to     uuid references auth.users(id),
-  due_date        date,
-  notes           text,
-  metadata        jsonb default '{}',
-  created_at      timestamptz default now(),
-  updated_at      timestamptz default now()
+CREATE TABLE IF NOT EXISTS bunkering_requests (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vessel_id       UUID NOT NULL REFERENCES vessels(vessel_id) ON DELETE CASCADE,
+  submitted_by    UUID NOT NULL REFERENCES auth.users(id),
+  fuel_type       TEXT NOT NULL CHECK (fuel_type IN ('MGO','VLSFO','MDO','IFO')),
+  quantity_mt     NUMERIC(10,2) NOT NULL,
+  location        TEXT NOT NULL,
+  required_date   DATE NOT NULL,
+  instructions    TEXT,
+  status          TEXT NOT NULL DEFAULT 'requested'
+                    CHECK (status IN (
+                      'requested','quoted','quote_accepted',
+                      'delivery_scheduled','delivered','invoiced'
+                    )),
+  accepted_quote_id UUID,
+  supplier_name   TEXT,
+  delivery_confirmed_at TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
 );
-
-alter table operations_requests enable row level security;
-
-create policy "captain_ops_select" on operations_requests
-  for select using (
-    vessel_id = (auth.jwt() ->> 'vessel_id')::uuid
+ALTER TABLE bunkering_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "captain_own_vessel_bunkering" ON bunkering_requests
+  FOR ALL USING (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
   );
-
-create policy "captain_ops_insert" on operations_requests
-  for insert with check (
-    vessel_id = (auth.jwt() ->> 'vessel_id')::uuid
-    and (auth.jwt() ->> 'role') = 'captain'
+CREATE POLICY "jls_all_bunkering" ON bunkering_requests
+  FOR ALL USING (
+    (auth.jwt() ->> 'role') IN ('global_admin','jls_staff')
   );
-
-create policy "staff_all_ops_requests" on operations_requests
-  for all using (
-    (auth.jwt() ->> 'role') in ('global_admin', 'jls_staff')
+CREATE INDEX idx_bunkering_vessel ON bunkering_requests(vessel_id);
+```
+### Migration 017 — berthing_requests
+```sql
+CREATE TABLE IF NOT EXISTS berthing_requests (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vessel_id       UUID NOT NULL REFERENCES vessels(vessel_id) ON DELETE CASCADE,
+  submitted_by    UUID NOT NULL REFERENCES auth.users(id),
+  type            TEXT NOT NULL CHECK (type IN (
+                    'new_berth','relocation','extension','departure'
+                  )),
+  marina          TEXT,
+  preferred_berth TEXT,
+  arrival_date    DATE,
+  departure_date  DATE,
+  notes           TEXT,
+  status          TEXT NOT NULL DEFAULT 'requested'
+                    CHECK (status IN (
+                      'requested','confirmed','amended','cancelled'
+                    )),
+  confirmed_berth TEXT,
+  confirmed_by    UUID REFERENCES auth.users(id),
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE berthing_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "captain_own_vessel_berthing" ON berthing_requests
+  FOR ALL USING (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
+  );
+CREATE POLICY "jls_all_berthing" ON berthing_requests
+  FOR ALL USING (
+    (auth.jwt() ->> 'role') IN ('global_admin','jls_staff')
   );
 ```
-
-**After running migrations:** verify both tables appear in the Supabase
-table editor with RLS enabled before proceeding to Phase 2.
-
----
-
-## PHASE 2 — Types
-
-Create `src/lib/captain/types.ts`:
-
-```ts
-export interface VesselDocument {
-  doc_id:           string
-  vessel_id:        string
-  doc_type:         'signed_tariff' | 'agency_appointment' | 'port_clearance_inward'
-                  | 'port_clearance_outward' | 'general_declaration' | 'other'
-  title:            string
-  version_year:     number
-  port:             string | null
-  valid_from:       string | null
-  valid_to:         string | null
-  status:           'draft' | 'pending_signature' | 'signed' | 'expired' | 'superseded'
-  file_url:         string | null
-  metadata:         TariffDocumentData | AppointmentLetterData | Record<string, unknown>
-  signed_by_captain: string | null
-  signed_by_agent:   string | null
-  signed_at:         string | null
-  created_at:        string
-  updated_at:        string
-}
-
-export interface TariffSection {
-  title: string
-  items: Array<{ service: string; description: string; rate: number; unit: string }>
-}
-
-export interface TariffDocumentData {
-  currency:   string
-  regions:    string[]
-  sections:   TariffSection[]
-  notes:      string
-}
-
-export interface AppointmentLetterData {
-  ref:              string
-  issued_date:      string
-  appointing_party: { name: string; rep: string; title: string }
-  agent:            { name: string; location: string; licence: string }
-  jurisdictions:    string[]
-  services:         string[]
-  body_text:        string
-}
-
-export interface OperationsRequest {
-  request_id:   string
-  vessel_id:    string
-  request_type: 'permit' | 'gate_pass' | 'bunkering' | 'port_clearance' | 'other'
-  title:        string
-  description:  string | null
-  status:       'draft' | 'submitted' | 'acknowledged' | 'approved' | 'rejected' | 'completed' | 'cancelled'
-  priority:     'urgent' | 'normal' | 'low'
-  due_date:     string | null
-  notes:        string | null
-  metadata:     Record<string, unknown>
-  created_at:   string
-  updated_at:   string
-}
-
-export interface CaptainDashboardData {
-  vessel:         { vessel_id: string; vessel_name: string; flag_state: string; imo_number: string }
-  crew:           VesselCrewMember[]
-  visaAlerts:     ComplianceAlertWithCrew[]
-  seaportPending: SeaportRequestWithSLA[]
-  documents:      VesselDocument[]
-  opsRequests:    OperationsRequest[]
-}
-
-export interface CaptainAlertItem {
-  id:       string
-  severity: 'critical' | 'warn' | 'info'
-  message:  string
-  action:   string | null
-  route:    string | null
-}
+### Migration 018 — crew_care_requests
+```sql
+CREATE TABLE IF NOT EXISTS crew_care_requests (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vessel_id     UUID NOT NULL REFERENCES vessels(vessel_id) ON DELETE CASCADE,
+  crew_id       UUID REFERENCES crew_members(crew_id),
+  submitted_by  UUID NOT NULL REFERENCES auth.users(id),
+  category      TEXT NOT NULL CHECK (category IN (
+                  'airport_transfer','hotel_transfer','marina_transfer',
+                  'doctor','hospital','sim_card','local_info'
+                )),
+  details       JSONB NOT NULL DEFAULT '{}',
+  status        TEXT NOT NULL DEFAULT 'requested'
+                  CHECK (status IN (
+                    'requested','assigned','in_progress','complete','cancelled'
+                  )),
+  assigned_to   UUID REFERENCES auth.users(id),
+  created_at    TIMESTAMPTZ DEFAULT now(),
+  completed_at  TIMESTAMPTZ,
+  updated_at    TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE crew_care_requests ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "captain_own_vessel_crew_care" ON crew_care_requests
+  FOR ALL USING (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
+  );
+CREATE POLICY "jls_all_crew_care" ON crew_care_requests
+  FOR ALL USING (
+    (auth.jwt() ->> 'role') IN ('global_admin','jls_staff')
+  );
 ```
-
----
-
-## PHASE 3 — Alert Utility
-
-Create `src/lib/captain/alerts.ts`:
-
-```ts
-import type { CaptainDashboardData, CaptainAlertItem } from './types'
-
-export function getDashboardAlerts(data: CaptainDashboardData): CaptainAlertItem[] {
-  const alerts: CaptainAlertItem[] = []
-  const today = new Date()
-
-  // Visa alerts — critical first
-  for (const a of data.visaAlerts) {
-    alerts.push({
-      id:       a.alert_id,
-      severity: a.severity as 'critical' | 'warn',
-      message:  a.message,
-      action:   'Contact our Port & Agency Team',
-      route:    '/captain/visas',
-    })
-  }
-
-  // Documents awaiting captain signature
-  for (const doc of data.documents) {
-    if (doc.status === 'pending_signature') {
-      alerts.push({
-        id:       doc.doc_id,
-        severity: 'warn',
-        message:  `${doc.title} requires your signature`,
-        action:   'Sign document',
-        route:    '/captain/documents',
-      })
-    }
-  }
-
-  // Urgent operations requests
-  for (const req of data.opsRequests) {
-    if (req.priority === 'urgent' && req.status === 'submitted') {
-      alerts.push({
-        id:       req.request_id,
-        severity: 'warn',
-        message:  `${req.title} — awaiting acknowledgement`,
-        action:   null,
-        route:    `/captain/${req.request_type === 'gate_pass' ? 'gate-passes' : req.request_type + 's'}`,
-      })
-    }
-  }
-
-  // Sort: critical first, then warn, then info
-  return alerts.sort((a, b) => {
-    const order = { critical: 0, warn: 1, info: 2 }
-    return order[a.severity] - order[b.severity]
-  })
-}
+### Migration 019 — incident_reports
+```sql
+CREATE TABLE IF NOT EXISTS incident_reports (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vessel_id     UUID NOT NULL REFERENCES vessels(vessel_id) ON DELETE CASCADE,
+  reported_by   UUID NOT NULL REFERENCES auth.users(id),
+  type          TEXT NOT NULL CHECK (type IN (
+                  'security','accident','crew_injury','pollution','other'
+                )),
+  description   TEXT NOT NULL,
+  location      TEXT,
+  occurred_at   TIMESTAMPTZ NOT NULL,
+  injuries      BOOLEAN NOT NULL DEFAULT false,
+  persons_involved TEXT,
+  immediate_action TEXT,
+  jls_notified  BOOLEAN NOT NULL DEFAULT false,
+  reported_at   TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE incident_reports ENABLE ROW LEVEL SECURITY;
+-- Captain can create and view own vessel incidents
+CREATE POLICY "captain_incidents" ON incident_reports
+  FOR ALL USING (
+    vessel_id = ANY((auth.jwt() ->> 'vessel_ids')::uuid[])
+  );
+-- No update/delete for anyone except global admin
+CREATE POLICY "incident_no_edit" ON incident_reports
+  FOR UPDATE USING (
+    (auth.jwt() ->> 'role') = 'global_admin'
+  );
+CREATE POLICY "jls_view_incidents" ON incident_reports
+  FOR SELECT USING (
+    (auth.jwt() ->> 'role') IN ('global_admin','jls_staff')
+  );
 ```
-
 ---
-
-## PHASE 4 — API Routes
-
-### 4.1 `src/routes/api.captain.dashboard.ts`
-
-```ts
-import { createAPIFileRoute } from '@tanstack/react-start/api'
-import { createClient } from '@supabase/supabase-js'
-import { requireAdminAccess } from '@/lib/admin/access'
-
-// NOTE: use requireAccess(['captain']) when migrations 010-014 are deployed.
-// For dev phase, the route validates session only.
-
-export const APIRoute = createAPIFileRoute('/api/captain/dashboard')({
-  GET: async ({ request }) => {
-    const authHeader = request.headers.get('Authorization') ?? ''
-    const token = authHeader.replace('Bearer ', '')
-    if (!token) return new Response('Unauthorized', { status: 401 })
-
-    const sb = createClient(
-      import.meta.env.VITE_SUPABASE_URL!,
-      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    )
-
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return new Response('Unauthorized', { status: 401 })
-
-    // Get vessel_id from JWT claims or user metadata
-    const vesselId = user.app_metadata?.vessel_id ?? user.user_metadata?.vessel_id
-    if (!vesselId) return new Response(JSON.stringify({ error: 'No vessel assigned' }), {
-      status: 403, headers: { 'Content-Type': 'application/json' }
-    })
-
-    const [
-      crewRes,
-      visaAlertsRes,
-      seaportRes,
-      docsRes,
-      opsRes,
-    ] = await Promise.all([
-      sb.from('vessel_crew')
-        .select('*, crew_members(*, crew_passports(*))')
-        .eq('vessel_id', vesselId)
-        .eq('active', true),
-
-      sb.from('compliance_alerts')
-        .select('*, crew_members(full_name)')
-        .eq('resolved', false)
-        .in('severity', ['warn', 'critical'])
-        .order('due_date', { ascending: true })
-        .limit(5),
-
-      sb.from('seaport_requests')
-        .select('*, seaport_sla(*)')
-        .eq('vessel_id', vesselId)
-        .in('status', ['submitted', 'acknowledged', 'in_progress'])
-        .order('created_at', { ascending: true })
-        .limit(3),
-
-      sb.from('vessel_documents')
-        .select('*')
-        .eq('vessel_id', vesselId)
-        .order('version_year', { ascending: false }),
-
-      sb.from('operations_requests')
-        .select('*')
-        .eq('vessel_id', vesselId)
-        .not('status', 'in', '("completed","cancelled")')
-        .order('priority', { ascending: true })
-        .order('created_at', { ascending: false })
-        .limit(20),
-    ])
-
-    return new Response(JSON.stringify({
-      vesselId,
-      crew:           crewRes.data    ?? [],
-      visaAlerts:     visaAlertsRes.data ?? [],
-      seaportPending: seaportRes.data ?? [],
-      documents:      docsRes.data    ?? [],
-      opsRequests:    opsRes.data     ?? [],
-    }), { headers: { 'Content-Type': 'application/json' } })
+## PHASE 2 — API ROUTES (Ticket #155)
+Create these files. Every route starts with requireAccess(). Every
+mutation ends with logAuditEvent(). No exceptions.
+### File: `app/api/captain/[vesselId]/dashboard/route.ts`
+```typescript
+import { requireAccess } from '@/lib/auth/access';
+import { logAuditEvent } from '@/lib/auth/audit';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { redirect } from 'next/navigation';
+export async function GET(
+  request: Request,
+  { params }: { params: { vesselId: string } }
+) {
+  const session = await requireAccess(request, ['captain','vessel_admin','senior_crew']);
+  if (!session.ok) return session.response;
+  // Vessel scope check — captain can only see own vessel
+  if (!session.user.vessel_ids?.includes(params.vesselId)) {
+    return Response.json({ error: 'Vessel not in scope' }, { status: 403 });
   }
-})
-```
-
-### 4.2 `src/routes/api.captain.documents.$docId.ts`
-
-```ts
-import { createAPIFileRoute } from '@tanstack/react-start/api'
-import { createClient } from '@supabase/supabase-js'
-import { logAuditEvent } from '@/lib/admin/audit'
-
-export const APIRoute = createAPIFileRoute('/api/captain/documents/$docId')({
-  GET: async ({ request, params }) => {
-    const authHeader = request.headers.get('Authorization') ?? ''
-    const token = authHeader.replace('Bearer ', '')
-    const sb = createClient(
-      import.meta.env.VITE_SUPABASE_URL!,
-      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    )
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return new Response('Unauthorized', { status: 401 })
-
-    const { data: doc, error } = await sb
-      .from('vessel_documents')
+  const vesselId = params.vesselId;
+  // Parallel fetch — never sequential awaits
+  const [
+    vesselRes,
+    crewRes,
+    alertsRes,
+    visaAppsRes,
+    shipmentsRes,
+    requestsRes,
+    berthRes,
+  ] = await Promise.all([
+    supabaseAdmin
+      .from('vessels')
       .select('*')
-      .eq('doc_id', params.docId)
-      .single()
-
-    if (error || !doc) return new Response('Not found', { status: 404 })
-
-    // Generate 1-hour signed URL
-    let signedUrl: string | null = null
-    if (doc.file_url) {
-      const sbAdmin = createClient(
-        import.meta.env.VITE_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { persistSession: false } }
-      )
-      const { data } = await sbAdmin.storage
-        .from('vessel-documents')
-        .createSignedUrl(doc.file_url, 3600)
-      signedUrl = data?.signedUrl ?? null
-    }
-
-    // Audit every document view
-    await logAuditEvent({
-      event_type:   'EXPORT',
-      actor_id:     user.id,
-      actor_email:  user.email ?? '',
-      actor_role:   user.app_metadata?.role ?? 'captain',
-      target_type:  'vessel_document',
-      target_id:    doc.doc_id,
-      target_label: `${doc.title} (${doc.version_year})`,
-      detail:       `Captain viewed vessel document: ${doc.title}`,
-      ip_address:   request.headers.get('x-forwarded-for'),
-      result:       'success',
-    })
-
-    return new Response(JSON.stringify({ doc, signedUrl }), {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-})
-```
-
-### 4.3 `src/routes/api.captain.requests.ts`
-
-```ts
-import { createAPIFileRoute } from '@tanstack/react-start/api'
-import { createClient } from '@supabase/supabase-js'
-import { logAuditEvent } from '@/lib/admin/audit'
-
-export const APIRoute = createAPIFileRoute('/api/captain/requests')({
-  POST: async ({ request }) => {
-    const authHeader = request.headers.get('Authorization') ?? ''
-    const token = authHeader.replace('Bearer ', '')
-    const sb = createClient(
-      import.meta.env.VITE_SUPABASE_URL!,
-      import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
-    )
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) return new Response('Unauthorized', { status: 401 })
-
-    const vesselId = user.app_metadata?.vessel_id ?? user.user_metadata?.vessel_id
-    if (!vesselId) return new Response(JSON.stringify({ error: 'No vessel assigned' }), {
-      status: 403, headers: { 'Content-Type': 'application/json' }
-    })
-
-    const body = await request.json() as {
-      request_type: string
-      title:        string
-      description?: string
-      priority?:    string
-      due_date?:    string
-      notes?:       string
-      metadata?:    Record<string, unknown>
-    }
-
-    const ALLOWED_TYPES = ['permit', 'gate_pass', 'bunkering', 'port_clearance', 'other']
-    if (!ALLOWED_TYPES.includes(body.request_type)) {
-      return new Response(JSON.stringify({ error: 'Invalid request_type' }), {
-        status: 400, headers: { 'Content-Type': 'application/json' }
-      })
-    }
-
-    const { data, error } = await sb.from('operations_requests').insert({
-      vessel_id:    vesselId,
-      request_type: body.request_type,
-      title:        body.title,
-      description:  body.description ?? null,
-      priority:     body.priority ?? 'normal',
-      due_date:     body.due_date ?? null,
-      notes:        body.notes ?? null,
-      metadata:     body.metadata ?? {},
-      requested_by: user.id,
-      status:       'submitted',
-    }).select().single()
-
-    if (error) return new Response(JSON.stringify({ error: error.message }), {
-      status: 500, headers: { 'Content-Type': 'application/json' }
-    })
-
-    await logAuditEvent({
-      event_type:   'DATA',
-      actor_id:     user.id,
-      actor_email:  user.email ?? '',
-      actor_role:   user.app_metadata?.role ?? 'captain',
-      target_type:  'operations_request',
-      target_id:    data.request_id,
-      target_label: body.title,
-      detail:       `Operations request submitted: ${body.request_type} — ${body.title}`,
-      ip_address:   request.headers.get('x-forwarded-for'),
-      result:       'success',
-    })
-
-    return new Response(JSON.stringify({ request_id: data.request_id, status: 'submitted' }), {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-})
-```
-
----
-
-## PHASE 5 — Components
-
-Build in this order. Each component is self-contained and testable.
-
-### 5.1 `src/components/captain/VesselChip.tsx`
-Shows vessel name, flag, and LOA in the sidebar. Reads from auth context.
-- Vessel name: bold, `#00C4CC`
-- Flag emoji + country + dimensions: `#4A7090`, 9px
-
-### 5.2 `src/components/captain/CaptainStatStrip.tsx`
-Six stat cards in a row. Takes `data: CaptainDashboardData` as prop.
-Derives counts from the data — no additional fetch.
-Card colours per `lib/tokens.ts` — see Section 4.4 of POLARIS_CAPTAIN_DASHBOARD.md.
-
-### 5.3 `src/components/captain/AlertsPanel.tsx`
-Takes `alerts: CaptainAlertItem[]` from `getDashboardAlerts()`.
-Renders nothing if `alerts.length === 0`.
-Renders a clean panel with severity icon, message, and optional action link.
-Critical alerts: `#E87050` border. Warn: `#E8A020` border.
-
-### 5.4 `src/components/captain/VoyageCard.tsx`
-Shows current port → next port route.
-Reads from vessel metadata (stub: hardcode to show layout).
-ETA and departure time in a cyan info box.
-
-### 5.5 `src/components/captain/DepartureChecklist.tsx`
-Reads from `operations_requests` of type `port_clearance` + `seaport_requests`.
-Derives checklist items from statuses.
-Completed items: green check. Active item: cyan number. Pending: grey.
-
-### 5.6 `src/components/captain/documents/DocumentCard.tsx`
-Single document card. Props: `doc: VesselDocument | null`, `docType`, `pendingMessage`.
-If `doc === null` → renders "Pending" card with contact CTA.
-If `doc.status === 'pending_signature'` → renders amber "Awaiting signature" state.
-If `doc.status === 'signed'` → renders green "Signed" state with download button.
-Download button calls `/api/captain/documents/:docId` to get signed URL.
-
-### 5.7 `src/components/captain/documents/TariffViewer.tsx`
-Renders the tariff rate schedule in-platform from `doc.metadata` JSON.
-Sections with cyan section headings.
-Line items as a table: service name · description · rate · unit.
-Notes footer in italic.
-Signature block at bottom — two columns, green verified tick.
-
-### 5.8 `src/components/captain/documents/AppointmentLetterViewer.tsx`
-Renders the appointment letter body in-platform from `doc.metadata` JSON.
-Letter header: vessel name + issuing date on right.
-Subject line: underlined.
-Body text: `Inter` font, `#7A9DB8`, 11px.
-Signature block: two columns (owner rep + master).
-Appointment details panel: jurisdictions, services covered, agent contact.
-
----
-
-## PHASE 6 — Route Files
-
-Create these route files. Each imports the relevant component and calls
-`/api/captain/dashboard` (or the specific API) for its data.
-
-```
-src/routes/_app.captain.tsx              # Layout + beforeLoad role check
-src/routes/_app.captain.index.tsx        # Home dashboard (stat strip + Leo + voyage + checklist + alerts)
-src/routes/_app.captain.crew.tsx         # Crew roster + visa status table
-src/routes/_app.captain.visas.tsx        # Visa applications view
-src/routes/_app.captain.seaport.tsx      # Seaport sign-on/off requests
-src/routes/_app.captain.accounts.tsx     # SOA + invoices + quote approval
-src/routes/_app.captain.documents.tsx    # Vessel documents (4 core docs + others)
-src/routes/_app.captain.permits.tsx      # Permits expiry + renewal requests
-src/routes/_app.captain.gate-passes.tsx  # Gate pass requests
-src/routes/_app.captain.bunkering.tsx    # Bunkering requests
-src/routes/_app.captain.shipsync.tsx     # ShipSync shipment tracking
-src/routes/_app.captain.waypoint.tsx     # Waypoint invoices + quote approval
-src/routes/_app.captain.it-support.tsx  # IT tickets + systems status
-```
-
-### `_app.captain.tsx` beforeLoad
-
-```ts
-beforeLoad: async () => {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) throw redirect({ to: '/auth' })
-
-  // In dev mode, any authenticated session can access captain dashboard
-  if (import.meta.env.DEV) return
-
-  const role = session.user.app_metadata?.role
-  if (role !== 'captain') throw redirect({ to: '/dashboard' })
+      .eq('vessel_id', vesselId)
+      .single(),
+    supabaseAdmin
+      .from('crew_members')
+      .select('crew_id,full_name,rank,nationality,signed_on,visa_expiry,passport_expiry,seamans_book_expiry')
+      .eq('vessel_id', vesselId)
+      .order('rank'),
+    supabaseAdmin
+      .from('compliance_alerts')
+      .select('*')
+      .eq('vessel_id', vesselId)
+      .eq('resolved', false)
+      .order('severity', { ascending: false }),
+    supabaseAdmin
+      .from('visa_applications')
+      .select('application_id,crew_id,type,status,created_at,crew_members(full_name)')
+      .eq('vessel_id', vesselId)
+      .not('status', 'in', '(complete,declined)')
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('shipsync_shipments')
+      .select('*')
+      .eq('vessel_id', vesselId)
+      .neq('status', 'delivered')
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('operations_requests')
+      .select('*')
+      .eq('vessel_id', vesselId)
+      .neq('status', 'complete')
+      .order('created_at', { ascending: false }),
+    supabaseAdmin
+      .from('berthing_requests')
+      .select('confirmed_berth,arrival_date,departure_date,status')
+      .eq('vessel_id', vesselId)
+      .eq('status', 'confirmed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  return Response.json({
+    vessel:    vesselRes.data,
+    crew:      crewRes.data ?? [],
+    alerts:    alertsRes.data ?? [],
+    visaApps:  visaAppsRes.data ?? [],
+    shipments: shipmentsRes.data ?? [],
+    requests:  requestsRes.data ?? [],
+    berth:     berthRes.data ?? null,
+  });
 }
 ```
-
----
-
-## PHASE 7 — Leo System Prompt Extension
-
-In `src/routes/api.leo.briefing.ts` (or wherever the Leo briefing system
-prompt is built), add a captain-specific section when `role === 'captain'`:
-
-```ts
-function buildCaptainContext(data: CaptainDashboardData): string {
-  const vessel = data.vessel
-  const criticalVisas = data.visaAlerts.filter(a => a.severity === 'critical')
-  const pendingDocs   = data.documents.filter(d => d.status === 'pending_signature')
-
-  return `
-CAPTAIN WORKSPACE CONTEXT:
-Vessel: ${vessel.vessel_name} (${vessel.flag_state}, IMO ${vessel.imo_number})
-Crew onboard: ${data.crew.length}
-Active visa alerts: ${data.visaAlerts.length} (${criticalVisas.length} critical)
-Pending seaport requests: ${data.seaportPending.length}
-Documents awaiting signature: ${pendingDocs.map(d => d.title).join(', ') || 'none'}
-Open operations requests: ${data.opsRequests.filter(r => r.status === 'submitted').length}
-
-CAPTAIN BRIEFING RULES:
-- Address as "Captain [surname]" — never first name only
-- Lead with the single most time-critical item
-- Maximum 3 sentences of prose
-- Name the crew member and exact days remaining for any visa alert
-- Name the document title for any pending signature
-- Never include financial figures in the prose briefing
-- Never use exclamation marks
-- Refer to the agent always as "our Port & Agency Team"
-`
+### File: `app/api/captain/[vesselId]/requests/route.ts`
+```typescript
+import { requireAccess } from '@/lib/auth/access';
+import { logAuditEvent } from '@/lib/auth/audit';
+import { supabaseAdmin } from '@/lib/supabase/admin';
+export async function GET(
+  request: Request,
+  { params }: { params: { vesselId: string } }
+) {
+  const session = await requireAccess(request, ['captain','vessel_admin','senior_crew']);
+  if (!session.ok) return session.response;
+  if (!session.user.vessel_ids?.includes(params.vesselId)) {
+    return Response.json({ error: 'Vessel not in scope' }, { status: 403 });
+  }
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status') ?? '';
+  let query = supabaseAdmin
+    .from('operations_requests')
+    .select('*')
+    .eq('vessel_id', params.vesselId)
+    .order('created_at', { ascending: false });
+  if (status) query = query.eq('status', status);
+  const { data, error } = await query;
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  return Response.json({ requests: data });
+}
+export async function POST(
+  request: Request,
+  { params }: { params: { vesselId: string } }
+) {
+  const session = await requireAccess(request, ['captain','vessel_admin']);
+  if (!session.ok) return session.response;
+  if (!session.user.vessel_ids?.includes(params.vesselId)) {
+    return Response.json({ error: 'Vessel not in scope' }, { status: 403 });
+  }
+  const body = await request.json();
+  const { category, description, priority, required_date } = body;
+  if (!category || !description) {
+    return Response.json({ error: 'category and description required' }, { status: 400 });
+  }
+  const { data, error } = await supabaseAdmin
+    .from('operations_requests')
+    .insert({
+      vessel_id:     params.vesselId,
+      submitted_by:  session.user.id,
+      category,
+      description,
+      priority:      priority ?? 'routine',
+      required_date: required_date ?? null,
+    })
+    .select()
+    .single();
+  if (error) return Response.json({ error: error.message }, { status: 500 });
+  await logAuditEvent({
+    event_type:   'DATA',
+    actor_id:     session.user.id,
+    actor_email:  session.user.email,
+    actor_role:   session.user.role,
+    target_type:  'operations_request',
+    target_id:    data.request_id,
+    target_label: `${category} request — vessel ${params.vesselId}`,
+    detail:       `Support request submitted: ${category} — ${priority ?? 'routine'}`,
+    ip_address:   request.headers.get('x-forwarded-for'),
+    result:       'success',
+  });
+  return Response.json({ request: data }, { status: 201 });
 }
 ```
-
+### File: `app/api/captain/[vesselId]/bunkering/route.ts`
+```typescript
+// Pattern: same requireAccess + vessel scope check + logAuditEvent as above.
+// GET: return bunkering_requests for vessel, ordered by created_at desc.
+// POST: insert new bunkering_request.
+//       Required fields: fuel_type, quantity_mt, location, required_date.
+//       logAuditEvent event_type: 'DATA', detail: 'Bunkering request submitted'.
+// No PUT/DELETE routes for captain role.
+```
+### File: `app/api/captain/[vesselId]/berthing/route.ts`
+```typescript
+// Pattern: same as bunkering route above.
+// GET: return berthing_requests for vessel.
+// POST: insert new berthing_request.
+//       Required fields: type, arrival_date.
+//       logAuditEvent event_type: 'DATA', detail: 'Berthing request submitted'.
+```
+### File: `app/api/captain/[vesselId]/crew-care/route.ts`
+```typescript
+// Pattern: same as above.
+// GET: return crew_care_requests for vessel, with crew_members join for name.
+// POST: insert new crew_care_request.
+//       Required fields: category, details (JSONB).
+//       details shape varies by category — validate client-side, store as-is.
+//       logAuditEvent event_type: 'DATA', detail: 'Crew care request: {category}'.
+```
+### File: `app/api/captain/[vesselId]/incidents/route.ts`
+```typescript
+// GET: return incident_reports for vessel.
+// POST: insert new incident_report.
+//       Required fields: type, description, occurred_at.
+//       After insert: set jls_notified = true and send notification to
+//         JLS duty manager (email via Supabase edge function or similar).
+//       logAuditEvent event_type: 'SEC', detail: 'Incident report: {type}'.
+// NO UPDATE or DELETE routes — incidents are permanent.
+```
 ---
-
-## PHASE 8 — Sidebar Wiring
-
-In `src/components/app-sidebar.tsx`, add the captain navigation section.
-Render only when `role === 'captain'` (or in dev mode).
-
-The captain sidebar section follows the structure in Section 4.2 of
-`POLARIS_CAPTAIN_DASHBOARD.md`. Use the same nav item pattern as existing
-sidebar sections — `sb-item`, `sb-dot`, `sb-badge` class names.
-
----
-
-## PHASE 9 — Verification Checklist
-
-Do not mark any ticket as done until all relevant checks pass.
-
-**Access control**
-- [ ] `/api/captain/*` returns 401 when called without a token
-- [ ] `/api/captain/*` returns 403 when called with a non-captain token
-- [ ] Captain assigned to vessel A cannot fetch data for vessel B
-      (test: call `/api/captain/dashboard` with vessel_A JWT, manually set
-       vessel_id=vessel_B in query → should get vessel_A data or 403)
-
-**Vessel documents**
-- [ ] Tariff document renders in-platform (not just PDF link)
-- [ ] Appointment letter renders in-platform
-- [ ] Download generates a signed URL (check it has an expiry in the URL)
-- [ ] Download is logged in `audit_log` with `event_type = 'EXPORT'`
-- [ ] Missing document shows "Pending" card with CTA — not empty/404
-- [ ] `version_year` filter correctly shows current year as active, prior as archived
-
-**Operations requests**
-- [ ] POST to `/api/captain/requests` inserts to `operations_requests`
-- [ ] Invalid `request_type` returns 400
-- [ ] `vessel_id` in inserted row matches JWT claim, not request body
-- [ ] Audit log row created for every submitted request
-
-**Leo briefing**
-- [ ] Captain briefing includes vessel name
-- [ ] Visa alert names the crew member and exact days
-- [ ] No financial figures in prose briefing
-- [ ] Briefing is under 200 words
-
-**UI**
-- [ ] Stat strip counts match data (check with known seed data)
-- [ ] Red/amber/green pill colours match `lib/tokens.ts` values
-- [ ] No hardcoded hex values in any captain component
-- [ ] "Superyacht Middle East" does not appear anywhere in captain-facing UI
-
----
-
-## PHASE 10 — Seed Data (for dev testing)
-
-After migrations are run, insert test data in Supabase to verify the UI:
-
-```sql
--- Insert a test vessel
-insert into vessels (vessel_id, vessel_name, flag_state, imo_number)
-values ('00000000-0000-0000-0000-000000000001', 'M/Y Seraphina', 'Cayman Islands', '9801234');
-
--- Insert a signed tariff document
-insert into vessel_documents (
-  vessel_id, doc_type, title, version_year, valid_from, valid_to, status,
-  signed_by_captain, signed_by_agent, signed_at,
-  metadata
-) values (
-  '00000000-0000-0000-0000-000000000001',
-  'signed_tariff',
-  'Signed Agency Tariff 2026',
-  2026,
-  '2026-01-01',
-  '2026-12-31',
-  'signed',
-  'Capt. James Harrison',
-  'M. Peeters — JLS Yachts LLC',
-  '2026-01-03T09:00:00Z',
-  '{
-    "currency": "USD",
-    "regions": ["UAE", "Oman", "KSA", "Qatar"],
-    "sections": [
-      {
-        "title": "Port Agency",
-        "items": [
-          {"service": "Port Agency Fee — Standard call", "description": "Includes PA, port authority liaison, documentation", "rate": 2800, "unit": "per call"},
-          {"service": "Extended stay", "description": "Per 24h after first 48h", "rate": 350, "unit": "per day"},
-          {"service": "Emergency / weekend call-out", "description": "Outside business hours", "rate": 500, "unit": "flat fee"}
-        ]
-      },
-      {
-        "title": "Crew Visas & Immigration",
-        "items": [
-          {"service": "UAE Crew Visa — new application", "description": "Includes govt. fee + service fee", "rate": 420, "unit": "per crew"},
-          {"service": "UAE Crew Visa — renewal", "description": "Existing crew, same vessel", "rate": 380, "unit": "per crew"},
-          {"service": "Seaport immigration handling", "description": "Sign-on / sign-off per request", "rate": 180, "unit": "per request"}
-        ]
+## PHASE 3 — SHARED UTILITY (Ticket #146)
+### File: `lib/captain/getDashboardAlerts.ts`
+```typescript
+// Generates the sorted alerts list from raw dashboard data.
+// Used by AlertsPanel. Sorting: red first, amber second, grey last.
+import { addDays, isAfter, isBefore } from 'date-fns';
+export type AlertSeverity = 'red' | 'amber' | 'grey';
+export type DashboardAlert = {
+  id:       string;
+  type:     string;
+  label:    string;
+  detail:   string;
+  severity: AlertSeverity;
+  href:     string;   // where to go when clicked
+};
+export function getDashboardAlerts({
+  crew,
+  shipments,
+  requests,
+  berth,
+}: {
+  crew: any[];
+  shipments: any[];
+  requests: any[];
+  berth: any | null;
+}): DashboardAlert[] {
+  const alerts: DashboardAlert[] = [];
+  const now = new Date();
+  // Visa expiry within 30 days → red
+  crew.forEach(c => {
+    if (c.visa_expiry) {
+      const exp = new Date(c.visa_expiry);
+      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86400000);
+      if (daysLeft <= 30 && daysLeft > 0) {
+        alerts.push({
+          id:       `visa-${c.crew_id}`,
+          type:     'visa_expiry',
+          label:    `${c.full_name} — Crew Visa`,
+          detail:   `Expires ${exp.toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}`,
+          severity: 'red',
+          href:     '/crew',
+        });
       }
-    ],
-    "notes": "All rates exclusive of UAE VAT (5%). Government fees charged at cost."
-  }'
-);
-
--- Insert the agency appointment letter
-insert into vessel_documents (
-  vessel_id, doc_type, title, version_year, valid_from, valid_to, status,
-  signed_by_captain, signed_by_agent, signed_at,
-  metadata
-) values (
-  '00000000-0000-0000-0000-000000000001',
-  'agency_appointment',
-  'Agency Appointment Letter 2026',
-  2026,
-  '2026-01-01',
-  '2026-12-31',
-  'signed',
-  'Capt. James Harrison',
-  'M. Peeters — JLS Yachts LLC',
-  '2026-01-03T09:00:00Z',
-  '{
-    "ref": "APT-2026-SER-001",
-    "issued_date": "2026-01-01",
-    "appointing_party": {"name": "Seraphina Maritime Holdings Ltd.", "rep": "C. Whitfield", "title": "Director"},
-    "agent": {"name": "JLS Yachts LLC", "location": "Dubai, UAE", "licence": "123456"},
-    "jurisdictions": ["UAE", "Oman", "KSA", "Qatar"],
-    "services": ["Port clearance & PA", "Crew immigration & visas", "Bunkering coordination", "Provisioning & logistics", "Gate passes & sundries"],
-    "body_text": "We, Seraphina Maritime Holdings Ltd., as owners of the above-named vessel, hereby formally appoint JLS Yachts LLC, registered in the United Arab Emirates (Lic. No. 123456), trading as our Port & Agency Team, as the exclusive port agent and agency services provider for the vessel M/Y Seraphina for the duration stated above. This appointment authorises JLS Yachts LLC to act on behalf of the vessel and her owners in all matters relating to port clearance, crew immigration, visa processing, bunkering, provisioning coordination, logistics, and all associated port agency activities within the jurisdictions of the United Arab Emirates, Sultanate of Oman, Kingdom of Saudi Arabia, and State of Qatar. All port authorities, government departments, marinas, and service providers are requested to extend full co-operation to our appointed agents."
-  }'
-);
+    }
+  });
+  // Passport expiry within 60 days → red
+  crew.forEach(c => {
+    if (c.passport_expiry) {
+      const exp = new Date(c.passport_expiry);
+      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86400000);
+      if (daysLeft <= 60 && daysLeft > 0) {
+        alerts.push({
+          id:       `passport-${c.crew_id}`,
+          type:     'passport_expiry',
+          label:    `${c.full_name} — Passport`,
+          detail:   `Expires ${exp.toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}`,
+          severity: 'red',
+          href:     '/crew',
+        });
+      }
+    }
+  });
+  // Customs hold → amber
+  shipments
+    .filter(s => s.status === 'customs_hold')
+    .forEach(s => {
+      alerts.push({
+        id:       `customs-${s.id}`,
+        type:     'customs_hold',
+        label:    `${s.tracking_number} — Customs hold`,
+        detail:   s.description ?? 'Shipment held at customs',
+        severity: 'amber',
+        href:     '/shipsync',
+      });
+    });
+  // Berth contract within 30 days → amber
+  if (berth?.departure_date) {
+    const dep = new Date(berth.departure_date);
+    const daysLeft = Math.ceil((dep.getTime() - now.getTime()) / 86400000);
+    if (daysLeft <= 30 && daysLeft > 0) {
+      alerts.push({
+        id:       'berth-renewal',
+        type:     'berth_renewal',
+        label:    `Berth contract — ${berth.confirmed_berth ?? 'Current berth'}`,
+        detail:   `Renews ${dep.toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}`,
+        severity: 'amber',
+        href:     '/berthing',
+      });
+    }
+  }
+  // Incoming shipments ETA within 48h → grey informational
+  shipments
+    .filter(s => s.status === 'in_transit' && s.eta)
+    .forEach(s => {
+      const eta = new Date(s.eta);
+      const hoursLeft = (eta.getTime() - now.getTime()) / 3600000;
+      if (hoursLeft <= 48) {
+        alerts.push({
+          id:       `inbound-${s.id}`,
+          type:     'incoming_shipment',
+          label:    `${s.tracking_number} — Arriving soon`,
+          detail:   `ETA ${eta.toLocaleDateString('en-AE', { day: 'numeric', month: 'short' })}`,
+          severity: 'grey',
+          href:     '/shipsync',
+        });
+      }
+    });
+  // Pending captain actions (requests needing captain response) → amber
+  requests
+    .filter(r => r.status === 'pending_captain')
+    .forEach(r => {
+      alerts.push({
+        id:       `pending-${r.request_id}`,
+        type:     'pending_approval',
+        label:    `${r.category} request — JLS needs response`,
+        detail:   r.description?.slice(0, 60) ?? '',
+        severity: 'amber',
+        href:     '/requests',
+      });
+    });
+  // Sort: red → amber → grey
+  const order = { red: 0, amber: 1, grey: 2 };
+  return alerts.sort((a, b) => order[a.severity] - order[b.severity]);
+}
 ```
-
 ---
-
-*Polaris Captain Dashboard Build Instructions — Internal · Confidential · v1.0 — June 2026*
-*Authors: Mike Fetton / Matt Tighe — JLS Yachts LLC*
+## PHASE 4 — COMPONENTS (Tickets #147–#153)
+Create all files in `components/captain/`.
+### File: `components/captain/VesselBanner.tsx`
+```tsx
+'use client';
+// Full-width dark strip. Vessel identity + operational status pills.
+// Props: vessel (from DB), berth (latest confirmed berthing_request | null)
+// Left: anchor icon + vessel name bold + "82m · UAE Flag · Built 2019" muted
+// Right: pills —
+//   berth name (cyan) | ETD (amber, if set) | shore_power (green/red) |
+//   "Last: X → Next: Y" (muted, if set)
+// Colours from lib/tokens.ts only. No hardcoded hex.
+// Empty states: if no berth confirmed, show "Location unknown" pill in muted.
+// If ETD not set, do not render the ETD pill.
+```
+### File: `components/captain/AlertsPanel.tsx`
+```tsx
+'use client';
+// Props: alerts: DashboardAlert[] (from getDashboardAlerts)
+// Card header: warning-circle icon + "Alerts requiring action" + red count badge
+// Each row:
+//   <dot colour={alert.severity}> + name + <badge text={alert.detail}>
+//   Clicking navigates to alert.href
+// Severity dot colours:
+//   red   → #E8274B
+//   amber → #E8A020
+//   grey  → rgba(255,255,255,0.2)
+// Badge colours:
+//   red   → background rgba(232,39,75,0.15)  text #E8274B
+//   amber → background rgba(232,160,32,0.15) text #E8A020
+//   grey  → background rgba(255,255,255,0.06) text rgba(255,255,255,0.4)
+// Empty state: green check icon + "No alerts today" in green
+```
+### File: `components/captain/CrewManifestPanel.tsx`
+```tsx
+'use client';
+// Props: crew[], vesselId, canEdit (boolean — false for senior_crew role)
+// Each row:
+//   status dot + full_name + rank + nationality + visa badge + passport badge
+// Status dot: green=signed on, grey=signed off, red=any document issue
+// Document badges:
+//   visa_expiry < 30 days   → red "Visa Xd"
+//   passport_expiry < 60d   → red "Passport Xd"
+//   All OK                  → green "All clear"
+// "Add Crew" button: only renders if canEdit === true
+// No delete button. Not disabled — simply not rendered.
+```
+### File: `components/captain/VisaCentrePanel.tsx`
+```tsx
+'use client';
+// Props: applications[], vesselId
+// Each row:
+//   dot + crew name (100px fixed) + visa type (60px fixed) + pipeline
+// Pipeline — inline 5-step:
+//   Requested → Submitted → Gov. Processing → Approved → Complete
+//   Active step: cyan bg text-void
+//   Complete step: green bg text-void
+//   Future step: bg rgba(255,255,255,0.05) text rgba(255,255,255,0.25)
+//   Arrows between steps: "›" in rgba(255,255,255,0.15)
+// Status mapping:
+//   requested       → step 1 active
+//   submitted       → step 2 active
+//   gov_processing  → step 3 active
+//   approved        → step 4 active
+//   complete        → step 5 active (all green)
+//   declined        → step 2 red — show "Declined" badge instead of pipeline
+```
+### File: `components/captain/ShipSyncPanel.tsx`
+```tsx
+'use client';
+// Props: shipments[]
+// Each row:
+//   tracking_number (monospace cyan 72px) +
+//   description + supplier +
+//   5-dot progress bar +
+//   status badge
+// Progress dots:
+//   Filled green = complete stage
+//   Filled cyan  = current stage
+//   Filled red   = customs_hold (step 3 shown as red lock icon)
+//   Empty circle = future stage
+//   Line between dots: green if stage complete, rgba(255,255,255,0.1) otherwise
+// Stage mapping:
+//   order_placed   → dot 1
+//   dispatched     → dot 2
+//   in_transit     → dot 3
+//   customs        → dot 3 (cyan — processing)
+//   customs_hold   → dot 3 (red — HOLD)
+//   customs_cleared→ dot 4
+//   delivered      → dot 5 (all green)
+// Status badge:
+//   customs_hold  → red "Customs hold"
+//   in_transit    → cyan "ETA {date}"
+//   delivered     → green "Delivered"
+//   dispatched    → muted "In transit"
+```
+### File: `components/captain/RequestSupportButton.tsx`
+### File: `components/captain/RequestSupportModal.tsx`
+```tsx
+// Button: full-width cyan-tinted. Plus icon. "Request support from JLS".
+// Sub-label lists all 8 categories in one line.
+// onClick: open RequestSupportModal
+// Modal (not position:fixed — use faux-viewport wrapper, min-height 600px):
+// Step 1: 8 category tiles in a 4x2 grid. Each: icon + label. Click to select.
+// Step 2: form fields:
+//   - description (textarea, required)
+//   - priority (select: routine / urgent / emergency)
+//   - required_date (date input, optional)
+//   - attachment (file input, optional)
+// Step 3: confirmation card + Submit button
+//
+// On submit: POST to /api/captain/[vesselId]/requests
+// On success: close modal, show toast "Request submitted to JLS"
+// On error: show inline error, do not close modal
+// Category tiles:
+//   Immigration  ti-id-badge
+//   Bunkering    ti-droplet
+//   Berthing     ti-building-lighthouse
+//   Visa         ti-file-certificate
+//   Technical    ti-tool
+//   Logistics    ti-truck-delivery
+//   Provisioning ti-package
+//   Crew Care    ti-heart-rate-monitor (amber accent, not cyan)
+```
+### File: `components/captain/ModuleGrid.tsx`
+```tsx
+'use client';
+// Props: vesselId, alerts (for badge counts)
+// 8 tiles in a 4x2 grid (repeat(4, minmax(0,1fr)) gap 8px)
+// Each tile:
+//   icon (20px, cyan) + label (10px) + optional badge below label
+// Badges:
+//   Visa Centre  → count of active_applications
+//   ShipSync     → count of customs_hold shipments (amber "X held")
+//   Emergency    → always "Always on" red badge
+// Hover: border-color changes to rgba(0,196,204,0.25), bg lightens slightly
+// Click: navigate to /dashboard/vessel/[vesselId]/{module}
+```
+---
+## PHASE 5 — PAGE ASSEMBLY (Ticket #146)
+### File: `app/dashboard/vessel/[vesselId]/captain/page.tsx`
+```tsx
+import { requireAccess }        from '@/lib/auth/access';
+import { getDashboardAlerts }    from '@/lib/captain/getDashboardAlerts';
+import { PolarisShell }          from '@/components/ui/PolarisShell';
+import { VesselBanner }          from '@/components/captain/VesselBanner';
+import { LeoBriefingPanel }      from '@/components/captain/LeoBriefingPanel';
+import { DashboardMetrics }      from '@/components/captain/DashboardMetrics';
+import { AlertsPanel }           from '@/components/captain/AlertsPanel';
+import { CrewManifestPanel }     from '@/components/captain/CrewManifestPanel';
+import { VisaCentrePanel }       from '@/components/captain/VisaCentrePanel';
+import { ShipSyncPanel }         from '@/components/captain/ShipSyncPanel';
+import { RequestSupportButton }  from '@/components/captain/RequestSupportButton';
+import { ModuleGrid }            from '@/components/captain/ModuleGrid';
+import { redirect }              from 'next/navigation';
+import { supabaseAdmin }         from '@/lib/supabase/admin';
+export default async function CaptainDashboard({
+  params,
+}: {
+  params: { vesselId: string };
+}) {
+  // 1. Auth check
+  const session = await requireAccess(null, ['captain','vessel_admin','senior_crew']);
+  if (!session.ok) redirect('/auth/login?reason=unauthorized');
+  // 2. Vessel scope check
+  if (!session.user.vessel_ids?.includes(params.vesselId)) {
+    redirect('/dashboard');
+  }
+  // 3. Parallel data fetch (see /api/captain/[vesselId]/dashboard for full version)
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_APP_URL}/api/captain/${params.vesselId}/dashboard`,
+    { headers: { Authorization: `Bearer ${session.accessToken}` } }
+  );
+  const { vessel, crew, alerts: rawAlerts, visaApps, shipments, requests, berth } =
+    await res.json();
+  // 4. Compute sorted alerts
+  const alerts = getDashboardAlerts({ crew, shipments, requests, berth });
+  // 5. Permission flags
+  const canEdit = ['captain','vessel_admin'].includes(session.user.role);
+  return (
+    <PolarisShell role="captain" vesselId={params.vesselId}>
+      <VesselBanner vessel={vessel} berth={berth} />
+      <div className="p-4 space-y-3">
+        <LeoBriefingPanel
+          vesselId={params.vesselId}
+          userId={session.user.id}
+          briefingContext={{
+            vesselName:     vessel?.name,
+            location:       vessel?.current_location,
+            crewCount:      crew?.filter((c: any) => c.signed_on).length,
+            alertCount:     alerts.length,
+            topAlert:       alerts[0] ?? null,
+            customsHolds:   shipments?.filter((s: any) => s.status === 'customs_hold').length,
+          }}
+        />
+        <DashboardMetrics
+          crew={crew}
+          alerts={alerts}
+          shipments={shipments}
+          requests={requests}
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <AlertsPanel alerts={alerts} />
+          <CrewManifestPanel crew={crew} vesselId={params.vesselId} canEdit={canEdit} />
+        </div>
+        <VisaCentrePanel applications={visaApps} vesselId={params.vesselId} />
+        <ShipSyncPanel shipments={shipments} vesselId={params.vesselId} />
+        <RequestSupportButton vesselId={params.vesselId} />
+        <ModuleGrid vesselId={params.vesselId} alerts={alerts} />
+      </div>
+    </PolarisShell>
+  );
+}
+```
+---
+## PHASE 6 — SUB-PAGES
+Create each as a standalone page. All share the same auth guard pattern.
+Full specs in `POLARIS_CAPTAIN_DASHBOARD.md` Section 5.
+Files to create:
+```
+app/dashboard/vessel/[vesselId]/documents/page.tsx      (Ticket #156)
+app/dashboard/vessel/[vesselId]/crew/page.tsx           (Ticket #157)
+app/dashboard/vessel/[vesselId]/visa/page.tsx           (Ticket #158)
+app/dashboard/vessel/[vesselId]/bunkering/page.tsx      (Ticket #159)
+app/dashboard/vessel/[vesselId]/berthing/page.tsx       (Ticket #160)
+app/dashboard/vessel/[vesselId]/crew-care/page.tsx      (Ticket #161)
+app/dashboard/vessel/[vesselId]/financials/page.tsx     (Ticket #162)
+app/dashboard/vessel/[vesselId]/emergency/page.tsx      (Ticket #163)
+app/dashboard/vessel/[vesselId]/uae-intel/page.tsx      (Ticket #164)
+app/dashboard/vessel/[vesselId]/requests/page.tsx       (Ticket #152)
+app/dashboard/vessel/[vesselId]/shipsync/page.tsx       (Ticket #151)
+```
+Each page skeleton:
+```tsx
+// Standard auth + scope guard — copy from captain/page.tsx lines 1–12.
+// Then render the relevant full-page component from components/captain/{module}/.
+// See POLARIS_CAPTAIN_DASHBOARD.md Section 5 for detailed spec of each page.
+```
+---
+## PHASE 7 — LEO SYSTEM PROMPT EXTENSION (Ticket #165)
+In `lib/leo/buildSystemPrompt.ts`, add this block when role is captain:
+```typescript
+if (role === 'captain' || role === 'vessel_admin') {
+  return `
+ROLE CONTEXT: You are briefing a yacht captain.
+VESSEL: ${context.vesselName ?? 'Unknown vessel'} — currently at ${context.location ?? 'location unknown'}
+CREW ABOARD: ${context.crewCount ?? 'unknown'}
+CAPTAIN BRIEFING RULES:
+- Lead with the single most urgent item (visa expiry first, then customs hold, then berth)
+- If alerts exist: name them specifically — "Ahmad Hassan's visa expires in 12 days"
+- If customs hold exists: "One shipment is held at customs — TRK-XXXXXX"
+- If berth renewal within 30 days: mention it
+- If all clear: say exactly "All clear. No alerts today." Nothing else.
+- Maximum 3 sentences. No filler words. No preamble. Address captain by first name.
+- Never mention financial figures.
+- Never use exclamation marks.
+- Tone: precise, professional, direct — like a capable crew member giving a handover.
+  `.trim();
+}
+```
+---
+## PHASE 8 — SIDEBAR NAVIGATION UPDATE (Ticket #143)
+In `components/ui/PolarisShell.tsx`, add the captain nav block.
+The sidebar renders different nav items per role.
+The captain nav is defined in `POLARIS_CAPTAIN_DASHBOARD.md` Section 2.
+Key rule: sidebar items are filtered by the user's role AND vessel scope.
+Never show a nav link the captain cannot access.
+Never show a placeholder or disabled link for unbuilt modules.
+---
+## PHASE 9 — VERIFICATION CHECKLIST
+Before marking any ticket complete, verify:
+```
+[ ] Migration runs without error in Supabase SQL editor
+[ ] RLS policy tested: captain can see own vessel data only
+[ ] RLS policy tested: captain CANNOT see another vessel's data
+[ ] requireAccess() returns 403 for unauthenticated request
+[ ] requireAccess() returns 403 for wrong role (e.g. supplier trying to access)
+[ ] Vessel scope check tested: captain assigned to vessel A cannot call /api/captain/vesselB/*
+[ ] logAuditEvent() fires on every POST — check audit_log table after test
+[ ] Dashboard loads in under 2 seconds (7 parallel fetches)
+[ ] getDashboardAlerts sorts: red first, amber second, grey last
+[ ] AlertsPanel empty state shows green check + "No alerts today"
+[ ] CrewManifestPanel has NO delete button for captain role
+[ ] Documents page has NO delete button for captain role
+[ ] RequestSupportModal submits and shows success toast
+[ ] Emergency page renders with NO network request (static content)
+[ ] Leo briefing is <= 3 sentences for captain role
+[ ] Finance data is hidden/blurred if user lacks finance permission
+[ ] ShipSync customs_hold appears in AlertsPanel AND ShipSyncPanel
+[ ] Mobile layout checked at 390px viewport width
+[ ] All colours sourced from lib/tokens.ts — no hardcoded hex in components
+```
+---
+## TICKET SUMMARY FOR MATT
+| Ticket | Priority | What to build                                                    |
+|--------|----------|------------------------------------------------------------------|
+| #146   | HIGH     | Captain dashboard page.tsx + PolarisShell captain nav            |
+| #147   | HIGH     | VesselBanner component                                           |
+| #148   | HIGH     | AlertsPanel + getDashboardAlerts utility                         |
+| #149   | HIGH     | CrewManifestPanel                                                |
+| #150   | HIGH     | VisaCentrePanel + VisaStatusPipeline                             |
+| #151   | HIGH     | ShipSyncPanel + ShipmentProgressBar                              |
+| #152   | HIGH     | RequestSupportButton + RequestSupportModal (8 categories)        |
+| #153   | HIGH     | ModuleGrid (8 tiles with badge counts)                           |
+| #154   | HIGH     | Migrations 015-019 (5 new tables)                                |
+| #155   | HIGH     | All captain API routes under /api/captain/[vesselId]/*           |
+| #156   | MED      | Documents page (3 sections, no delete)                           |
+| #157   | MED      | Crew & Visas page (manifest, add crew, upload passport)          |
+| #158   | MED      | Visa Centre page (5 application types, pipeline view)            |
+| #159   | MED      | Bunkering page (request form, quotations, history)               |
+| #160   | MED      | Berthing page (current berth card, request form)                 |
+| #161   | MED      | Crew Care page (transport, medical, welfare, tracking)           |
+| #162   | MED      | Financials page (view + download only, finance-gated amounts)    |
+| #163   | MED      | Emergency page (static contacts, incident report form)           |
+| #164   | MED      | UAE Intelligence page (live info + guide library)                |
+| #165   | LOW      | Leo system prompt extension — captain context block              |
+---
+*Polaris Captain Dashboard — Claude Code Build Instructions*
+*JLS Yachts LLC · Internal · Confidential · June 2026*
