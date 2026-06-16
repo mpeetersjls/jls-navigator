@@ -15,15 +15,20 @@ export interface CrewMember {
 }
 
 export interface CrewPassport {
-  id:              string
-  crew_id:         string
-  nationality:     string
-  passport_number: string
-  issue_date:      string
-  expiry_date:     string
-  issuing_country: string
-  is_primary:      boolean
-  document_url:    string | null
+  id:               string
+  crew_id:          string
+  nationality:      string
+  passport_number:  string
+  issue_date:       string
+  expiry_date:      string
+  issuing_country:  string
+  is_primary:       boolean
+  document_url:     string | null
+  cover_url?:       string | null
+  headshot_url?:    string | null
+  seamans_book_url?:string | null
+  no_seamans_book?: boolean
+  double_checked?:  boolean
 }
 
 /**

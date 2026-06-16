@@ -79,27 +79,29 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
   const [issueDate, setIssueDate] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [issuingCountry, setIssuingCountry] = useState('')
-  const [docFile, setDocFile] = useState<File | null>(null)
+  type SlotKey = 'cover' | 'data' | 'seamans' | 'headshot'
+  const [files, setFiles] = useState<Record<SlotKey, File | null>>({ cover: null, data: null, seamans: null, headshot: null })
+  const [sizes, setSizes] = useState<Record<SlotKey, number | null>>({ cover: null, data: null, seamans: null, headshot: null })
+  const [noSeamans, setNoSeamans] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [scanning, setScanning] = useState(false)
+  const [scanning, setScanning] = useState<SlotKey | null>(null)
   const [scanNote, setScanNote] = useState<string | null>(null)
-  const [sizeKB, setSizeKB] = useState<number | null>(null)
   // Auto checklist flags from OCR (null = unknown until scanned)
-  const [auto, setAuto] = useState<{ colour: boolean | null; noGlare: boolean | null; cover: boolean | null }>({ colour: null, noGlare: null, cover: null })
-  // Manual confirmations for the visual checks
-  const [manual, setManual] = useState<{ cover: boolean; twoPages: boolean }>({ cover: false, twoPages: false })
+  const [auto, setAuto] = useState<{ colour: boolean | null; noGlare: boolean | null }>({ colour: null, noGlare: null })
+  const [doubleChecked, setDoubleChecked] = useState(false)
 
-  // Compress to < 1000 KB (resizing as needed), then OCR-prefill from the image.
-  async function handleFile(file: File | null) {
-    if (!file) { setDocFile(null); setSizeKB(null); setScanNote(null); return }
-    setScanNote(null)
+  // Compress every attachment to < 1000 KB; the passport data-page slot also
+  // runs OCR to self-populate the fields below.
+  async function handleSlot(key: SlotKey, file: File | null) {
+    if (!file) { setFiles(f => ({ ...f, [key]: null })); setSizes(s => ({ ...s, [key]: null })); return }
     try {
       const c = await compressImageToMaxKB(file, 1000)
-      setDocFile(c.file)
-      setSizeKB(c.sizeKB)
-      if (!c.isImage) { setScanNote('PDF uploaded — auto-scan works on photo/image scans only.'); return }
-      setScanning(true)
+      setFiles(f => ({ ...f, [key]: c.file }))
+      setSizes(s => ({ ...s, [key]: c.sizeKB }))
+      if (key !== 'data') return
+      if (!c.isImage) { setScanNote('PDF uploaded — auto-fill works on photo/image scans only.'); return }
+      setScanning('data'); setScanNote(null)
       const res = await fetch('/api/visa/passport-ocr', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: c.base64, mediaType: c.mediaType }),
@@ -116,13 +118,12 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
       setAuto({
         colour:  typeof cl.is_colour === 'boolean' ? cl.is_colour : null,
         noGlare: typeof cl.has_glare_or_reflections === 'boolean' ? !cl.has_glare_or_reflections : null,
-        cover:   typeof cl.is_passport_cover === 'boolean' ? cl.is_passport_cover : null,
       })
-      setScanNote('Scanned — review the pre-filled details below.')
+      setScanNote('Scanned — details auto-filled below. Please double-check them.')
     } catch (e: any) {
       setScanNote('Scan failed: ' + (e?.message ?? 'error'))
     } finally {
-      setScanning(false)
+      if (key === 'data') setScanning(null)
     }
   }
 
@@ -133,15 +134,26 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
     const min = new Date(); min.setMonth(min.getMonth() + 6)
     return exp >= min
   })()
-  const sizeOk: boolean | null = sizeKB == null ? null : sizeKB <= 1000
+  const allSizes = Object.values(sizes).filter((v): v is number => v != null)
+  const sizeOk: boolean | null = allSizes.length === 0 ? null : allSizes.every(v => v <= 1000)
 
-  const checklist: { key: string; label: string; state: 'pass' | 'fail' | 'pending'; manual?: boolean; onToggle?: () => void; hint?: string }[] = [
-    { key: 'cover',    label: 'Passport external cover',   state: (auto.cover === true || manual.cover) ? 'pass' : 'pending', manual: true, onToggle: () => setManual(m => ({ ...m, cover: !m.cover })) },
-    { key: 'twoPages', label: 'Passport copy — 2 pages',   state: manual.twoPages ? 'pass' : 'pending', manual: true, onToggle: () => setManual(m => ({ ...m, twoPages: !m.twoPages })) },
-    { key: 'validity', label: 'Minimum 6 months validity', state: sixMoOk == null ? 'pending' : sixMoOk ? 'pass' : 'fail' },
-    { key: 'glare',    label: 'Clear — no reflections',    state: auto.noGlare == null ? 'pending' : auto.noGlare ? 'pass' : 'fail' },
-    { key: 'colour',   label: 'Colour',                    state: auto.colour == null ? 'pending' : auto.colour ? 'pass' : 'fail' },
-    { key: 'size',     label: 'Under 1000 KB',             state: sizeOk == null ? 'pending' : sizeOk ? 'pass' : 'fail', hint: sizeKB != null ? `${sizeKB} KB` : undefined },
+  const checklist: { key: string; label: string; state: 'pass' | 'fail' | 'pending'; hint?: string }[] = [
+    { key: 'cover',    label: 'Passport external cover',     state: files.cover ? 'pass' : 'pending' },
+    { key: 'data',     label: 'Passport — 2 inside pages',   state: files.data ? 'pass' : 'pending' },
+    { key: 'seamans',  label: "Seaman's book",               state: noSeamans || files.seamans ? 'pass' : 'pending', hint: noSeamans ? 'N/A' : undefined },
+    { key: 'headshot', label: 'Headshot photo',              state: files.headshot ? 'pass' : 'pending' },
+    { key: 'validity', label: 'Minimum 6 months validity',   state: sixMoOk == null ? 'pending' : sixMoOk ? 'pass' : 'fail' },
+    { key: 'glare',    label: 'Clear — no reflections',      state: auto.noGlare == null ? 'pending' : auto.noGlare ? 'pass' : 'fail' },
+    { key: 'colour',   label: 'Colour',                      state: auto.colour == null ? 'pending' : auto.colour ? 'pass' : 'fail' },
+    { key: 'size',     label: 'Under 1000 KB each',          state: sizeOk == null ? 'pending' : sizeOk ? 'pass' : 'fail' },
+  ]
+
+  // The four upload slots, rendered at the top of the form.
+  const SLOTS: { key: SlotKey; label: string; hint: string; accept: string }[] = [
+    { key: 'cover',    label: '1. Passport external cover',   hint: 'Front cover of the passport',                accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'data',     label: '2. Passport inside (2 pages)', hint: 'Photo / data pages — used to auto-fill',     accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'seamans',  label: "3. Seaman's book (optional)",  hint: 'Tick below if the crew has none',            accept: '.pdf,.jpg,.jpeg,.png' },
+    { key: 'headshot', label: '4. Headshot photo',            hint: 'Clear passport-style headshot',              accept: '.jpg,.jpeg,.png' },
   ]
 
   const fieldStyle: React.CSSProperties = {
@@ -173,26 +185,29 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
     setError(null)
 
     if (!nationality.trim() || !passportNumber.trim() || !issueDate || !expiryDate || !issuingCountry.trim()) {
-      setError('All fields except document upload are required.')
+      setError('Passport details are required (upload the inside pages to auto-fill).')
+      return
+    }
+    if (!doubleChecked) {
+      setError('Please confirm you have double-checked the information.')
       return
     }
 
     setUploading(true)
     try {
-      let documentUrl: string | null = null
-
-      if (docFile) {
-        const ext = docFile.name.split('.').pop()
-        const path = `crew/${crewId}/passport_${Date.now()}.${ext}`
-        const { error: uploadError } = await supabase.storage
-          .from('permit-documents')
-          .upload(path, docFile, { upsert: true })
-        if (uploadError) throw uploadError
-        const { data: urlData } = supabase.storage
-          .from('permit-documents')
-          .getPublicUrl(path)
-        documentUrl = urlData.publicUrl
+      // Upload each present attachment to storage and collect its public URL.
+      async function uploadSlot(key: SlotKey): Promise<string | null> {
+        const file = files[key]
+        if (!file) return null
+        const ext = file.name.split('.').pop()
+        const path = `crew/${crewId}/${key}_${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from('permit-documents').upload(path, file, { upsert: true })
+        if (upErr) throw upErr
+        return supabase.storage.from('permit-documents').getPublicUrl(path).data.publicUrl
       }
+      const [coverUrl, dataUrl, seamansUrl, headshotUrl] = await Promise.all([
+        uploadSlot('cover'), uploadSlot('data'), uploadSlot('seamans'), uploadSlot('headshot'),
+      ])
 
       const saved = await upsertPassport({
         crew_id: crewId,
@@ -202,7 +217,12 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
         expiry_date: expiryDate,
         issuing_country: issuingCountry.trim(),
         is_primary: false,
-        document_url: documentUrl,
+        document_url: dataUrl,
+        cover_url: coverUrl,
+        seamans_book_url: seamansUrl,
+        headshot_url: headshotUrl,
+        no_seamans_book: noSeamans,
+        double_checked: doubleChecked,
       })
 
       onSaved(saved)
@@ -234,6 +254,65 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
         >
           Add Passport
         </div>
+
+        {/* ── Attachments first ── */}
+        <div style={{
+          background: `${COLORS.signal}14`, border: `1px solid ${COLORS.signal}33`,
+          borderRadius: 8, padding: '10px 14px', marginBottom: 14,
+        }}>
+          <div style={{ fontFamily: FONTS.display, fontSize: 13, fontWeight: 600, color: COLORS.signal, marginBottom: 2 }}>
+            Self-Populate — upload the passport first
+          </div>
+          <div style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.muted, lineHeight: 1.45 }}>
+            Tip: upload the <strong>passport inside pages</strong> (PDF or photo) first — we scan it and automatically fill in
+            the nationality, number, dates and issuing country below. Always double-check the result.
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          {SLOTS.map(slot => {
+            const disabled = slot.key === 'seamans' && noSeamans
+            const f = files[slot.key]
+            const kb = sizes[slot.key]
+            const isScanning = scanning === slot.key
+            return (
+              <div key={slot.key}>
+                <label style={labelStyle}>{slot.label}</label>
+                <div
+                  style={{
+                    background: COLORS.deep,
+                    border: `1px dashed ${f ? COLORS.signal : COLORS.ocean}`,
+                    borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10,
+                    cursor: disabled ? 'not-allowed' : isScanning ? 'wait' : 'pointer',
+                    opacity: disabled ? 0.5 : isScanning ? 0.7 : 1,
+                  }}
+                  onClick={() => !disabled && !isScanning && document.getElementById(`slot-${slot.key}`)?.click()}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={f ? COLORS.signal : COLORS.muted} strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span style={{ fontFamily: FONTS.display, fontSize: 12.5, color: f ? COLORS.frost : COLORS.muted, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {isScanning ? 'Scanning…' : f ? `${f.name}${kb != null ? ` · ${kb} KB` : ''}` : (disabled ? 'Not applicable' : 'Upload')}
+                  </span>
+                  <input
+                    id={`slot-${slot.key}`} type="file" accept={slot.accept} style={{ display: 'none' }} disabled={disabled}
+                    onChange={e => handleSlot(slot.key, e.target.files?.[0] ?? null)}
+                  />
+                </div>
+                <div style={{ fontFamily: FONTS.display, fontSize: 10.5, color: COLORS.steel, margin: '3px 2px 0' }}>{slot.hint}</div>
+                {slot.key === 'seamans' && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer', fontFamily: FONTS.display, fontSize: 12, color: COLORS.muted }}>
+                    <input type="checkbox" checked={noSeamans} onChange={e => { setNoSeamans(e.target.checked); if (e.target.checked) handleSlot('seamans', null) }} />
+                    No Seaman's book
+                  </label>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {scanNote && (
+          <p style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.muted, margin: '-6px 2px 14px' }}>{scanNote}</p>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div>
@@ -274,43 +353,6 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
               required
             />
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Passport Document — upload to auto-fill</label>
-            <div
-              style={{
-                background: COLORS.deep,
-                border: `1px dashed ${COLORS.ocean}`,
-                borderRadius: 8,
-                padding: '12px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                cursor: scanning ? 'wait' : 'pointer',
-                opacity: scanning ? 0.7 : 1,
-              }}
-              onClick={() => !scanning && document.getElementById('passport-doc-upload')?.click()}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={COLORS.muted} strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              <span style={{ fontFamily: FONTS.display, fontSize: 13, color: docFile ? COLORS.frost : COLORS.muted }}>
-                {scanning ? 'Scanning passport…' : docFile ? `${docFile.name}${sizeKB != null ? ` · ${sizeKB} KB` : ''}` : 'Upload passport scan / photo (auto-fills details)'}
-              </span>
-              <input
-                id="passport-doc-upload"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                style={{ display: 'none' }}
-                onChange={e => handleFile(e.target.files?.[0] ?? null)}
-              />
-            </div>
-            {scanNote && (
-              <p style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.muted, margin: '6px 2px 0' }}>{scanNote}</p>
-            )}
-          </div>
-
           {/* Passport quality checklist */}
           <div style={{ gridColumn: '1 / -1' }}>
             <label style={labelStyle}>Passport Checklist</label>
@@ -319,15 +361,9 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
                 const color = item.state === 'pass' ? '#30D060' : item.state === 'fail' ? COLORS.warn : COLORS.muted
                 const glyph = item.state === 'pass' ? '✓' : item.state === 'fail' ? '✕' : '○'
                 return (
-                  <button
+                  <div
                     key={item.key}
-                    type="button"
-                    onClick={item.manual ? item.onToggle : undefined}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
-                      background: 'transparent', border: 'none', textAlign: 'left',
-                      cursor: item.manual ? 'pointer' : 'default', width: '100%',
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px' }}
                   >
                     <span style={{
                       width: 18, height: 18, borderRadius: 5, flexShrink: 0, display: 'inline-flex',
@@ -339,9 +375,8 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
                     <span style={{ fontFamily: FONTS.display, fontSize: 12.5, color: item.state === 'pending' ? COLORS.muted : COLORS.frost, flex: 1 }}>
                       {item.label}
                       {item.hint && <span style={{ color, marginLeft: 6, fontSize: 11 }}>({item.hint})</span>}
-                      {item.manual && <span style={{ color: COLORS.muted, marginLeft: 6, fontSize: 10 }}>tap to confirm</span>}
                     </span>
-                  </button>
+                  </div>
                 )
               })}
             </div>
@@ -365,6 +400,20 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
           </div>
         )}
 
+        {/* Self-attestation */}
+        <label style={{
+          display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 16, cursor: 'pointer',
+          fontFamily: FONTS.display, fontSize: 13, color: COLORS.frost,
+        }}>
+          <input
+            type="checkbox"
+            checked={doubleChecked}
+            onChange={e => setDoubleChecked(e.target.checked)}
+            style={{ marginTop: 2, width: 16, height: 16, flexShrink: 0, accentColor: COLORS.signal }}
+          />
+          <span>I confirm I have <strong>double-checked</strong> that all details and attachments above are correct and match the passport.</span>
+        </label>
+
         <div style={{ marginTop: 16, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           {showCancel && onCancel && (
             <button
@@ -386,7 +435,8 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
           )}
           <button
             type="submit"
-            disabled={uploading}
+            disabled={uploading || !doubleChecked}
+            title={!doubleChecked ? 'Confirm you have double-checked the information first' : undefined}
             style={{
               background: COLORS.signal,
               border: 'none',
@@ -396,8 +446,8 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
               fontSize: 14,
               fontWeight: 600,
               padding: '8px 20px',
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              opacity: uploading ? 0.6 : 1,
+              cursor: (uploading || !doubleChecked) ? 'not-allowed' : 'pointer',
+              opacity: (uploading || !doubleChecked) ? 0.6 : 1,
             }}
           >
             {uploading ? 'Saving…' : 'Save Passport'}
