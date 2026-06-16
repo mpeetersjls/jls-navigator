@@ -5,8 +5,9 @@ import { fetchAllRows } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Loader2, UserCircle2, BookUser, Stamp, FileText,
-  Plane, ShipWheel, Mail, Phone, ExternalLink, ShieldQuestion,
+  Plane, ShipWheel, Mail, Phone, ExternalLink, ShieldQuestion, Link2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 type CrewMember = {
@@ -119,6 +120,18 @@ export function CrewProfilePage() {
     }
     setVisas([...linked, ...candidates]);
     setLoading(false);
+  }
+
+  // Deliberately link a best-effort-matched visa application to this crew member
+  // (sets crew_member_id). No automatic linking — staff confirm each one.
+  async function linkVisa(visaId: string) {
+    const { error } = await (supabase as any)
+      .from("visa_applications")
+      .update({ crew_member_id: id, updated_at: new Date().toISOString() })
+      .eq("id", visaId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Visa application linked to this crew member");
+    setVisas((prev) => prev.map((v) => (v.id === visaId ? { ...v, _match: "linked" } : v)));
   }
 
   // Sign-on/off timeline: real events table first; otherwise derive a read-only
@@ -243,9 +256,8 @@ export function CrewProfilePage() {
               {visas.length === 0 ? <Empty>No visa applications matched to this crew member.</Empty> : (
                 <div className="divide-y divide-border/50">
                   {visas.map((v) => (
-                    <Link key={v.id} to={"/crew-immigration/visas/$id" as any} params={{ id: v.id } as any}
-                      className="flex items-center gap-4 py-3 transition-colors hover:bg-accent/20 -mx-2 px-2 rounded-md">
-                      <div className="flex-1">
+                    <div key={v.id} className="flex items-center gap-3 py-3 -mx-2 px-2 rounded-md transition-colors hover:bg-accent/20">
+                      <Link to={"/crew-immigration/visas/$id" as any} params={{ id: v.id } as any} className="min-w-0 flex-1">
                         <div className="flex items-center text-sm font-medium">
                           {v.destination_country ?? "—"}{v.visa_type ? ` · ${v.visa_type}` : ""}
                           {matchBadge(v._match)}
@@ -254,11 +266,17 @@ export function CrewProfilePage() {
                           {v.jls_reference ? `${v.jls_reference} · ` : ""}{v.visa_number ? `No. ${v.visa_number} · ` : ""}
                           {v.visa_expiry ? <>Expires <span className={cn(isSoon(v.visa_expiry) && "text-amber-400")}>{fmt(v.visa_expiry)}</span></> : "No expiry recorded"}
                         </div>
-                      </div>
-                      <span className={cn("rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold", VISA_STATUS_COLORS[(v.status ?? "").toLowerCase()] ?? "bg-muted text-muted-foreground")}>
+                      </Link>
+                      {v._match && v._match !== "linked" && (
+                        <Button variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-[11px]"
+                          onClick={() => linkVisa(v.id)} title="Confirm this visa belongs to this crew member">
+                          <Link2 className="h-3 w-3" /> Link
+                        </Button>
+                      )}
+                      <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-semibold", VISA_STATUS_COLORS[(v.status ?? "").toLowerCase()] ?? "bg-muted text-muted-foreground")}>
                         {titleCase(v.status)}
                       </span>
-                    </Link>
+                    </div>
                   ))}
                 </div>
               )}
