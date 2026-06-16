@@ -467,7 +467,7 @@ export default function VisaDashboard() {
                     View
                   </button>
                   <button
-                    onClick={() => navigate({ to: `/crew-immigration/visas/${app.id}/edit` as any })}
+                    onClick={() => navigate({ to: `/crew-immigration/visas/${app.id}` as any })}
                     style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${COLORS.ocean}`, background: 'transparent', color: COLORS.muted, fontFamily: FONTS.display, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                   >
                     Edit
