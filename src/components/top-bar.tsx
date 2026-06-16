@@ -3,9 +3,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
-  Search, Bell, LogOut, Settings, UserCircle2, Ship, Loader2, ChevronDown, X, Sun, Moon, Users,
+  Search, Bell, LogOut, Settings, UserCircle2, Ship, Loader2, ChevronDown, X, Sun, Moon, Users, Eye, Check, ShieldCheck,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+import { useViewAsRole, setViewAsRole, useCanImpersonate, VIEW_AS_OPTIONS, ROLE_LABEL } from "@/lib/view-as";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -94,6 +96,50 @@ function OnlineUsers() {
             ))}
           </div>
         )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// Admin-only "View as" control — preview the app as a client/crew role.
+function ViewAsSwitcher() {
+  const canImpersonate = useCanImpersonate();
+  const viewAs = useViewAsRole();
+  if (!canImpersonate) return null;
+  const active = !!viewAs;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm transition",
+            active
+              ? "bg-amber-500/15 text-amber-500 ring-1 ring-amber-500/30"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+          title="Preview the app as a client"
+        >
+          <Eye className="h-[17px] w-[17px]" />
+          <span className="hidden text-xs font-semibold md:inline">{active ? ROLE_LABEL[viewAs] ?? "Client" : "View as"}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel>Impersonate view</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setViewAsRole(null)} className="gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <span className="flex-1">Admin (full access)</span>
+          {!active && <Check className="h-3.5 w-3.5 text-primary" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {VIEW_AS_OPTIONS.map((o) => (
+          <DropdownMenuItem key={o.role} onClick={() => setViewAsRole(o.role)} className="gap-2">
+            <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+            <span className="flex-1">{o.label}</span>
+            {viewAs === o.role && <Check className="h-3.5 w-3.5 text-primary" />}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -199,6 +245,9 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
+        {/* View-as / client preview (admin only) */}
+        <ViewAsSwitcher />
+
         {/* Online users (live presence) */}
         <OnlineUsers />
 

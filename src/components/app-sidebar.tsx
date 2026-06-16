@@ -9,6 +9,7 @@ import {
   Globe, Headset, BookOpen, FileSignature, KeyRound, Zap,
 } from "lucide-react";
 import { AdminSidebarSection } from "@/components/admin/AdminSidebarSection";
+import { useViewAsRole, navAllowedFor, ROLE_LABEL } from "@/lib/view-as";
 import { useState, useMemo } from "react";
 import { DEPARTMENTS } from "@/components/guides/guide-meta";
 import { PolarisLogo } from "@/components/polaris-logo";
@@ -182,6 +183,21 @@ function flatSearch(items: NavItem[], query: string): NavItem[] {
   return results;
 }
 
+/** Filter the nav tree to items whose route is allowed for a previewed role. */
+function filterNav(items: NavItem[], allowed: string[]): NavItem[] {
+  const ok = (to?: string) => !!to && allowed.some(p => to === p || to.startsWith(p + "/"));
+  const out: NavItem[] = [];
+  for (const item of items) {
+    if (item.children?.length) {
+      const kids = filterNav(item.children, allowed);
+      if (kids.length) out.push({ ...item, children: kids });
+    } else if (ok(item.to)) {
+      out.push(item);
+    }
+  }
+  return out;
+}
+
 // ─── Nav Node ─────────────────────────────────────────────────────────────────
 
 function NavNode({ item, depth = 0 }: { item: NavItem; depth?: number }) {
@@ -260,10 +276,15 @@ function SearchResult({ item }: { item: NavItem }) {
 export function AppSidebar() {
   const { user, signOut } = useAuth();
   const [searchQ, setSearchQ] = useState("");
+  const viewAsRole = useViewAsRole();
+
+  // When previewing a client/crew role, scope the nav to that role's allowed routes.
+  const allowed = navAllowedFor(viewAsRole);
+  const nav = useMemo(() => (allowed ? filterNav(NAV, allowed) : NAV), [viewAsRole]);
 
   const searchResults = useMemo(
-    () => (searchQ.trim().length >= 1 ? flatSearch(NAV, searchQ.trim()) : []),
-    [searchQ],
+    () => (searchQ.trim().length >= 1 ? flatSearch(nav, searchQ.trim()) : []),
+    [searchQ, nav],
   );
 
   const isSearching = searchQ.trim().length >= 1;
@@ -310,7 +331,7 @@ export function AppSidebar() {
             <p className="px-3 py-3 text-[11px] text-sidebar-foreground/40">No results for "{searchQ}"</p>
           )
         ) : (
-          NAV.map((item, i) => (
+          nav.map((item, i) => (
             <div key={item.label}>
               {i > 0 && !item.to && <div className="mx-2 my-1.5 h-px bg-sidebar-border/50" />}
               <NavNode item={item} />
@@ -319,8 +340,15 @@ export function AppSidebar() {
         )}
       </nav>
 
-      {/* Admin section — renders only for global_admin / org_admin */}
-      <AdminSidebarSection />
+      {/* Client-view preview badge */}
+      {viewAsRole && (
+        <div className="mx-2 mb-1 rounded-lg border border-amber-500/25 bg-amber-500/10 px-2.5 py-1.5 text-[10.5px] font-medium text-amber-400">
+          Previewing as {ROLE_LABEL[viewAsRole] ?? viewAsRole}
+        </div>
+      )}
+
+      {/* Admin section — hidden while previewing a client view */}
+      {!viewAsRole && <AdminSidebarSection />}
 
       {/* User footer */}
       <div className="border-t border-sidebar-border/70 p-2.5 space-y-1">

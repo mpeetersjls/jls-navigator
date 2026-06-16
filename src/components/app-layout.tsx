@@ -2,6 +2,7 @@ import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { TopBar } from "@/components/top-bar";
+import { ViewAsBanner } from "@/components/view-as-banner";
 import { LeoBubble } from "@/components/leo-bubble";
 import { WorkingIndicator } from "@/components/working-indicator";
 import { useAuth } from "@/lib/auth";
@@ -28,6 +29,7 @@ export function AppLayout() {
       <AppSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
+        <ViewAsBanner />
         <main className="flex-1 overflow-auto">
           <Outlet />
         </main>
