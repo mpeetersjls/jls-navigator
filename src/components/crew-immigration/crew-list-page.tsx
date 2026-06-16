@@ -184,18 +184,23 @@ export function CrewListPage() {
 
   const filtered = useMemo(() => {
     const yachtMap = new Map(yachts.map(y => [y.id, y.vessel_name]));
+    const s = q.trim().toLowerCase();
     return crew.filter(m => {
+      // When searching, look across ALL crew (ignore the vessel/status filters)
+      // and match every token against the full name (incl. middle) + key fields.
+      if (s) {
+        const hay = [m.first_name, (m as any).middle_name, m.last_name, (m as any).full_name,
+          m.nationality, m.rank, m.department, m.email, m.passport_number,
+          m.yacht_id ? yachtMap.get(m.yacht_id) : ""].filter(Boolean).join(" ").toLowerCase();
+        return s.split(/\s+/).every(tok => hay.includes(tok));
+      }
       if (filterStatus !== "all" && m.status !== filterStatus) return false;
       if (filterYacht !== "all" && m.yacht_id !== filterYacht) return false;
-      if (q.trim()) {
-        const s = q.toLowerCase();
-        const hay = [m.first_name, m.last_name, m.nationality, m.rank, m.department, m.email,
-          m.passport_number, m.yacht_id ? yachtMap.get(m.yacht_id) : ""].join(" ").toLowerCase();
-        if (!hay.includes(s)) return false;
-      }
       return true;
     });
   }, [crew, q, filterStatus, filterYacht, yachts]);
+
+  function clearFilters() { setQ(""); setFilterStatus("all"); setFilterYacht("all"); }
 
   // Status filter options: known labels + any other statuses present in the data
   // (e.g. imported "On Board", "On Signer", "Cancelled" from the crew tracker).
@@ -288,9 +293,19 @@ export function CrewListPage() {
         ) : filtered.length === 0 ? (
           <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border text-center">
             <UserCircle2 className="h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="font-display text-base font-semibold">{q ? "No crew match your search" : "No crew members yet"}</p>
-            <p className="text-sm text-muted-foreground mt-1">Add crew members to track visas, documents, and movements.</p>
-            {!q && <Button onClick={openNew} className="mt-4 gap-1.5"><Plus className="h-4 w-4" /> Add First Crew Member</Button>}
+            <p className="font-display text-base font-semibold">
+              {crew.length === 0 ? "No crew members yet" : q ? `No crew match "${q}"` : "No crew match the current filters"}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {crew.length === 0
+                ? "Add crew members to track visas, documents, and movements."
+                : `${crew.length} crew on file — adjust the vessel/status filters to see them.`}
+            </p>
+            {crew.length === 0
+              ? <Button onClick={openNew} className="mt-4 gap-1.5"><Plus className="h-4 w-4" /> Add First Crew Member</Button>
+              : (q || filterStatus !== "all" || filterYacht !== "all")
+                ? <Button variant="outline" onClick={clearFilters} className="mt-4">Clear filters</Button>
+                : null}
           </div>
         ) : view === "table" ? (
           <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_2px_12px_-4px_rgba(0,0,0,0.4)]">

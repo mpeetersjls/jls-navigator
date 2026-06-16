@@ -1,4 +1,5 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { COLORS } from '@/lib/tokens'
 import { loadCrewPassports } from '@/lib/visa/crewMatching'
 import StepCountrySelect from './StepCountrySelect'
@@ -49,8 +50,31 @@ type Props = {
   onClose?: () => void
 }
 
+export const VISA_DRAFT_KEY = 'polaris.visaDraft'
+
 export default function NewApplicationWizard({ onClose }: Props) {
+  const navigate = useNavigate()
   const [state, setState] = useState<WizardState>(INITIAL_STATE)
+  // A previously saved, unfinished application (offered for resume on mount).
+  const [draft] = useState<WizardState | null>(() => {
+    try {
+      const raw = localStorage.getItem(VISA_DRAFT_KEY)
+      if (raw) { const d = JSON.parse(raw); if (d && (d.step > 1 || d.crew)) return d as WizardState }
+    } catch { /* ignore */ }
+    return null
+  })
+  const [draftHandled, setDraftHandled] = useState(false)
+
+  // Auto-save progress so the application can be paused and continued anytime.
+  useEffect(() => {
+    try {
+      if (state.step > 1 || state.crew) localStorage.setItem(VISA_DRAFT_KEY, JSON.stringify(state))
+    } catch { /* ignore */ }
+  }, [state])
+
+  function resumeDraft() { if (draft) setState(draft); setDraftHandled(true) }
+  function startOver() { try { localStorage.removeItem(VISA_DRAFT_KEY) } catch {}; setState(INITIAL_STATE); setDraftHandled(true) }
+  function saveAndExit() { navigate({ to: '/crew-immigration/visas' }) } // draft already persisted
 
   const onUpdate = useCallback((partial: Partial<WizardState>) => {
     setState(prev => ({ ...prev, ...partial }))
@@ -119,31 +143,51 @@ export default function NewApplicationWizard({ onClose }: Props) {
             )}
           </div>
           <div style={{ color: COLORS.muted, fontSize: 13, marginTop: 2 }}>
-            Step {state.step} of 7 · {STEP_LABELS[state.step - 1]}
+            Step {state.step} of 7 · {STEP_LABELS[state.step - 1]} · progress saves automatically
           </div>
         </div>
-        {onClose && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
-            onClick={onClose}
+            onClick={saveAndExit}
             style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: COLORS.muted,
-              fontSize: 22,
-              lineHeight: 1,
-              padding: '2px 6px',
-              borderRadius: 4,
-              transition: 'color 0.15s',
+              background: 'transparent', border: `1px solid ${COLORS.ocean}`, cursor: 'pointer',
+              color: COLORS.frost, fontSize: 13, fontWeight: 600, padding: '7px 14px', borderRadius: 8,
+              fontFamily: "'Space Grotesk', sans-serif",
             }}
-            aria-label="Close"
-            onMouseEnter={e => (e.currentTarget.style.color = COLORS.frost)}
-            onMouseLeave={e => (e.currentTarget.style.color = COLORS.muted)}
+            title="Save your progress and continue later"
           >
-            ×
+            Save &amp; exit
           </button>
-        )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.muted, fontSize: 22, lineHeight: 1, padding: '2px 6px', borderRadius: 4 }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Resume draft banner */}
+      {draft && !draftHandled && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          background: `${COLORS.signal}14`, borderBottom: `1px solid ${COLORS.signal}33`,
+          padding: '10px 28px', fontFamily: "'Space Grotesk', sans-serif",
+        }}>
+          <span style={{ color: COLORS.frost, fontSize: 13, flex: 1 }}>
+            You have an unfinished visa application (step {draft.step} of 7). Resume where you left off?
+          </span>
+          <button onClick={resumeDraft} style={{ background: COLORS.signal, color: COLORS.void, border: 'none', borderRadius: 8, padding: '6px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Resume
+          </button>
+          <button onClick={startOver} style={{ background: 'transparent', color: COLORS.muted, border: `1px solid ${COLORS.ocean}`, borderRadius: 8, padding: '6px 14px', fontSize: 13, cursor: 'pointer' }}>
+            Start over
+          </button>
+        </div>
+      )}
 
       {/* Progress Bar */}
       <div

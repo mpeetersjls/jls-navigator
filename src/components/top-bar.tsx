@@ -167,9 +167,13 @@ export function TopBar() {
     setSearching(true);
     const t = setTimeout(async () => {
       const db = supabase as any;
+      const term = q.trim();
+      // Crew: match EVERY token against full_name (covers middle names, any order).
+      let crewQuery = db.from("crew_members").select("id, first_name, last_name, rank");
+      for (const tok of term.split(/\s+/)) crewQuery = crewQuery.ilike("full_name", `%${tok}%`);
       const [yRes, cRes] = await Promise.all([
-        db.from("yachts").select("id, vessel_name, vessel_type").ilike("vessel_name", `%${q.trim()}%`).limit(6),
-        db.from("crew_members").select("id, first_name, last_name, rank").or(`first_name.ilike.%${q.trim()}%,last_name.ilike.%${q.trim()}%`).limit(6),
+        db.from("yachts").select("id, vessel_name, vessel_type").ilike("vessel_name", `%${term}%`).limit(6),
+        crewQuery.limit(6),
       ]);
       const out: SearchResult[] = [];
       (yRes.data ?? []).forEach((y: any) => out.push({
@@ -198,13 +202,13 @@ export function TopBar() {
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card px-5">
       {/* Global search */}
       <div ref={boxRef} className="relative w-full max-w-xl">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpenResults(true)}
           placeholder="Search for crew, vessel, document…"
-          className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-9 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition"
+          className="h-9 w-full rounded-lg border border-primary/30 bg-muted/40 pl-9 pr-9 text-sm placeholder:text-muted-foreground/70 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 hover:border-primary/50 transition"
         />
         {q && (
           <button onClick={() => { setQ(""); setOpenResults(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground">

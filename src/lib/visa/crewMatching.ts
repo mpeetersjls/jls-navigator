@@ -69,7 +69,8 @@ export async function upsertCrewMember(
 ): Promise<CrewMember> {
   const payload = {
     ...fields,
-    full_name: `${fields.first_name} ${fields.last_name}`.trim(),
+    full_name: [fields.first_name, (fields as any).middle_name, fields.last_name]
+      .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
     updated_at: new Date().toISOString(),
   }
 

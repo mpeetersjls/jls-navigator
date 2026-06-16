@@ -128,6 +128,9 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
         }).catch(() => {})
       }
 
+      // Clear the saved draft now the application is submitted.
+      try { localStorage.removeItem('polaris.visaDraft') } catch { /* ignore */ }
+
       toast.success('Visa application submitted.')
       navigate({ to: '/crew-immigration/visas' })
     } catch (err: any) {
