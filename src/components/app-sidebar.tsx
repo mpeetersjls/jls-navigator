@@ -25,59 +25,65 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  // ── OVERVIEW — matches the Polaris concept menu, in order ────────────────
+  // ── One unified area — everything lives under Overview; Guides stays separate ──
   {
     label: "Overview",
     children: [
       { label: "Leo",              to: "/dashboard", icon: Sparkles },
       { label: "Vessel Overview",  to: "/yachts",    icon: Ship },
-      { label: "My Fleet (Live)",  to: "/my-fleet", icon: Navigation },
+      { label: "My Fleet (Live)",  to: "/my-fleet",  icon: Navigation },
       { label: "Crew",             to: "/crew-immigration/crew", icon: Users },
-      { label: "Logistics",   to: "/packages",            icon: Boxes },
-      { label: "Operations",  to: "/orbit/defects",       icon: Cog },
-      { label: "Maintenance", to: "/orbit/maintenance",   icon: Wrench },
-      { label: "Finance",     to: "/finance",    icon: BarChart3 },
-      { label: "Reports",     to: "/director",   icon: FileText },
-      { label: "Settings",    to: "/settings",   icon: Settings },
-    ],
-  },
 
-  // ── MODULES — Polaris modules that aren't in the concept menu (for now) ──
-  {
-    label: "Modules",
-    children: [
+      // Logistics now parents ShipSync + Transport & Fleet
       {
-        label: "Orbit",
-        icon: LayersIcon,
+        label: "Logistics",
+        icon: Boxes,
         children: [
-          { label: "Overview",            to: "/orbit/",            icon: LayoutDashboard },
-          { label: "Planned Maintenance", to: "/orbit/maintenance", icon: Wrench },
-          { label: "Defects & Repairs",   to: "/orbit/defects",     icon: Wrench },
-          { label: "Small Boat Mgmt",     to: "/small-boat-registration", icon: Sailboat },
+          {
+            label: "ShipSync",
+            icon: Package,
+            children: [
+              { label: "Packages",           to: "/packages",            icon: Package },
+              { label: "Drivers",            to: "/packages/drivers",    icon: UserCircle2 },
+              { label: "Deliveries / Route", to: "/packages/deliveries", icon: Truck },
+              { label: "Ship Spares",        to: "/ship-spares",         icon: Boxes },
+              { label: "Live Tracking",      to: "/fleet-tracking",      icon: Navigation },
+            ],
+          },
+          {
+            label: "Transport & Fleet",
+            icon: Car,
+            children: [
+              { label: "Trips",         to: "/crew-cab/trips",     icon: Route },
+              { label: "Drivers",       to: "/crew-cab/drivers",   icon: UserCircle2 },
+              { label: "Vehicles",      to: "/crew-cab/vehicles",  icon: Car },
+              { label: "Locations",     to: "/crew-cab/locations", icon: MapPin },
+              { label: "Live Tracking", to: "/fleet-tracking",     icon: Navigation },
+              { label: "Maintenance",   to: "/orbit/maintenance",  icon: Wrench },
+            ],
+          },
         ],
       },
+
+      // Operations now parents Orbit
       {
-        label: "ShipSync",
-        icon: Package,
+        label: "Operations",
+        icon: Cog,
         children: [
-          { label: "Packages",           to: "/packages",            icon: Package },
-          { label: "Drivers",            to: "/packages/drivers",    icon: UserCircle2 },
-          { label: "Deliveries / Route", to: "/packages/deliveries", icon: Truck },
-          { label: "Ship Spares",        to: "/ship-spares",         icon: Boxes },
-          { label: "Live Tracking",      to: "/fleet-tracking",      icon: Navigation },
+          {
+            label: "Orbit",
+            icon: LayersIcon,
+            children: [
+              { label: "Overview",            to: "/orbit/",            icon: LayoutDashboard },
+              { label: "Planned Maintenance", to: "/orbit/maintenance", icon: Wrench },
+              { label: "Defects & Repairs",   to: "/orbit/defects",     icon: Wrench },
+              { label: "Small Boat Mgmt",     to: "/small-boat-registration", icon: Sailboat },
+            ],
+          },
         ],
       },
-      {
-        label: "Transport & Fleet",
-        icon: Car,
-        children: [
-          { label: "Trips",         to: "/crew-cab/trips",     icon: Route },
-          { label: "Drivers",       to: "/crew-cab/drivers",   icon: UserCircle2 },
-          { label: "Vehicles",      to: "/crew-cab/vehicles",  icon: Car },
-          { label: "Locations",     to: "/crew-cab/locations", icon: MapPin },
-          { label: "Live Tracking", to: "/fleet-tracking",     icon: Navigation },
-        ],
-      },
+
+      // Waypoint as its own area
       {
         label: "Waypoint",
         icon: ShoppingCart,
@@ -86,24 +92,10 @@ const NAV: NavItem[] = [
           { label: "Quotations", to: "/waypoint/quotations", icon: FileText },
         ],
       },
-      { label: "Superyacht Provisioning", to: "/provisioning",  icon: UtensilsCrossed },
-      {
-        label: "JLS Training Institute",
-        icon: GraduationCap,
-        children: [
-          { label: "Training Records", to: "/training",                icon: GraduationCap },
-          { label: "Certifications",   to: "/training/certifications", icon: FileCheck2 },
-        ],
-      },
-      { label: "Agency Network",          to: "/agency",        icon: Globe },
-      {
-        label: "Crew Placement",
-        icon: UserPlus,
-        children: [
-          { label: "Candidates", to: "/crew-placement",            icon: UserPlus },
-          { label: "Vacancies",  to: "/crew-placement/vacancies",  icon: ClipboardList },
-        ],
-      },
+
+      { label: "Finance",     to: "/finance",  icon: BarChart3 },
+      { label: "Reports",     to: "/director", icon: FileText },
+
       {
         label: "Yacht IT Solutions",
         icon: Cpu,
@@ -113,25 +105,14 @@ const NAV: NavItem[] = [
           { label: "Contracts & Services", to: "/yacht-it",   icon: FileText },
         ],
       },
-      { label: "Documents & e-Sign",     to: "/esign",         icon: FileSignature },
-      { label: "Automations",             to: "/automations",   icon: Zap },
-      { label: "Leo",                      to: "/ai-assistant",  icon: Sparkles },
-      { label: "Compass",                 to: "/compass",       icon: Compass },
-      { label: "Changelog",               to: "/changelog",     icon: ScrollText },
-      { label: "Small Boat Registration", to: "/small-boat-registration", icon: Sailboat },
-    ],
-  },
 
-  // ── PORT OPERATIONS & AGENCY ─────────────────────────────────────────────────
-  {
-    label: "Port Operations & Agency",
-    children: [
+      // ── Former Port Operations & Agency ──
       {
         label: "Crew & Immigration",
         icon: IdCard,
         children: [
-          { label: "Crew List",        to: "/crew-immigration/crew",        icon: UserCircle2 },
-          { label: "Visas",            to: "/crew-immigration/visas",       icon: FileText },
+          { label: "Crew List",          to: "/crew-immigration/crew",        icon: UserCircle2 },
+          { label: "Visas",              to: "/crew-immigration/visas",       icon: FileText },
           { label: "Sign On / Sign Off", to: "/crew-immigration/sign-on-off", icon: LogIn },
           { label: "Crew Documents",     to: "/crew-immigration/documents",   icon: ClipboardList },
         ],
@@ -146,10 +127,38 @@ const NAV: NavItem[] = [
       { label: "Navigation License",    to: "/permits/navigation-license",  icon: Navigation },
       { label: "DMA Permits",           to: "/permits/dma",                 icon: FileBadge },
       { label: "Abu Dhabi Permits",     to: "/permits/abu-dhabi",           icon: Anchor },
+
+      // ── Other former Modules items ──
+      { label: "Superyacht Provisioning", to: "/provisioning", icon: UtensilsCrossed },
+      {
+        label: "JLS Training Institute",
+        icon: GraduationCap,
+        children: [
+          { label: "Training Records", to: "/training",                icon: GraduationCap },
+          { label: "Certifications",   to: "/training/certifications", icon: FileCheck2 },
+        ],
+      },
+      { label: "Agency Network", to: "/agency", icon: Globe },
+      {
+        label: "Crew Placement",
+        icon: UserPlus,
+        children: [
+          { label: "Candidates", to: "/crew-placement",           icon: UserPlus },
+          { label: "Vacancies",  to: "/crew-placement/vacancies", icon: ClipboardList },
+        ],
+      },
+      { label: "Documents & e-Sign",     to: "/esign",        icon: FileSignature },
+      { label: "Automations",            to: "/automations",  icon: Zap },
+      { label: "Leo Assistant",          to: "/ai-assistant", icon: Sparkles },
+      { label: "Compass",                to: "/compass",      icon: Compass },
+      { label: "Changelog",              to: "/changelog",    icon: ScrollText },
+      { label: "Small Boat Registration", to: "/small-boat-registration", icon: Sailboat },
+
+      { label: "Settings", to: "/settings", icon: Settings },
     ],
   },
 
-  // ── GUIDES — knowledge base, one menu item per department ───────────────────
+  // ── GUIDES — knowledge base, one menu item per department (kept separate) ────
   {
     label: "Guides",
     children: [
