@@ -91,6 +91,38 @@ export default function NewApplicationWizard({ onClose }: Props) {
   })
   const [draftHandled, setDraftHandled] = useState(false)
 
+  // Resume a specific draft from the list (?draft=<id>): load the saved row +
+  // crew (+ passport) into wizard state so editing continues where it left off.
+  useEffect(() => {
+    const draftId = new URLSearchParams(window.location.search).get('draft')
+    if (!draftId) return
+    setDraftHandled(true)
+    ;(async () => {
+      const db = supabase as any
+      const { data: app } = await db.from('visa_applications').select('*').eq('id', draftId).maybeSingle()
+      if (!app) return
+      const { data: crew } = app.crew_member_id
+        ? await db.from('crew_members').select('*').eq('id', app.crew_member_id).maybeSingle()
+        : { data: null }
+      let passports: any[] = []
+      let passport: any = null
+      if (crew?.id) {
+        try { passports = await loadCrewPassports(crew.id) } catch { passports = [] }
+        passport = app.passport_id ? passports.find(p => p.id === app.passport_id) ?? null : null
+      }
+      setState(prev => ({
+        ...prev,
+        draftId,
+        countryCode: app.country_code ?? prev.countryCode,
+        crew: crew ?? prev.crew,
+        passports,
+        passport,
+        step: passport ? 4 : crew ? 3 : 2,
+      }))
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Auto-save progress so the application can be paused and continued anytime.
   useEffect(() => {
     try {

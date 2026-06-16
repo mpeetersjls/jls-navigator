@@ -101,8 +101,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
       setFiles(f => ({ ...f, [key]: c.file }))
       setSizes(s => ({ ...s, [key]: c.sizeKB }))
       if (key !== 'data') return
-      if (!c.isImage) { setScanNote('PDF uploaded — auto-fill works on photo/image scans only.'); return }
-      setScanning('data'); setScanNote(null)
+      setScanning('data'); setScanNote(c.isImage ? null : 'Reading PDF…')
       const res = await fetch('/api/visa/passport-ocr', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageBase64: c.base64, mediaType: c.mediaType }),

@@ -44,9 +44,15 @@ export async function visaPassportOcrHandler(request: Request): Promise<Response
   } catch { return json({ ok: false, error: 'Invalid request body' }, 400) }
 
   if (!imageBase64) return json({ ok: false, error: 'Missing imageBase64' }, 400)
-  if (!/^image\/(jpeg|png|webp|gif)$/.test(mediaType)) {
-    return json({ ok: false, error: 'Only image uploads can be scanned (PDF not supported for OCR).' }, 415)
+  const isPdf = mediaType === 'application/pdf'
+  if (!isPdf && !/^image\/(jpeg|png|webp|gif)$/.test(mediaType)) {
+    return json({ ok: false, error: 'Unsupported file type for scanning.' }, 415)
   }
+
+  // Images go in as an image block; PDFs as a document block (Claude reads PDFs natively).
+  const fileBlock = isPdf
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imageBase64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } }
 
   let res: Response
   try {
@@ -56,13 +62,7 @@ export async function visaPassportOcrHandler(request: Request): Promise<Response
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 700,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-            { type: 'text', text: PROMPT },
-          ],
-        }],
+        messages: [{ role: 'user', content: [fileBlock, { type: 'text', text: PROMPT }] }],
       }),
     })
   } catch (e: any) {

@@ -7,6 +7,7 @@ import { fetchAllRows } from '@/lib/fetch-all'
 import { COLORS, FONTS } from '@/lib/tokens'
 import { COUNTRY_CONFIGS } from '@/lib/visa/countryConfig'
 import ComplianceAlertBanner from './ComplianceAlertBanner'
+import { VisaReportView } from './VisaReportView'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,6 +125,7 @@ export default function VisaDashboard() {
   const [loading, setLoading]           = useState(true)
   const [alertsOpen, setAlertsOpen]     = useState(false)
   const [emailing, setEmailing]         = useState(false)
+  const [showReport, setShowReport]     = useState(false)
 
   // Filters
   const [activeStatus, setActiveStatus] = useState<string | null>(null)
@@ -244,6 +246,10 @@ export default function VisaDashboard() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  if (showReport) {
+    return <VisaReportView applications={applications as any} vessels={vessels} onClose={() => setShowReport(false)} />
+  }
+
   return (
     <div style={{ fontFamily: FONTS.display, color: COLORS.frost, minHeight: '100vh', padding: '24px' }}>
 
@@ -257,16 +263,28 @@ export default function VisaDashboard() {
             Crew immigration pipeline · {applications.length} total
           </p>
         </div>
-        <button
-          onClick={() => navigate({ to: '/crew-immigration/visas/new' })}
-          style={{
-            background: COLORS.signal, color: COLORS.void, fontFamily: FONTS.display,
-            fontWeight: 700, fontSize: 13, padding: '9px 18px', borderRadius: 8,
-            border: 'none', cursor: 'pointer', letterSpacing: '0.02em',
-          }}
-        >
-          + New Application
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            onClick={() => setShowReport(true)}
+            style={{
+              background: 'transparent', color: COLORS.frost, fontFamily: FONTS.display,
+              fontWeight: 600, fontSize: 13, padding: '9px 16px', borderRadius: 8,
+              border: `1px solid ${COLORS.deep}`, cursor: 'pointer',
+            }}
+          >
+            ▤ Reports
+          </button>
+          <button
+            onClick={() => navigate({ to: '/crew-immigration/visas/new' })}
+            style={{
+              background: COLORS.signal, color: COLORS.void, fontFamily: FONTS.display,
+              fontWeight: 700, fontSize: 13, padding: '9px 18px', borderRadius: 8,
+              border: 'none', cursor: 'pointer', letterSpacing: '0.02em',
+            }}
+          >
+            + New Application
+          </button>
+        </div>
       </div>
 
       {/* Pipeline status filter strip */}
@@ -467,10 +485,10 @@ export default function VisaDashboard() {
                     View
                   </button>
                   <button
-                    onClick={() => navigate({ to: `/crew-immigration/visas/${app.id}` as any })}
-                    style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${COLORS.ocean}`, background: 'transparent', color: COLORS.muted, fontFamily: FONTS.display, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
+                    onClick={() => navigate({ to: app.status === 'draft' ? `/crew-immigration/visas/new?draft=${app.id}` as any : `/crew-immigration/visas/${app.id}` as any })}
+                    style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${COLORS.ocean}`, background: 'transparent', color: app.status === 'draft' ? COLORS.signal : COLORS.muted, fontFamily: FONTS.display, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}
                   >
-                    Edit
+                    {app.status === 'draft' ? 'Resume' : 'Edit'}
                   </button>
                 </div>
               </div>
