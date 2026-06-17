@@ -1230,6 +1230,18 @@ export async function setupSignonList(): Promise<{ ok: boolean; listId?: string;
   return { ok: true, listId }
 }
 
+// Resolve the SharePoint list name + image column for yacht images. The mapping
+// lives in the multi-sync "Yachts" config (sharepoint_sync_configs); the legacy
+// integration_settings config often points elsewhere and has no image field.
+async function getYachtImageConfig(cfg: SpConfig): Promise<{ listName: string; mapping: Record<string, string>; imageSpField: string | undefined }> {
+  const syncs = await getSpSyncs().catch(() => [] as SpSyncConfig[])
+  const yachtSync = syncs.find((s) => s.syncTarget === 'yachts' && s.fieldMapping && Object.keys(s.fieldMapping).length > 0)
+  const mapping = yachtSync?.fieldMapping ?? cfg.fieldMapping
+  const listName = yachtSync?.listName ?? cfg.listName
+  const imageSpField = Object.entries(mapping).find(([, db]) => db === 'vessel_image')?.[0]
+  return { listName, mapping, imageSpField }
+}
+
 // ─── Background image download (cron phase 2) ─────────────────────────────────
 // Processes up to 5 yachts per invocation to stay within CF subrequest limits.
 // Run after syncFromSharePoint() in the cron so images trickle in over time.
@@ -1240,7 +1252,10 @@ export async function downloadPendingImages(
   const cfg = await getSpConfig().catch(() => null)
   if (!cfg) return { downloaded: 0, results: [] }
 
-  const imageSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'vessel_image')?.[0]
+  // The image field + list live in the multi-sync "Yachts" config, NOT the legacy
+  // integration_settings config (which may point at a different list with no image
+  // mapping). Fall back to the legacy config only if there's no yachts sync.
+  const { listName, imageSpField } = await getYachtImageConfig(cfg)
   if (!imageSpField) return { downloaded: 0, results: [] }
 
   // Find yachts synced from SP whose image still needs downloading: either no
@@ -1263,7 +1278,7 @@ export async function downloadPendingImages(
   for (const yacht of pending) {
     try {
       const res = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items/${yacht.sharepoint_item_id}?$expand=fields($select=${encodeURIComponent(imageSpField)})`,
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listName}/items/${yacht.sharepoint_item_id}?$expand=fields($select=${encodeURIComponent(imageSpField)})`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       if (!res.ok) { results.push({ id: yacht.id, ok: false, reason: `SharePoint item fetch HTTP ${res.status}` }); continue }
@@ -1292,8 +1307,8 @@ export async function downloadYachtImage(yachtId: string): Promise<{ url: string
   const cfg = await getSpConfig().catch(() => null)
   if (!cfg) return { url: null, reason: 'SharePoint is not configured in Settings.' }
 
-  const imageSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'vessel_image')?.[0]
-  if (!imageSpField) return { url: null, reason: 'No image field is mapped in SharePoint settings.' }
+  const { listName, mapping, imageSpField } = await getYachtImageConfig(cfg)
+  if (!imageSpField) return { url: null, reason: 'No image field is mapped in the Yachts SharePoint sync.' }
 
   const { data: yacht } = await supabaseAdmin
     .from('yachts')
@@ -1310,12 +1325,12 @@ export async function downloadYachtImage(yachtId: string): Promise<{ url: string
 
   // If no SP item link, try to find the item by IMO or vessel name
   if (!spItemId) {
-    const imoSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'imo_no')?.[0]
-    const nameSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'vessel_name')?.[0]
+    const imoSpField = Object.entries(mapping).find(([, db]) => db === 'imo_no')?.[0]
+    const nameSpField = Object.entries(mapping).find(([, db]) => db === 'vessel_name')?.[0]
 
     if (imoSpField && yacht.imo_no) {
       const r = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items?$filter=${encodeURIComponent(`fields/${imoSpField} eq '${yacht.imo_no}'`)}&$select=id`,
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listName}/items?$filter=${encodeURIComponent(`fields/${imoSpField} eq '${yacht.imo_no}'`)}&$select=id`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const d = await r.json() as Record<string, any>
@@ -1324,7 +1339,7 @@ export async function downloadYachtImage(yachtId: string): Promise<{ url: string
 
     if (!spItemId && nameSpField && yacht.vessel_name) {
       const r = await fetch(
-        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items?$filter=${encodeURIComponent(`fields/${nameSpField} eq '${yacht.vessel_name}'`)}&$select=id`,
+        `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listName}/items?$filter=${encodeURIComponent(`fields/${nameSpField} eq '${yacht.vessel_name}'`)}&$select=id`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       const d = await r.json() as Record<string, any>
@@ -1343,7 +1358,7 @@ export async function downloadYachtImage(yachtId: string): Promise<{ url: string
   }
 
   const res = await fetch(
-    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items/${spItemId}?$expand=fields($select=${encodeURIComponent(imageSpField)})`,
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listName}/items/${spItemId}?$expand=fields($select=${encodeURIComponent(imageSpField)})`,
     { headers: { Authorization: `Bearer ${token}` } }
   )
   const item = await res.json() as Record<string, any>
