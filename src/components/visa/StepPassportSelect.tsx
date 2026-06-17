@@ -206,7 +206,30 @@ function UploadZone({ onFile, fileName, fileKB, scanning, onRemove }: {
 }
 
 // Smaller upload tile for cover / seaman's book / headshot.
-function SmallUploadCard({ number, label, optional, icon, fileName, fileKB, scanning, onFile, onRemove, disabled, footer }: {
+const isImageUrl = (u?: string | null) => !!u && /\.(jpe?g|png|webp|gif)(\?|$)/i.test(u)
+
+/** Small clickable document thumbnail (image preview, or a file glyph for PDFs). */
+function DocThumb({ url, onZoom, size = 56 }: { url: string; onZoom?: (u: string) => void; size?: number }) {
+  const img = isImageUrl(url)
+  return (
+    <button
+      type="button"
+      title={img ? 'Click to enlarge' : 'Open document'}
+      onClick={() => { if (img && onZoom) onZoom(url); else window.open(url, '_blank', 'noreferrer') }}
+      style={{
+        width: size, height: size, flexShrink: 0, padding: 0, cursor: img ? 'zoom-in' : 'pointer',
+        borderRadius: 6, overflow: 'hidden', border: `1px solid ${COLORS.deep}`, background: COLORS.void,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >
+      {img
+        ? <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        : <span style={{ fontSize: 20 }} aria-hidden="true">📄</span>}
+    </button>
+  )
+}
+
+function SmallUploadCard({ number, label, optional, icon, fileName, fileKB, scanning, onFile, onRemove, disabled, footer, thumbUrl, onZoom }: {
   number: number
   label: string
   optional?: boolean
@@ -219,6 +242,8 @@ function SmallUploadCard({ number, label, optional, icon, fileName, fileKB, scan
   disabled?: boolean
   accept?: string
   footer?: React.ReactNode
+  thumbUrl?: string | null
+  onZoom?: (u: string) => void
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null)
 
@@ -240,6 +265,11 @@ function SmallUploadCard({ number, label, optional, icon, fileName, fileKB, scan
           <span style={{ fontFamily: FONTS.display, fontSize: 10, color: COLORS.steel, fontStyle: 'italic' }}>Optional</span>
         )}
       </div>
+      {thumbUrl && (
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <DocThumb url={thumbUrl} onZoom={onZoom} />
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 20 }} aria-hidden="true">{icon}</span>
         {fileName ? (
@@ -379,14 +409,17 @@ interface AddPassportFormProps {
   onSaved: (passport: CrewPassport) => void
   onCancel?: () => void
   showCancel: boolean
+  /** When set, the form edits this passport (pre-filled) instead of adding new. */
+  existingPassport?: CrewPassport | null
 }
 
-function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportFormProps) {
-  const [nationality, setNationality] = useState('')
-  const [passportNumber, setPassportNumber] = useState('')
-  const [issueDate, setIssueDate] = useState('')
-  const [expiryDate, setExpiryDate] = useState('')
-  const [issuingCountry, setIssuingCountry] = useState('')
+function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPassport }: AddPassportFormProps) {
+  const ex = existingPassport ?? null
+  const [nationality, setNationality] = useState(ex?.nationality ?? '')
+  const [passportNumber, setPassportNumber] = useState(ex?.passport_number ?? '')
+  const [issueDate, setIssueDate] = useState(ex?.issue_date ?? '')
+  const [expiryDate, setExpiryDate] = useState(ex?.expiry_date ?? '')
+  const [issuingCountry, setIssuingCountry] = useState(ex?.issuing_country ?? '')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [placeOfBirth, setPlaceOfBirth] = useState('')
   const [gender, setGender] = useState('')
@@ -394,9 +427,14 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
   const [files, setFiles] = useState<Record<SlotKey, File | null>>({ cover: null, data: null, seamans: null, headshot: null })
   const [fileNames, setFileNames] = useState<Record<SlotKey, string | null>>({ cover: null, data: null, seamans: null, headshot: null })
   const [sizes, setSizes] = useState<Record<SlotKey, number | null>>({ cover: null, data: null, seamans: null, headshot: null })
-  const [dataPreview, setDataPreview] = useState<string | null>(null)
+  // Existing stored URLs per slot (shown as thumbnails until replaced).
+  const existingUrls: Record<SlotKey, string | null> = {
+    cover: ex?.cover_url ?? null, data: ex?.document_url ?? null,
+    seamans: ex?.seamans_book_url ?? null, headshot: ex?.headshot_url ?? null,
+  }
+  const [dataPreview, setDataPreview] = useState<string | null>(ex?.document_url ?? null)
   const [zoomSrc, setZoomSrc] = useState<string | null>(null)
-  const [noSeamans, setNoSeamans] = useState(false)
+  const [noSeamans, setNoSeamans] = useState(ex?.no_seamans_book ?? false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scanning, setScanning] = useState<SlotKey | null>(null)
@@ -542,17 +580,19 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
       ])
 
       const saved = await upsertPassport({
+        ...(ex?.id ? { id: ex.id } : {}),
         crew_id: crewId,
         nationality: nationality.trim(),
         passport_number: passportNumber.trim(),
         issue_date: issueDate,
         expiry_date: expiryDate,
         issuing_country: issuingCountry.trim(),
-        is_primary: false,
-        document_url: dataUrl,
-        cover_url: coverUrl,
-        seamans_book_url: seamansUrl,
-        headshot_url: headshotUrl,
+        is_primary: ex?.is_primary ?? false,
+        // Keep existing attachments when a slot wasn't re-uploaded (edit mode).
+        document_url: dataUrl ?? existingUrls.data,
+        cover_url: coverUrl ?? existingUrls.cover,
+        seamans_book_url: seamansUrl ?? existingUrls.seamans,
+        headshot_url: headshotUrl ?? existingUrls.headshot,
         no_seamans_book: noSeamans,
         double_checked: doubleChecked,
       })
@@ -604,10 +644,10 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
             {/* Secondary uploads */}
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <SmallUploadCard number={1} label="Passport Cover" optional icon="📄"
-                fileName={fileNames.cover} fileKB={sizes.cover}
+                fileName={fileNames.cover} fileKB={sizes.cover} thumbUrl={!files.cover ? existingUrls.cover : null} onZoom={setZoomSrc}
                 onFile={(f) => handleSlot('cover', f)} onRemove={() => handleSlot('cover', null)} />
               <SmallUploadCard number={2} label="Seaman's Book" optional icon="📋"
-                fileName={fileNames.seamans} fileKB={sizes.seamans} disabled={noSeamans}
+                fileName={fileNames.seamans} fileKB={sizes.seamans} disabled={noSeamans} thumbUrl={!files.seamans ? existingUrls.seamans : null} onZoom={setZoomSrc}
                 onFile={(f) => handleSlot('seamans', f)} onRemove={() => handleSlot('seamans', null)}
                 footer={
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: FONTS.display, fontSize: 11, color: COLORS.muted }}>
@@ -616,7 +656,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel }: AddPassportF
                   </label>
                 } />
               <SmallUploadCard number={3} label="Headshot Photo" icon="👤"
-                fileName={fileNames.headshot} fileKB={sizes.headshot}
+                fileName={fileNames.headshot} fileKB={sizes.headshot} thumbUrl={!files.headshot ? existingUrls.headshot : null} onZoom={setZoomSrc}
                 onFile={(f) => handleSlot('headshot', f)} onRemove={() => handleSlot('headshot', null)} />
             </div>
           </section>
@@ -834,11 +874,19 @@ interface PassportCardProps {
   passport: CrewPassport
   selected: boolean
   onSelect: () => void
+  onEdit?: () => void
 }
 
-function PassportCard({ passport, selected, onSelect }: PassportCardProps) {
+function PassportCard({ passport, selected, onSelect, onEdit }: PassportCardProps) {
   const expiryColor = getExpiryColor(passport.expiry_date)
   const expiryLabel = getExpiryLabel(passport.expiry_date)
+  const [zoomSrc, setZoomSrc] = useState<string | null>(null)
+  const thumbs: { url: string; label: string }[] = [
+    passport.document_url ? { url: passport.document_url, label: 'Inside pages' } : null,
+    passport.cover_url ? { url: passport.cover_url, label: 'Cover' } : null,
+    passport.headshot_url ? { url: passport.headshot_url, label: 'Headshot' } : null,
+    passport.seamans_book_url ? { url: passport.seamans_book_url, label: "Seaman's book" } : null,
+  ].filter(Boolean) as { url: string; label: string }[]
 
   const docStatus = {
     insidePages: (passport.document_url ? 'uploaded' : 'not_uploaded') as 'uploaded' | 'missing' | 'not_uploaded',
@@ -871,6 +919,18 @@ function PassportCard({ passport, selected, onSelect }: PassportCardProps) {
             Primary
           </span>
         )}
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            style={{
+              fontFamily: FONTS.display, fontSize: 13, fontWeight: 600, padding: '7px 14px', borderRadius: 8,
+              border: `1px solid ${COLORS.deep}`, background: 'transparent', color: COLORS.muted, cursor: 'pointer',
+            }}
+          >
+            Edit
+          </button>
+        )}
         <button
           type="button"
           onClick={onSelect}
@@ -898,28 +958,25 @@ function PassportCard({ passport, selected, onSelect }: PassportCardProps) {
 
         {/* Left: preview + extracted-info grid */}
         <div style={{ flex: 1, display: 'flex', gap: 20, alignItems: 'flex-start', minWidth: 0 }}>
-          {/* Preview */}
+          {/* Document thumbnails */}
           <div style={{ width: 150, flexShrink: 0 }}>
             <span style={{ display: 'block', fontFamily: FONTS.display, fontSize: 11, fontWeight: 600, color: COLORS.muted, marginBottom: 8 }}>
-              Passport Preview
+              Documents
             </span>
-            <div style={{ background: COLORS.void, border: `1px solid ${COLORS.deep}`, borderRadius: 8, overflow: 'hidden', minHeight: 90, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {passport.document_url ? (
-                <SignedAnchor stored={passport.document_url} style={{ display: 'block', width: '100%' }}>
-                  <div style={{ padding: '24px 12px', textAlign: 'center', fontFamily: FONTS.display, fontSize: 12, color: COLORS.signal, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                    View document
+            {thumbs.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {thumbs.map(t => (
+                  <div key={t.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 60 }}>
+                    <DocThumb url={t.url} onZoom={setZoomSrc} size={60} />
+                    <span style={{ fontFamily: FONTS.display, fontSize: 9, color: COLORS.steel, textAlign: 'center', lineHeight: 1.2 }}>{t.label}</span>
                   </div>
-                </SignedAnchor>
-              ) : (
-                <div style={{ padding: '24px 12px', textAlign: 'center', fontFamily: FONTS.display, fontSize: 12, color: COLORS.steel }}>
-                  No scan on file
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ background: COLORS.void, border: `1px solid ${COLORS.deep}`, borderRadius: 8, padding: '24px 12px', textAlign: 'center', fontFamily: FONTS.display, fontSize: 12, color: COLORS.steel }}>
+                No documents on file
+              </div>
+            )}
           </div>
 
           {/* Extracted-info grid */}
@@ -942,6 +999,15 @@ function PassportCard({ passport, selected, onSelect }: PassportCardProps) {
         {/* Right: per-passport Document Status */}
         <DocumentStatusPanel status={docStatus} expiryDate={passport.expiry_date} />
       </div>
+
+      {zoomSrc && (
+        <div
+          onClick={() => setZoomSrc(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out', padding: 24 }}
+        >
+          <img src={zoomSrc} alt="Document — enlarged" style={{ maxWidth: '95vw', maxHeight: '95vh', objectFit: 'contain', borderRadius: 8, boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }} />
+        </div>
+      )}
     </div>
   )
 }
@@ -1001,6 +1067,7 @@ function getFlagEmoji(nationality: string): string {
 
 export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPassportSelectProps) {
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingPassport, setEditingPassport] = useState<CrewPassport | null>(null)
   const [localPassports, setLocalPassports] = useState<CrewPassport[]>(state.passports)
 
   const countryConfig = COUNTRY_CONFIGS[state.countryCode as CountryCode]
@@ -1011,10 +1078,13 @@ export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPass
   const noPassports = localPassports.length === 0
 
   function handlePassportSaved(passport: CrewPassport) {
-    const updated = [...localPassports, passport]
+    const exists = localPassports.some(p => p.id === passport.id)
+    const updated = exists ? localPassports.map(p => p.id === passport.id ? passport : p) : [...localPassports, passport]
     setLocalPassports(updated)
-    onUpdate({ passports: updated, passport })
+    // Keep the currently-selected passport in sync if it was the one edited.
+    onUpdate({ passports: updated, passport: state.passport?.id === passport.id ? passport : (exists ? state.passport ?? passport : passport) })
     setShowAddForm(false)
+    setEditingPassport(null)
   }
 
   function handleSelectPassport(passport: CrewPassport) {
@@ -1039,8 +1109,16 @@ export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPass
         </div>
       </div>
 
-      {/* Passport list or empty state */}
-      {noPassports && !showAddForm ? (
+      {/* Editing an existing passport → show the full passport form pre-filled */}
+      {editingPassport && state.crew ? (
+        <AddPassportForm
+          crewId={state.crew.id}
+          existingPassport={editingPassport}
+          onSaved={handlePassportSaved}
+          onCancel={() => setEditingPassport(null)}
+          showCancel
+        />
+      ) : noPassports && !showAddForm ? (
         <div style={{
           background: COLORS.abyss, border: `1px solid ${COLORS.deep}`, borderRadius: 12,
           padding: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center',
@@ -1073,6 +1151,7 @@ export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPass
                   passport={p}
                   selected={state.passport?.id === p.id}
                   onSelect={() => handleSelectPassport(p)}
+                  onEdit={() => setEditingPassport(p)}
                 />
               ))}
             </div>
