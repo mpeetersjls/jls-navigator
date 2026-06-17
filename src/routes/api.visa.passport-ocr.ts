@@ -41,9 +41,15 @@ Return ONLY a single JSON object (no prose, no code fences) with EXACTLY these k
   "issue_date": string|null,            // YYYY-MM-DD — date of issue/issuance
   "expiry_date": string|null,           // YYYY-MM-DD — visa expiry / "valid until"
   "first_entry_expiry": string|null,    // YYYY-MM-DD — the "must enter before" / "enter before" activation deadline, if shown
-  "place_of_issue": string|null
+  "place_of_issue": string|null,
+  "holder_name": string|null,           // the full name of the visa holder as printed
+  "surname": string|null,               // holder surname / family name
+  "given_names": string|null,           // holder given/first names
+  "passport_number": string|null,       // the holder's passport number, if shown
+  "nationality": string|null,           // holder nationality (demonym)
+  "date_of_birth": string|null          // YYYY-MM-DD
 }
-Use null for anything you cannot read confidently. Dates MUST be YYYY-MM-DD.`
+Use null for anything you cannot read confidently. Dates (any format/language) MUST be output as YYYY-MM-DD.`
 
 export async function visaPassportOcrHandler(request: Request): Promise<Response> {
   const json = (body: unknown, status = 200) =>

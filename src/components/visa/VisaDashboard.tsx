@@ -8,6 +8,7 @@ import { COLORS, FONTS } from '@/lib/tokens'
 import { COUNTRY_CONFIGS } from '@/lib/visa/countryConfig'
 import ComplianceAlertBanner from './ComplianceAlertBanner'
 import { VisaReportView } from './VisaReportView'
+import { VisaBulkUpload } from './VisaBulkUpload'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -191,6 +192,7 @@ export default function VisaDashboard() {
   const [alertsOpen, setAlertsOpen]     = useState(false)
   const [emailing, setEmailing]         = useState(false)
   const [showReport, setShowReport]     = useState(false)
+  const [bulkOpen, setBulkOpen]         = useState(false)
 
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [attaching, setAttaching]   = useState<string | null>(null)
@@ -271,28 +273,26 @@ export default function VisaDashboard() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      const [appsRes, alertsRes] = await Promise.all([
-        fetchAllRows(() => (supabase as any)
-          .from('visa_applications')
-          .select('*, crew_members(full_name, first_name, last_name), yachts(vessel_name)')
-          .order('created_at', { ascending: false })),
-        (supabase as any)
-          .from('compliance_alerts')
-          .select('*')
-          .eq('resolved', false)
-          .in('severity', ['warn', 'critical'])
-          .order('due_date', { ascending: true })
-          .limit(5),
-      ])
-      setApplications((appsRes.data ?? []) as VisaApplication[])
-      setAlerts((alertsRes.data ?? []) as ComplianceAlert[])
-      setLoading(false)
-    }
-    load()
-  }, [])
+  async function loadAll() {
+    setLoading(true)
+    const [appsRes, alertsRes] = await Promise.all([
+      fetchAllRows(() => (supabase as any)
+        .from('visa_applications')
+        .select('*, crew_members(full_name, first_name, last_name), yachts(vessel_name)')
+        .order('created_at', { ascending: false })),
+      (supabase as any)
+        .from('compliance_alerts')
+        .select('*')
+        .eq('resolved', false)
+        .in('severity', ['warn', 'critical'])
+        .order('due_date', { ascending: true })
+        .limit(5),
+    ])
+    setApplications((appsRes.data ?? []) as VisaApplication[])
+    setAlerts((alertsRes.data ?? []) as ComplianceAlert[])
+    setLoading(false)
+  }
+  useEffect(() => { void loadAll() }, [])
 
   // ── Derived: vessels & years present in the data ────────────────────────────
 
@@ -405,6 +405,7 @@ export default function VisaDashboard() {
 
   return (
     <div style={{ fontFamily: FONTS.display, color: COLORS.frost, minHeight: '100vh', padding: '24px' }}>
+      {bulkOpen && <VisaBulkUpload onClose={() => setBulkOpen(false)} onChanged={() => void loadAll()} />}
       <RotatingBanner messages={bannerMessages} />
 
       {/* Header */}
@@ -427,6 +428,16 @@ export default function VisaDashboard() {
             }}
           >
             ▤ Reports
+          </button>
+          <button
+            onClick={() => setBulkOpen(true)}
+            style={{
+              background: 'transparent', color: COLORS.signal, fontFamily: FONTS.display,
+              fontWeight: 600, fontSize: 13, padding: '9px 16px', borderRadius: 8,
+              border: `1px solid ${COLORS.signal}`, cursor: 'pointer',
+            }}
+          >
+            ↑ Bulk Upload Visas
           </button>
           <button
             onClick={() => navigate({ to: '/crew-immigration/visas/new' })}
