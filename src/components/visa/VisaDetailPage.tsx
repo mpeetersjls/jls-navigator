@@ -125,6 +125,8 @@ export function VisaDetailPage() {
   }
 
   async function setStatus(status: string) {
+    const label = (STATUS_META[status]?.label ?? status);
+    if (!window.confirm(`Change this application's status to "${label}"?`)) return;
     const patch: any = { status, updated_at: new Date().toISOString() };
     if (status === "submitted") patch.submitted_at = new Date().toISOString();
     if (status === "approved")  patch.approved_at = new Date().toISOString();

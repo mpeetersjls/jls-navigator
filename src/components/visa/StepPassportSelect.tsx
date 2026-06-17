@@ -432,9 +432,21 @@ interface AddPassportFormProps {
   showCancel: boolean
   /** When set, the form edits this passport (pre-filled) instead of adding new. */
   existingPassport?: CrewPassport | null
+  /** Crew profile name, to flag if it differs from the scanned passport name. */
+  crewName?: string
 }
 
-function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPassport }: AddPassportFormProps) {
+// Compare two names ignoring case, order, and punctuation. Returns true if they
+// share no meaningful overlap (a likely discrepancy).
+function namesDiffer(a: string, b: string): boolean {
+  const toks = (s: string) => s.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(t => t.length > 1)
+  const A = new Set(toks(a)), B = toks(b)
+  if (A.size === 0 || B.length === 0) return false
+  const overlap = B.filter(t => A.has(t)).length
+  return overlap < Math.min(A.size, B.length) // any token missing on either side = flag
+}
+
+function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPassport, crewName }: AddPassportFormProps) {
   const ex = existingPassport ?? null
   const [nationality, setNationality] = useState(ex?.nationality ?? '')
   const [passportNumber, setPassportNumber] = useState(ex?.passport_number ?? '')
@@ -455,6 +467,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
   }
   const [dataPreview, setDataPreview] = useState<string | null>(ex?.document_url ?? null)
   const [dataIsPdf, setDataIsPdf] = useState<boolean>(!!ex?.document_url && /\.pdf(\?|$)/i.test(ex.document_url))
+  const [nameMismatch, setNameMismatch] = useState<string | null>(null)
   const [zoomSrc, setZoomSrc] = useState<string | null>(null)
   const [noSeamans, setNoSeamans] = useState(ex?.no_seamans_book ?? false)
   const [uploading, setUploading] = useState(false)
@@ -501,6 +514,10 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
       if (d.date_of_birth && !dateOfBirth) setDateOfBirth(d.date_of_birth)
       if (d.place_of_birth && !placeOfBirth) setPlaceOfBirth(d.place_of_birth)
       if (d.gender && !gender) setGender(d.gender)
+      // Flag if the passport name differs from the crew profile name.
+      const passportName = `${d.given_names ?? ''} ${d.surname ?? ''}`.trim()
+      if (crewName && passportName && namesDiffer(crewName, passportName)) setNameMismatch(passportName)
+      else setNameMismatch(null)
       const cl = d.checklist ?? {}
       setAuto({
         colour:  typeof cl.is_colour === 'boolean' ? cl.is_colour : null,
@@ -522,6 +539,18 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
     const min = new Date(); min.setMonth(min.getMonth() + 6)
     return exp >= min
   })()
+  // True when a date is set but it fails the minimum 6-month validity rule.
+  const expiryInvalid = !!expiryDate && sixMoOk === false
+
+  // Toggle a checklist item; block ticking "validity" when the date fails the rule.
+  function toggleCheck(key: string) {
+    const on = isChecked(key)
+    if (key === 'validity' && !on && sixMoOk === false) {
+      setError('Cannot confirm “Minimum 6 months validity” — the passport expiry date does not have at least 6 months remaining.')
+      return
+    }
+    setManualChecks(m => ({ ...m, [key]: !on }))
+  }
   const allSizes = Object.values(sizes).filter((v): v is number => v != null)
   const sizeOk: boolean | null = allSizes.length === 0 ? null : allSizes.every(v => v <= 1000)
 
@@ -584,6 +613,10 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
     }
     if (!hasRequiredDocs) {
       setError('Passport inside pages, passport cover and headshot photo are all required.')
+      return
+    }
+    if (expiryInvalid) {
+      setError('Passport expiry does not meet the minimum 6 months validity — cannot proceed.')
       return
     }
     if (!allChecked) {
@@ -767,6 +800,18 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
                   )}
                 </div>
 
+                {nameMismatch && (
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, padding: '10px 12px',
+                    background: `${COLORS.warn}14`, border: `1px solid ${COLORS.warn}55`, borderRadius: 8,
+                  }}>
+                    <span style={{ fontSize: 14 }} aria-hidden="true">⚠</span>
+                    <span style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.frost, lineHeight: 1.5 }}>
+                      <strong>Name discrepancy:</strong> the passport reads <strong>{nameMismatch}</strong>, which differs from the crew profile name <strong>{crewName}</strong>. Verify the crew member matches this passport before saving.
+                    </span>
+                  </div>
+                )}
+
                 {/* Row 1 */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 10 }}>
                   <FieldCard label="Nationality">
@@ -827,7 +872,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
                   <button
                     key={item.key}
                     type="button"
-                    onClick={() => setManualChecks(m => ({ ...m, [item.key]: !on }))}
+                    onClick={() => toggleCheck(item.key)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 9, padding: '6px 8px',
                       background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', width: '100%',
@@ -892,13 +937,13 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
               )}
               <button
                 type="submit"
-                disabled={uploading || !doubleChecked || !allChecked || !hasRequiredDocs}
-                title={!hasRequiredDocs ? 'Upload the passport inside pages, cover and headshot first' : !allChecked ? 'Tick every checklist item first' : !doubleChecked ? 'Confirm you have double-checked the information first' : undefined}
+                disabled={uploading || !doubleChecked || !allChecked || !hasRequiredDocs || expiryInvalid}
+                title={expiryInvalid ? 'Passport fails the minimum 6 months validity rule' : !hasRequiredDocs ? 'Upload the passport inside pages, cover and headshot first' : !allChecked ? 'Tick every checklist item first' : !doubleChecked ? 'Confirm you have double-checked the information first' : undefined}
                 style={{
                   background: COLORS.signal, border: 'none', borderRadius: 8, color: COLORS.void,
                   fontFamily: FONTS.display, fontSize: 14, fontWeight: 600, padding: '8px 20px',
-                  cursor: (uploading || !doubleChecked || !allChecked || !hasRequiredDocs) ? 'not-allowed' : 'pointer',
-                  opacity: (uploading || !doubleChecked || !allChecked || !hasRequiredDocs) ? 0.6 : 1,
+                  cursor: (uploading || !doubleChecked || !allChecked || !hasRequiredDocs || expiryInvalid) ? 'not-allowed' : 'pointer',
+                  opacity: (uploading || !doubleChecked || !allChecked || !hasRequiredDocs || expiryInvalid) ? 0.6 : 1,
                 }}
               >
                 {uploading ? 'Saving…' : 'Save Passport'}
@@ -1169,6 +1214,7 @@ export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPass
         <AddPassportForm
           crewId={state.crew.id}
           existingPassport={editingPassport}
+          crewName={state.crew.full_name ?? `${state.crew.first_name ?? ''} ${state.crew.last_name ?? ''}`.trim()}
           onSaved={handlePassportSaved}
           onCancel={() => setEditingPassport(null)}
           showCancel
@@ -1244,6 +1290,7 @@ export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPass
           {showAddForm && state.crew && (
             <AddPassportForm
               crewId={state.crew.id}
+              crewName={state.crew.full_name ?? `${state.crew.first_name ?? ''} ${state.crew.last_name ?? ''}`.trim()}
               onSaved={handlePassportSaved}
               onCancel={() => setShowAddForm(false)}
               showCancel={localPassports.length > 0}
