@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DateInputDMY } from "@/components/ui/date-input-dmy";
 import { SignedAnchor } from "@/components/ui/signed-file";
-import { ArrowLeft, Loader2, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2, ExternalLink, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { fileToBase64 } from "@/lib/file-to-base64";
+import { uploadCrewDocToSharePoint } from "@/lib/visa-sharepoint.server";
 
 type Visa = Record<string, any>;
 
@@ -44,6 +46,44 @@ export function VisaDetailPage() {
   const [form, setForm] = useState<Visa>({});
   const [busy, setBusy] = useState(false);
   const [del, setDel] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Attach the issued visa: store it, mark the application Approved, and file the
+  // document into the SharePoint crew folder automatically (best-effort).
+  async function attachVisaFile(file: File | null) {
+    if (!file) return;
+    setAttaching(true);
+    try {
+      const db = supabase as any;
+      const ext = file.name.split(".").pop() || "pdf";
+      const path = `visa/${id}/visa-document.${ext}`;
+      const { error: upErr } = await supabase.storage.from("permit-documents").upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const url = supabase.storage.from("permit-documents").getPublicUrl(path).data.publicUrl;
+      const patch: any = { visa_document_url: url, status: "approved", approved_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      const { error } = await db.from("visa_applications").update(patch).eq("id", id);
+      if (error) throw error;
+      setVisa(v => ({ ...v!, ...patch }));
+      toast.success("Visa attached — application moved to Approved");
+      // File into SharePoint: Shared Documents / Yacht / {vessel} / Crew Documents / {crew}.
+      try {
+        const crewName = [visa?.given_name, visa?.surname].filter(Boolean).join(" ") || "Unknown Crew";
+        const base64 = await fileToBase64(file);
+        await (uploadCrewDocToSharePoint as any)({
+          data: { vesselName: visa?.vessel_name ?? (vesselName !== "—" ? vesselName : null), crewName, fileName: `Visa - ${file.name}`, contentType: file.type, base64 },
+        });
+        toast.success("Filed in the SharePoint crew folder");
+      } catch (spErr) {
+        toast.warning(`Saved, but SharePoint filing failed: ${spErr instanceof Error ? spErr.message : "unknown error"}`);
+      }
+      pushExcel();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not attach the visa");
+    } finally {
+      setAttaching(false);
+    }
+  }
 
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, [id]);
 
@@ -186,6 +226,30 @@ export function VisaDetailPage() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* Attach issued visa — drag & drop or click; files into SharePoint */}
+            <div className="mt-5">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Attach Issued Visa</div>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); void attachVisaFile(e.dataTransfer.files?.[0] ?? null); }}
+                onClick={() => !attaching && document.getElementById("visa-attach-input")?.click()}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3 py-5 text-center transition",
+                  attaching ? "cursor-wait" : "cursor-pointer",
+                  dragOver ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+                )}
+              >
+                {attaching
+                  ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  : <Upload className="h-5 w-5 text-primary" />}
+                <span className="text-[12px] font-medium">{attaching ? "Uploading…" : "Drag the visa here, or click"}</span>
+                <span className="text-[10.5px] leading-snug text-muted-foreground">Drop a file from Outlook or your PC — it's filed into the crew folder and the application is marked Approved.</span>
+                <input id="visa-attach-input" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                  onChange={e => { void attachVisaFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+              </div>
             </div>
           </div>
         </div>

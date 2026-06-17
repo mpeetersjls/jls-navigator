@@ -149,6 +149,16 @@ export default function VisaDashboard() {
       if (error) throw error
       setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved', visa_document_url: url } : a))
       toast.success('Visa attached — application moved to Approved')
+      // File into the SharePoint crew folder (best-effort).
+      try {
+        const { fileToBase64 } = await import('@/lib/file-to-base64')
+        const { uploadCrewDocToSharePoint } = await import('@/lib/visa-sharepoint.server')
+        const base64 = await fileToBase64(file)
+        await (uploadCrewDocToSharePoint as any)({
+          data: { vesselName: app.vessel_name ?? app.yachts?.vessel_name ?? null, crewName: getCrewName(app), fileName: `Visa - ${file.name}`, contentType: file.type, base64 },
+        })
+        toast.success('Filed in the SharePoint crew folder')
+      } catch { /* non-fatal — Supabase copy is the source of truth */ }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Could not attach the visa')
     } finally {
