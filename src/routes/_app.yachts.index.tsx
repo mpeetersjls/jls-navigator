@@ -695,8 +695,8 @@ function CardsView({ rows }: { rows: Yacht[] }) {
           className="group overflow-hidden rounded-lg border border-border bg-card transition hover:border-primary/50 hover:shadow-[0_8px_30px_-10px_oklch(0.62_0.18_245/.35)]"
         >
           <div className="aspect-[16/9] overflow-hidden bg-muted">
-            {y.vessel_image ? (
-              <img src={y.vessel_image as string} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
+            {typeof y.vessel_image === "string" && /^https?:\/\//.test(y.vessel_image) ? (
+              <img src={y.vessel_image} alt="" className="h-full w-full object-cover transition group-hover:scale-105" />
             ) : (
               <div className="flex h-full w-full items-center justify-center">
                 <Ship className="h-10 w-10 text-muted-foreground/40" />

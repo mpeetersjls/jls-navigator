@@ -32,13 +32,18 @@ export const VISA_WORKBOOKS = [
 
 // Canonical field → header aliases (compared case-insensitively, spaces/punct stripped)
 // and how to render the value for Excel.
-type FieldSpec = { dbKey: string; aliases: string[]; kind: 'text' | 'date' }
+type FieldSpec = { dbKey: string; aliases: string[]; kind: 'text' | 'date' | 'status' }
+
+// App visa-status → label written into the tracker's STATUS column.
+// (Tunable: the trackers also use operational values like "closed"/"on board".)
+const STATUS_MAP: Record<string, string> = {
+  draft: 'Draft', pending_docs: 'Pending Docs', need_to_apply: 'Need to Apply',
+  submitted: 'Submitted', in_review: 'In Review', processing: 'Processing',
+  approved: 'Approved', completed: 'Approved', rejected: 'Rejected', cancelled: 'Cancelled',
+}
+
 const FIELDS: FieldSpec[] = [
-  // NOTE: the tracker's STATUS column is operational crew-movement state
-  // (closed / on board / sign off / on signer / cancelled …) — a different
-  // concept from the app's visa-application status. Writing the app status
-  // here would overwrite meaningful values, so STATUS is intentionally NOT
-  // synced. (The only clean overlap would be cancelled→cancelled.)
+  { dbKey: 'status',             aliases: ['STATUS'],                                   kind: 'status' },
   { dbKey: 'visa_number',        aliases: ['VISA REF', 'VISA REFERENCE', 'VISA NO', 'VISA NUMBER'], kind: 'text' },
   { dbKey: 'visa_issuance_date', aliases: ['VISA ISSUANCE', 'VISA ISSUE', 'ISSUANCE'],  kind: 'date' },
   { dbKey: 'visa_expiry',        aliases: ['VISA EXPIRY', 'VISA EXP'],                  kind: 'date' },
@@ -210,7 +215,11 @@ export async function pushVisaToExcel(visaId: string, opts: { dryRun?: boolean }
           if (col < 0) continue
           const raw = (visa as any)[f.dbKey]
           if (raw === null || raw === undefined || raw === '') continue
-          const value = f.kind === 'date' ? toExcelSerial(String(raw)) : String(raw)
+          const value = f.kind === 'date'
+            ? toExcelSerial(String(raw))
+            : f.kind === 'status'
+              ? (STATUS_MAP[String(raw)] ?? String(raw))
+              : String(raw)
           if (value === null) continue
           if (norm(existing[col]) === norm(value)) continue // unchanged
           changes.push({ cell: `${colLetters(anchor.col + col)}${excelRow}`, field: f.dbKey, value })

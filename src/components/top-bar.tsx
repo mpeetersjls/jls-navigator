@@ -3,9 +3,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
-  Search, Bell, LogOut, Settings, UserCircle2, Ship, Loader2, ChevronDown, X, Sun, Moon,
+  Search, Bell, LogOut, Settings, UserCircle2, Ship, Loader2, ChevronDown, X, Sun, Moon, Users, Eye, Check, ShieldCheck,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+import { useViewAsRole, setViewAsRole, useCanImpersonate, VIEW_AS_OPTIONS, ROLE_LABEL } from "@/lib/view-as";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuSeparator, DropdownMenuTrigger,
@@ -18,6 +20,130 @@ type SearchResult = {
   sub: string;
   to: string;
 };
+
+function nameFromEmail(email?: string | null): string {
+  return (email ?? "User").split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+type OnlineUser = { id: string; name: string; email: string };
+
+// Live "who's online" via Supabase Realtime presence. Each client broadcasts its
+// identity to a shared channel; the count + names update in real time.
+function OnlineUsers() {
+  const { user } = useAuth();
+  const [online, setOnline] = useState<OnlineUser[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase.channel("presence:online-users", {
+      config: { presence: { key: user.id } },
+    });
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState() as Record<string, Array<{ name?: string; email?: string }>>;
+      const users = Object.entries(state).map(([id, metas]) => ({
+        id,
+        name: metas[0]?.name ?? nameFromEmail(metas[0]?.email),
+        email: metas[0]?.email ?? "",
+      }));
+      users.sort((a, b) => a.name.localeCompare(b.name));
+      setOnline(users);
+    });
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ name: nameFromEmail(user.email), email: user.email ?? "", online_at: new Date().toISOString() });
+      }
+    });
+    return () => { void supabase.removeChannel(channel); };
+  }, [user?.id, user?.email]);
+
+  const count = online.length;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="relative flex h-9 items-center gap-1.5 rounded-lg px-2 text-muted-foreground hover:bg-accent hover:text-foreground transition"
+          title={`${count} user${count !== 1 ? "s" : ""} online`}
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          <Users className="h-[18px] w-[18px]" />
+          <span className="text-xs font-semibold tabular-nums">{count}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel className="flex items-center justify-between">
+          <span>Online now</span>
+          <span className="text-xs font-normal text-muted-foreground">{count}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {online.length === 0 ? (
+          <div className="px-2 py-3 text-center text-xs text-muted-foreground">No one online</div>
+        ) : (
+          <div className="max-h-72 overflow-auto py-1">
+            {online.map((u) => (
+              <div key={u.id} className="flex items-center gap-2.5 px-2 py-1.5">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-foreground">
+                    {u.name}{u.id === user?.id && <span className="ml-1 text-[10px] font-normal text-muted-foreground">(you)</span>}
+                  </div>
+                  {u.email && <div className="truncate text-[11px] text-muted-foreground">{u.email}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// Admin-only "View as" control — preview the app as a client/crew role.
+function ViewAsSwitcher() {
+  const canImpersonate = useCanImpersonate();
+  const viewAs = useViewAsRole();
+  if (!canImpersonate) return null;
+  const active = !!viewAs;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm transition",
+            active
+              ? "bg-amber-500/15 text-amber-500 ring-1 ring-amber-500/30"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          )}
+          title="Preview the app as a client"
+        >
+          <Eye className="h-[17px] w-[17px]" />
+          <span className="hidden text-xs font-semibold md:inline">{active ? ROLE_LABEL[viewAs] ?? "Client" : "View as"}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        <DropdownMenuLabel>Impersonate view</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => setViewAsRole(null)} className="gap-2">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <span className="flex-1">Admin (full access)</span>
+          {!active && <Check className="h-3.5 w-3.5 text-primary" />}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {VIEW_AS_OPTIONS.map((o) => (
+          <DropdownMenuItem key={o.role} onClick={() => setViewAsRole(o.role)} className="gap-2">
+            <UserCircle2 className="h-4 w-4 text-muted-foreground" />
+            <span className="flex-1">{o.label}</span>
+            {viewAs === o.role && <Check className="h-3.5 w-3.5 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 export function TopBar() {
   const { user, signOut } = useAuth();
@@ -41,9 +167,13 @@ export function TopBar() {
     setSearching(true);
     const t = setTimeout(async () => {
       const db = supabase as any;
+      const term = q.trim();
+      // Crew: match EVERY token against full_name (covers middle names, any order).
+      let crewQuery = db.from("crew_members").select("id, first_name, last_name, rank");
+      for (const tok of term.split(/\s+/)) crewQuery = crewQuery.ilike("full_name", `%${tok}%`);
       const [yRes, cRes] = await Promise.all([
-        db.from("yachts").select("id, vessel_name, vessel_type").ilike("vessel_name", `%${q.trim()}%`).limit(6),
-        db.from("crew_members").select("id, first_name, last_name, rank").or(`first_name.ilike.%${q.trim()}%,last_name.ilike.%${q.trim()}%`).limit(6),
+        db.from("yachts").select("id, vessel_name, vessel_type").ilike("vessel_name", `%${term}%`).limit(6),
+        crewQuery.limit(6),
       ]);
       const out: SearchResult[] = [];
       (yRes.data ?? []).forEach((y: any) => out.push({
@@ -72,13 +202,13 @@ export function TopBar() {
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-card px-5">
       {/* Global search */}
       <div ref={boxRef} className="relative w-full max-w-xl">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary/70" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => results.length && setOpenResults(true)}
           placeholder="Search for crew, vessel, document…"
-          className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-9 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40 transition"
+          className="h-9 w-full rounded-lg border border-primary/30 bg-muted/40 pl-9 pr-9 text-sm placeholder:text-muted-foreground/70 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 hover:border-primary/50 transition"
         />
         {q && (
           <button onClick={() => { setQ(""); setOpenResults(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground">
@@ -119,6 +249,12 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
+        {/* View-as / client preview (admin only) */}
+        <ViewAsSwitcher />
+
+        {/* Online users (live presence) */}
+        <OnlineUsers />
+
         {/* Theme toggle */}
         <button
           onClick={toggle}

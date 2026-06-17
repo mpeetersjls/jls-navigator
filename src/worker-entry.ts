@@ -11,6 +11,8 @@ import { visaComplianceHandler } from './routes/api.visa.compliance'
 import { visaMonitorHandler } from './routes/api.visa.monitor'
 import { visaExportHandler } from './routes/api.visa.export'
 import { visaExcelPushHandler } from './routes/api.visa.excel-push'
+import { visaPassportOcrHandler } from './routes/api.visa.passport-ocr'
+import { itTicketsNotifyHandler } from './routes/api.it-tickets.notify'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -42,6 +44,24 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
       }
       ctx.waitUntil(downloadPendingImages().catch(() => 0))
       return new Response(JSON.stringify({ ok: true, results }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      })
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
+  // Manual image backfill: `?images=N` synchronously downloads up to N pending
+  // vessel images from SharePoint (default 10, max 15) and returns the count.
+  // Unlike the cron's waitUntil download, this runs inside the request so it
+  // reliably completes — loop it to backfill the whole fleet a batch at a time.
+  if (url.searchParams.get('images')) {
+    const n = Math.min(Math.max(parseInt(url.searchParams.get('images') || '10', 10) || 10, 1), 15)
+    try {
+      const downloaded = await downloadPendingImages(n)
+      return new Response(JSON.stringify({ ok: true, requested: n, downloaded }), {
         status: 200, headers: { 'Content-Type': 'application/json' },
       })
     } catch (e) {
@@ -138,6 +158,14 @@ export default {
 
     if (url.pathname === '/api/visa/excel-push' && (request.method === 'GET' || request.method === 'POST')) {
       return visaExcelPushHandler(request)
+    }
+
+    if (url.pathname === '/api/visa/passport-ocr' && request.method === 'POST') {
+      return visaPassportOcrHandler(request)
+    }
+
+    if (url.pathname === '/api/it-tickets/notify' && request.method === 'POST') {
+      return itTicketsNotifyHandler(request)
     }
 
     return handleRequest(request, env, ctx)

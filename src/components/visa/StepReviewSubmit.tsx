@@ -6,6 +6,7 @@ import { COLORS } from '@/lib/tokens'
 import type { CrewMember, CrewPassport } from '@/lib/visa/crewMatching'
 import type { CountryVisaConfig } from '@/lib/visa/countryConfig'
 import { COUNTRY_CONFIGS } from '@/lib/visa/countryConfig'
+import { SignedAnchor } from '@/components/ui/signed-file'
 import type { ComplianceResult } from '@/lib/visa/complianceChecks'
 
 interface WizardState {
@@ -76,27 +77,28 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
     }
     setSubmitting(true)
     try {
-      // 1. Insert visa_applications
-      const { data: appData, error: appError } = await (supabase as any)
-        .from('visa_applications')
-        .insert({
-          crew_member_id:  state.crew.id,
-          passport_id:     state.passport.id,
-          country_code:    state.countryCode,
-          status:          'submitted',
-          submitted_at:    new Date().toISOString(),
-          yacht_id:        state.crew.yacht_id ?? null,
-          visa_type:       'Crew Visa',
-          // Mirror crew/passport details onto the row so the dashboard and
-          // reports display correctly even for records without a crew join.
-          given_name:      state.crew.first_name ?? null,
-          surname:         state.crew.last_name ?? null,
-          nationality:     state.passport.nationality ?? state.crew.nationality ?? null,
-          passport_number: state.passport.passport_number ?? null,
-          passport_expiry: state.passport.expiry_date ?? null,
-        })
-        .select('id')
-        .single()
+      // 1. Submit: convert the existing draft to 'submitted', or insert if none.
+      const row = {
+        crew_member_id:  state.crew.id,
+        passport_id:     state.passport.id,
+        country_code:    state.countryCode,
+        status:          'submitted' as const,
+        submitted_at:    new Date().toISOString(),
+        yacht_id:        state.crew.yacht_id ?? null,
+        visa_type:       'Crew Visa',
+        // Mirror crew/passport details onto the row so the dashboard and
+        // reports display correctly even for records without a crew join.
+        given_name:      state.crew.first_name ?? null,
+        surname:         state.crew.last_name ?? null,
+        nationality:     state.passport.nationality ?? state.crew.nationality ?? null,
+        passport_number: state.passport.passport_number ?? null,
+        passport_expiry: state.passport.expiry_date ?? null,
+      }
+      const db = supabase as any
+      const draftId = (state as any).draftId as string | null | undefined
+      const { data: appData, error: appError } = draftId
+        ? await db.from('visa_applications').update(row).eq('id', draftId).select('id').single()
+        : await db.from('visa_applications').insert(row).select('id').single()
 
       if (appError) throw appError
 
@@ -127,6 +129,9 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
           body: JSON.stringify({ id: applicationId }),
         }).catch(() => {})
       }
+
+      // Clear the saved draft now the application is submitted.
+      try { localStorage.removeItem('polaris.visaDraft') } catch { /* ignore */ }
 
       toast.success('Visa application submitted.')
       navigate({ to: '/crew-immigration/visas' })
@@ -228,14 +233,11 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
             {Object.entries(state.uploadedDocs).map(([key, url]) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ color: COLORS.steel, fontSize: 13, minWidth: 140 }}>{key}</span>
-                <a
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: COLORS.signal, fontSize: 13, textDecoration: 'underline' }}
-                >
-                  View document
-                </a>
+                <span style={{ color: COLORS.signal, fontSize: 13, textDecoration: 'underline' }}>
+                  <SignedAnchor stored={url}>
+                    View document
+                  </SignedAnchor>
+                </span>
               </div>
             ))}
           </div>

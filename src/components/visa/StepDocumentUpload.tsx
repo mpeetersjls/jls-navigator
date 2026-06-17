@@ -4,6 +4,7 @@ import { COLORS, FONTS } from '@/lib/tokens'
 import type { CrewMember, CrewPassport } from '@/lib/visa/crewMatching'
 import type { CountryVisaConfig } from '@/lib/visa/countryConfig'
 import { COUNTRY_CONFIGS } from '@/lib/visa/countryConfig'
+import { SignedAnchor } from '@/components/ui/signed-file'
 import type { ComplianceResult } from '@/lib/visa/complianceChecks'
 
 export interface WizardState {
@@ -121,7 +122,7 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
       {requiredDocs.length > 0 && (
         <div
           style={{
-            background:   uploadedCount === requiredDocs.length ? `${COLORS.signal}18` : `${COLORS.ocean}55`,
+            background:   uploadedCount === requiredDocs.length ? `${COLORS.signal}18` : `color-mix(in oklab, ${COLORS.ocean} 33%, transparent)`,
             border:       `1px solid ${uploadedCount === requiredDocs.length ? COLORS.signal : COLORS.deep}`,
             borderRadius: 8,
             padding:      '10px 16px',
@@ -178,14 +179,11 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
             {/* Uploaded state */}
             {isUploaded && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 30 }}>
-                <a
-                  href={state.uploadedDocs[key]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.signal, textDecoration: 'underline', wordBreak: 'break-all' }}
-                >
-                  {decodeURIComponent(state.uploadedDocs[key].split('/').pop() ?? 'View file')}
-                </a>
+                <span style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.signal, textDecoration: 'underline', wordBreak: 'break-all' }}>
+                  <SignedAnchor stored={state.uploadedDocs[key]}>
+                    {decodeURIComponent(state.uploadedDocs[key].split('/').pop() ?? 'View file')}
+                  </SignedAnchor>
+                </span>
                 <button
                   onClick={() => handleRemove(docLabel)}
                   style={{

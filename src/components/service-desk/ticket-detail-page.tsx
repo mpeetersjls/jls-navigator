@@ -27,11 +27,13 @@ type Ticket = {
   subject: string;
   description: string | null;
   yacht_id: string | null;
+  it_yacht_id: string | null;
   queue: string | null;
   category: string | null;
   priority: string | null;
   status: string | null;
   requested_by: string | null;
+  requester_email: string | null;
   assigned_to: string | null;
   resolution: string | null;
   first_response_at: string | null;
@@ -67,6 +69,7 @@ export function TicketDetailPage() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
+  const [itYachts, setItYachts] = useState<Yacht[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -76,6 +79,7 @@ export function TicketDetailPage() {
 
   const [resolution, setResolution] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
+  const [requesterEmail, setRequesterEmail] = useState("");
   const [savingMeta, setSavingMeta] = useState(false);
   const threadEnd = useRef<HTMLDivElement>(null);
 
@@ -84,11 +88,12 @@ export function TicketDetailPage() {
 
   async function load() {
     setLoading(true);
-    const [tRes, mRes, yRes, pRes] = await Promise.all([
+    const [tRes, mRes, yRes, pRes, iRes] = await Promise.all([
       (supabase as any).from("it_tickets").select("*").eq("id", ticketId).maybeSingle(),
       (supabase as any).from("it_ticket_messages").select("*").eq("ticket_id", ticketId).order("created_at"),
       supabase.from("yachts").select("id, vessel_name").order("vessel_name"),
       (supabase as any).from("profiles").select("id, display_name").order("display_name"),
+      (supabase as any).from("it_yachts").select("id, name").eq("active", true).order("name"),
     ]);
     if (tRes.error || !tRes.data) {
       toast.error("Ticket not found");
@@ -99,8 +104,10 @@ export function TicketDetailPage() {
     setTicket(t);
     setResolution(t.resolution ?? "");
     setRequestedBy(t.requested_by ?? "");
+    setRequesterEmail(t.requester_email ?? "");
     setMessages((mRes.data ?? []) as Message[]);
     setYachts((yRes.data ?? []) as Yacht[]);
+    setItYachts(((iRes.data ?? []) as any[]).map(y => ({ id: y.id, vessel_name: y.name })));
     setProfiles((pRes.data ?? []) as Profile[]);
     setLoading(false);
   }
@@ -125,10 +132,22 @@ export function TicketDetailPage() {
       if (!internal && !ticket.first_response_at) patch.first_response_at = new Date().toISOString();
       await (supabase as any).from("it_tickets").update(patch).eq("id", ticket.id);
 
+      // Public replies email the requester (from itsupport@jlsyachts.com).
+      const replyBody = reply.trim();
+      if (!internal) notify("reply", replyBody);
+
       setReply(""); setInternal(false);
       void load();
     } catch (e: any) { toast.error(e.message ?? "Failed to send"); }
     finally { setSending(false); }
+  }
+
+  // Fire a Graph email notification for this ticket (fire-and-forget).
+  function notify(event: "created" | "reply" | "resolved", message?: string) {
+    fetch("/api/it-tickets/notify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId, event, message }),
+    }).catch(() => {});
   }
 
   // Inline metadata update — persists immediately.
@@ -139,13 +158,15 @@ export function TicketDetailPage() {
     if (patch.status === "closed" && !ticket.closed_at) next.closed_at = new Date().toISOString();
     setTicket({ ...ticket, ...next });
     const { error } = await (supabase as any).from("it_tickets").update(next).eq("id", ticket.id);
-    if (error) { toast.error(error.message); void load(); }
+    if (error) { toast.error(error.message); void load(); return; }
+    // Email the requester when the ticket is resolved.
+    if (patch.status === "resolved" && ticket.status !== "resolved") notify("resolved");
   }
 
   async function saveResolution() {
     if (!ticket) return;
     setSavingMeta(true);
-    await patchTicket({ resolution: resolution || null, requested_by: requestedBy || null });
+    await patchTicket({ resolution: resolution || null, requested_by: requestedBy || null, requester_email: requesterEmail || null });
     setSavingMeta(false);
     toast.success("Saved");
   }
@@ -163,7 +184,12 @@ export function TicketDetailPage() {
   }
   if (!ticket) return null;
 
-  const yachtName = ticket.yacht_id ? (yachts.find(y => y.id === ticket.yacht_id)?.vessel_name ?? "—") : null;
+  const yachtName = ticket.yacht_id
+    ? (yachts.find(y => y.id === ticket.yacht_id)?.vessel_name ?? "—")
+    : ticket.it_yacht_id
+      ? (itYachts.find(y => y.id === ticket.it_yacht_id)?.vessel_name ?? "—")
+      : null;
+  const vesselValue = ticket.yacht_id ? `fleet:${ticket.yacht_id}` : ticket.it_yacht_id ? `it:${ticket.it_yacht_id}` : "__none";
 
   return (
     <div className="flex h-full flex-col">
@@ -294,11 +320,19 @@ export function TicketDetailPage() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Vessel</Label>
-            <Select value={ticket.yacht_id ?? "__none"} onValueChange={v => patchTicket({ yacht_id: v === "__none" ? null : v })}>
+            <Select
+              value={vesselValue}
+              onValueChange={v => patchTicket({
+                yacht_id:    v.startsWith("fleet:") ? v.slice(6) : null,
+                it_yacht_id: v.startsWith("it:") ? v.slice(3) : null,
+              })}
+            >
               <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="— None —" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">— None —</SelectItem>
-                {yachts.map(y => <SelectItem key={y.id} value={y.id}>{y.vessel_name}</SelectItem>)}
+                {yachts.map(y => <SelectItem key={y.id} value={`fleet:${y.id}`}>{y.vessel_name}</SelectItem>)}
+                {itYachts.length > 0 && <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">IT Yachts</div>}
+                {itYachts.map(y => <SelectItem key={y.id} value={`it:${y.id}`}>{y.vessel_name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -315,6 +349,10 @@ export function TicketDetailPage() {
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Requested by</Label>
             <Input value={requestedBy} onChange={e => setRequestedBy(e.target.value)} className="h-9 text-sm" placeholder="Contact name" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Requester email <span className="normal-case text-muted-foreground/60">(receives updates)</span></Label>
+            <Input type="email" value={requesterEmail} onChange={e => setRequesterEmail(e.target.value)} className="h-9 text-sm" placeholder="name@example.com" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Resolution</Label>

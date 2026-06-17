@@ -15,15 +15,20 @@ export interface CrewMember {
 }
 
 export interface CrewPassport {
-  id:              string
-  crew_id:         string
-  nationality:     string
-  passport_number: string
-  issue_date:      string
-  expiry_date:     string
-  issuing_country: string
-  is_primary:      boolean
-  document_url:    string | null
+  id:               string
+  crew_id:          string
+  nationality:      string
+  passport_number:  string
+  issue_date:       string
+  expiry_date:      string
+  issuing_country:  string
+  is_primary:       boolean
+  document_url:     string | null
+  cover_url?:       string | null
+  headshot_url?:    string | null
+  seamans_book_url?:string | null
+  no_seamans_book?: boolean
+  double_checked?:  boolean
 }
 
 /**
@@ -64,7 +69,8 @@ export async function upsertCrewMember(
 ): Promise<CrewMember> {
   const payload = {
     ...fields,
-    full_name: `${fields.first_name} ${fields.last_name}`.trim(),
+    full_name: [fields.first_name, (fields as any).middle_name, fields.last_name]
+      .filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(),
     updated_at: new Date().toISOString(),
   }
 
