@@ -27,6 +27,8 @@ interface VisaApplication {
   visa_expiry: string | null
   sign_on_date: string | null
   submitted_at: string | null
+  approved_at: string | null
+  visa_issuance_date: string | null
   application_notes: string | null
   created_at: string
   crew_members: {
@@ -87,6 +89,67 @@ function statusProgress(s: string): { pct: number; color: string } {
   }
 }
 
+// Top banner that rotates through active alerts every few seconds.
+function RotatingBanner({ messages }: { messages: string[] }) {
+  const [i, setI] = useState(0)
+  useEffect(() => {
+    if (messages.length <= 1) return
+    const t = setInterval(() => setI(p => (p + 1) % messages.length), 5000)
+    return () => clearInterval(t)
+  }, [messages.length])
+  if (messages.length === 0) return null
+  const msg = messages[i % messages.length]
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderRadius: 8,
+      background: `${COLORS.warn}18`, border: `1px solid ${COLORS.warn}55`, marginBottom: 16,
+    }}>
+      <span style={{ fontSize: 15 }} aria-hidden="true">⚠</span>
+      <span key={i} style={{ flex: 1, fontFamily: FONTS.display, fontSize: 13, color: COLORS.frost, animation: 'va-fade 0.4s ease' }}>{msg}</span>
+      {messages.length > 1 && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: FONTS.display, fontSize: 11, color: COLORS.muted }}>{(i % messages.length) + 1}/{messages.length}</span>
+          <button onClick={() => setI(p => (p + 1) % messages.length)} title="Next alert"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.muted, fontSize: 14, padding: '0 4px' }}>›</button>
+        </span>
+      )}
+      <style>{`@keyframes va-fade{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}`}</style>
+    </div>
+  )
+}
+
+// What's left / missing to do, per status — shown on the battery tooltip.
+function statusHint(app: VisaApplication): string {
+  switch (app.status) {
+    case 'draft':         return 'Draft — complete the wizard and submit the application.'
+    case 'pending_docs':
+    case 'need_to_apply': return 'Awaiting documents — upload the required documents, then submit.'
+    case 'submitted':     return 'Submitted to immigration — awaiting approval. Attach the issued visa when it arrives.'
+    case 'in_review':     return 'In review by immigration — no action needed yet.'
+    case 'processing':    return 'Processing — no action needed yet.'
+    case 'approved': {
+      const d = daysToActivate(app)
+      return d == null
+        ? 'Approved — crew must activate (enter the country) within 30 days of issuance.'
+        : d < 0 ? `Approved but the 30-day activation window EXPIRED ${-d} day(s) ago — a new application is required.`
+        : `Approved — crew must activate within ${d} day(s) or the visa expires.`
+    }
+    case 'completed':     return 'Completed — visa activated. Nothing further to do.'
+    case 'rejected':      return 'Rejected — review the reason and re-apply if needed.'
+    case 'cancelled':     return 'Cancelled.'
+    default:              return 'Not started.'
+  }
+}
+
+// Days remaining in the 30-day post-issuance activation window (null if no date).
+function daysToActivate(app: VisaApplication): number | null {
+  const base = app.visa_issuance_date ?? app.approved_at
+  if (!base) return null
+  const issued = new Date(base.length === 10 ? base + 'T00:00' : base)
+  const expiry = new Date(issued.getTime() + 30 * 86400000)
+  return Math.ceil((expiry.getTime() - Date.now()) / 86400000)
+}
+
 function getCrewName(app: VisaApplication): string {
   if (app.given_name || app.surname) return `${app.given_name ?? ''} ${app.surname ?? ''}`.trim()
   if (app.crew_members?.full_name) return app.crew_members.full_name
@@ -142,18 +205,31 @@ export default function VisaDashboard() {
       const { error: upErr } = await supabase.storage.from('permit-documents').upload(path, file, { upsert: true })
       if (upErr) throw upErr
       const url = supabase.storage.from('permit-documents').getPublicUrl(path).data.publicUrl
-      const { error } = await (supabase as any).from('visa_applications').update({
-        visa_document_url: url, status: 'approved',
-        approved_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-      }).eq('id', app.id)
+      const { fileToBase64 } = await import('@/lib/file-to-base64')
+      const base64 = await fileToBase64(file)
+      const patch: any = { visa_document_url: url, status: 'approved', approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      // OCR the visa to auto-fill its number, issuance, expiry and entry deadline.
+      try {
+        const r = await fetch('/api/visa/passport-ocr', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: base64, mediaType: file.type, docType: 'visa' }),
+        })
+        const j = await r.json()
+        if (j.ok && j.data) {
+          const d = j.data
+          if (d.visa_number) patch.visa_number = d.visa_number
+          if (d.issue_date) patch.visa_issuance_date = d.issue_date
+          if (d.expiry_date) patch.visa_expiry = d.expiry_date
+          if (d.first_entry_expiry) patch.first_entry_expiry = d.first_entry_expiry
+        }
+      } catch { /* best-effort OCR */ }
+      const { error } = await (supabase as any).from('visa_applications').update(patch).eq('id', app.id)
       if (error) throw error
-      setApplications(prev => prev.map(a => a.id === app.id ? { ...a, status: 'approved', visa_document_url: url } : a))
+      setApplications(prev => prev.map(a => a.id === app.id ? { ...a, ...patch } : a))
       toast.success('Visa attached — application moved to Approved')
       // File into the SharePoint crew folder (best-effort).
       try {
-        const { fileToBase64 } = await import('@/lib/file-to-base64')
         const { uploadCrewDocToSharePoint } = await import('@/lib/visa-sharepoint.server')
-        const base64 = await fileToBase64(file)
         await (uploadCrewDocToSharePoint as any)({
           data: { vesselName: app.vessel_name ?? app.yachts?.vessel_name ?? null, crewName: getCrewName(app), fileName: `Visa - ${file.name}`, contentType: file.type, base64 },
         })
@@ -304,6 +380,23 @@ export default function VisaDashboard() {
     fontSize: 12.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6,
   })
 
+  // Rotating banner messages: visa activation countdowns + compliance alerts.
+  const bannerMessages = useMemo(() => {
+    const msgs: string[] = []
+    for (const app of applications) {
+      if (app.status !== 'approved') continue
+      const d = daysToActivate(app)
+      if (d == null || d > 7) continue
+      const who = getCrewName(app)
+      const country = getCountryInfo(app.country_code).name
+      msgs.push(d < 0
+        ? `${who}'s ${country} visa activation window expired ${-d} day(s) ago — a new application is required.`
+        : `${who}'s ${country} visa must be activated within ${d} day(s) or it will expire.`)
+    }
+    for (const a of alerts) if (a.message) msgs.push(a.message)
+    return msgs
+  }, [applications, alerts])
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (showReport) {
@@ -312,6 +405,7 @@ export default function VisaDashboard() {
 
   return (
     <div style={{ fontFamily: FONTS.display, color: COLORS.frost, minHeight: '100vh', padding: '24px' }}>
+      <RotatingBanner messages={bannerMessages} />
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -519,9 +613,22 @@ export default function VisaDashboard() {
                   {(() => {
                     const p = statusProgress(app.status)
                     return (
-                      <div title={`${p.pct}% through the pipeline`} style={{ width: 88, height: 5, borderRadius: 4, background: COLORS.void, border: `1px solid ${COLORS.deep}`, overflow: 'hidden' }}>
+                      <div title={`${statusHint(app)} (${p.pct}% through the pipeline)`} style={{ width: 88, height: 5, borderRadius: 4, background: COLORS.void, border: `1px solid ${COLORS.deep}`, overflow: 'hidden', cursor: 'help' }}>
                         <div style={{ width: `${p.pct}%`, height: '100%', background: p.color }} />
                       </div>
+                    )
+                  })()}
+                  {/* 30-day activation countdown on approved visas */}
+                  {app.status === 'approved' && (() => {
+                    const d = daysToActivate(app)
+                    if (d == null) return null
+                    const expired = d < 0
+                    const soon = d >= 0 && d <= 7
+                    const col = expired ? COLORS.warn : soon ? COLORS.leoAmber : COLORS.muted
+                    return (
+                      <span title={statusHint(app)} style={{ fontFamily: FONTS.display, fontSize: 10, fontWeight: 700, color: col, whiteSpace: 'nowrap' }}>
+                        {expired ? `⚠ Expired ${-d}d ago` : `⏳ Activate in ${d}d`}
+                      </span>
                     )
                   })()}
                 </div>

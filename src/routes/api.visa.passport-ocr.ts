@@ -31,6 +31,19 @@ Return ONLY a single JSON object (no prose, no code fences) with EXACTLY these k
 }
 Read place_of_birth and gender from the printed visual zone; cross-check gender against the MRZ sex character. Use null for anything you cannot read confidently. Dates MUST be YYYY-MM-DD.`
 
+const VISA_PROMPT = `You are an entry-visa data-extraction engine. The image is a visa (sticker, label, or e-visa printout).
+Return ONLY a single JSON object (no prose, no code fences) with EXACTLY these keys:
+{
+  "visa_number": string|null,           // the visa / reference number
+  "visa_type": string|null,             // e.g. "Crew 180-Day Multiple Entry"
+  "destination_country": string|null,   // issuing/destination country, full name
+  "issue_date": string|null,            // YYYY-MM-DD — date of issue/issuance
+  "expiry_date": string|null,           // YYYY-MM-DD — visa expiry / "valid until"
+  "first_entry_expiry": string|null,    // YYYY-MM-DD — the "must enter before" / "enter before" activation deadline, if shown
+  "place_of_issue": string|null
+}
+Use null for anything you cannot read confidently. Dates MUST be YYYY-MM-DD.`
+
 export async function visaPassportOcrHandler(request: Request): Promise<Response> {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -38,11 +51,12 @@ export async function visaPassportOcrHandler(request: Request): Promise<Response
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return json({ ok: false, error: 'ANTHROPIC_API_KEY not configured' }, 500)
 
-  let imageBase64 = '', mediaType = 'image/jpeg'
+  let imageBase64 = '', mediaType = 'image/jpeg', docType = 'passport'
   try {
     const body: any = await request.json()
     imageBase64 = body.imageBase64 ?? ''
     mediaType = body.mediaType ?? 'image/jpeg'
+    docType = body.docType === 'visa' ? 'visa' : 'passport'
   } catch { return json({ ok: false, error: 'Invalid request body' }, 400) }
 
   if (!imageBase64) return json({ ok: false, error: 'Missing imageBase64' }, 400)
@@ -64,7 +78,7 @@ export async function visaPassportOcrHandler(request: Request): Promise<Response
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 700,
-        messages: [{ role: 'user', content: [fileBlock, { type: 'text', text: PROMPT }] }],
+        messages: [{ role: 'user', content: [fileBlock, { type: 'text', text: docType === 'visa' ? VISA_PROMPT : PROMPT }] }],
       }),
     })
   } catch (e: any) {

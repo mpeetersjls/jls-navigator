@@ -61,7 +61,25 @@ export function VisaDetailPage() {
       const { error: upErr } = await supabase.storage.from("permit-documents").upload(path, file, { upsert: true });
       if (upErr) throw upErr;
       const url = supabase.storage.from("permit-documents").getPublicUrl(path).data.publicUrl;
+      const base64 = await fileToBase64(file);
       const patch: any = { visa_document_url: url, status: "approved", approved_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      // OCR the visa to auto-fill its number, issuance, expiry and entry deadline.
+      try {
+        const r = await fetch("/api/visa/passport-ocr", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: base64, mediaType: file.type, docType: "visa" }),
+        });
+        const j = await r.json();
+        if (j.ok && j.data) {
+          const d = j.data;
+          if (d.visa_number) patch.visa_number = d.visa_number;
+          if (d.issue_date) patch.visa_issuance_date = d.issue_date;
+          if (d.expiry_date) patch.visa_expiry = d.expiry_date;
+          if (d.first_entry_expiry) patch.first_entry_expiry = d.first_entry_expiry;
+          if (d.visa_type && !visa?.visa_type) patch.visa_type = d.visa_type;
+          toast.success("Visa scanned — details auto-filled");
+        }
+      } catch { /* OCR is best-effort */ }
       const { error } = await db.from("visa_applications").update(patch).eq("id", id);
       if (error) throw error;
       setVisa(v => ({ ...v!, ...patch }));
@@ -69,7 +87,6 @@ export function VisaDetailPage() {
       // File into SharePoint: Shared Documents / Yacht / {vessel} / Crew Documents / {crew}.
       try {
         const crewName = [visa?.given_name, visa?.surname].filter(Boolean).join(" ") || "Unknown Crew";
-        const base64 = await fileToBase64(file);
         await (uploadCrewDocToSharePoint as any)({
           data: { vesselName: visa?.vessel_name ?? (vesselName !== "—" ? vesselName : null), crewName, fileName: `Visa - ${file.name}`, contentType: file.type, base64 },
         });
