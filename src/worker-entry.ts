@@ -53,6 +53,24 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
     }
   }
 
+  // Manual image backfill: `?images=N` synchronously downloads up to N pending
+  // vessel images from SharePoint (default 10, max 15) and returns the count.
+  // Unlike the cron's waitUntil download, this runs inside the request so it
+  // reliably completes — loop it to backfill the whole fleet a batch at a time.
+  if (url.searchParams.get('images')) {
+    const n = Math.min(Math.max(parseInt(url.searchParams.get('images') || '10', 10) || 10, 1), 15)
+    try {
+      const downloaded = await downloadPendingImages(n)
+      return new Response(JSON.stringify({ ok: true, requested: n, downloaded }), {
+        status: 200, headers: { 'Content-Type': 'application/json' },
+      })
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }
+
   // Manual AIS run: `?ais=1` collects live vessel positions from AISStream and
   // writes them to the yachts table, returning the JSON result.
   if (url.searchParams.get('ais') === '1') {

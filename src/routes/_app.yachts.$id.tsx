@@ -233,7 +233,10 @@ function YachtDetail() {
 
   const yachtName = String(y.vessel_name ?? "this yacht");
 
-  const displayImage = imagePreview ?? (y.vessel_image ? String(y.vessel_image) : null);
+  // Only render real http(s) URLs — legacy rows can hold a raw SharePoint image
+  // descriptor (JSON) in vessel_image, which is not directly displayable.
+  const storedImage = typeof y.vessel_image === "string" && /^https?:\/\//.test(y.vessel_image) ? y.vessel_image : null;
+  const displayImage = imagePreview ?? storedImage;
 
   return (
     <div className="flex h-full flex-col">

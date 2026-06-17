@@ -1171,20 +1171,22 @@ export async function createYachtFolderInSharePoint(vesselName: string): Promise
 // Processes up to 5 yachts per invocation to stay within CF subrequest limits.
 // Run after syncFromSharePoint() in the cron so images trickle in over time.
 
-export async function downloadPendingImages(): Promise<number> {
+export async function downloadPendingImages(limit = 10): Promise<number> {
   const cfg = await getSpConfig().catch(() => null)
   if (!cfg) return 0
 
   const imageSpField = Object.entries(cfg.fieldMapping).find(([, db]) => db === 'vessel_image')?.[0]
   if (!imageSpField) return 0
 
-  // Find yachts synced from SP that still have no image
+  // Find yachts synced from SP whose image still needs downloading: either no
+  // image yet, OR a legacy raw SharePoint descriptor (JSON starting with "{") was
+  // written into vessel_image instead of a downloaded URL — reclaim both.
   const { data: pending } = await supabaseAdmin
     .from('yachts')
     .select('id, sharepoint_item_id')
     .not('sharepoint_item_id', 'is', null)
-    .is('vessel_image', null)
-    .limit(5) as { data: Array<{ id: string; sharepoint_item_id: string }> | null }
+    .or('vessel_image.is.null,vessel_image.like.{*')
+    .limit(limit) as { data: Array<{ id: string; sharepoint_item_id: string }> | null }
 
   if (!pending?.length) return 0
 
