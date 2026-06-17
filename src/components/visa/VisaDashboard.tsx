@@ -90,8 +90,10 @@ function statusProgress(s: string): { pct: number; color: string } {
   }
 }
 
-// Top banner that rotates through active alerts every few seconds.
-function RotatingBanner({ messages }: { messages: string[] }) {
+type BannerAlert = { text: string; severity: 'red' | 'amber' }
+
+// Top banner that rotates through active alerts; red = expired, amber = expiring.
+function RotatingBanner({ messages }: { messages: BannerAlert[] }) {
   const [i, setI] = useState(0)
   useEffect(() => {
     if (messages.length <= 1) return
@@ -100,13 +102,15 @@ function RotatingBanner({ messages }: { messages: string[] }) {
   }, [messages.length])
   if (messages.length === 0) return null
   const msg = messages[i % messages.length]
+  const red = msg.severity === 'red'
+  const accent = red ? COLORS.error : COLORS.leoAmber
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderRadius: 8,
-      background: `${COLORS.warn}18`, border: `1px solid ${COLORS.warn}55`, marginBottom: 16,
+      background: `${accent}18`, border: `1px solid ${accent}66`, marginBottom: 16,
     }}>
-      <span style={{ fontSize: 15 }} aria-hidden="true">⚠</span>
-      <span key={i} style={{ flex: 1, fontFamily: FONTS.display, fontSize: 13, color: COLORS.frost, animation: 'va-fade 0.4s ease' }}>{msg}</span>
+      <span style={{ fontSize: 15, color: accent }} aria-hidden="true">⚠</span>
+      <span key={i} style={{ flex: 1, fontFamily: FONTS.display, fontSize: 13, fontWeight: red ? 600 : 400, color: COLORS.frost, animation: 'va-fade 0.4s ease' }}>{msg.text}</span>
       {messages.length > 1 && (
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontFamily: FONTS.display, fontSize: 11, color: COLORS.muted }}>{(i % messages.length) + 1}/{messages.length}</span>
@@ -380,20 +384,23 @@ export default function VisaDashboard() {
     fontSize: 12.5, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6,
   })
 
-  // Rotating banner messages: visa activation countdowns + compliance alerts.
-  const bannerMessages = useMemo(() => {
-    const msgs: string[] = []
+  // Rotating banner: visa activation countdowns + compliance alerts.
+  // Red = expired; amber = expiring within 30 days.
+  const bannerMessages = useMemo<BannerAlert[]>(() => {
+    const msgs: BannerAlert[] = []
     for (const app of applications) {
       if (app.status !== 'approved') continue
       const d = daysToActivate(app)
-      if (d == null || d > 7) continue
+      if (d == null || d > 30) continue
       const who = getCrewName(app)
       const country = getCountryInfo(app.country_code).name
       msgs.push(d < 0
-        ? `${who}'s ${country} visa activation window expired ${-d} day(s) ago — a new application is required.`
-        : `${who}'s ${country} visa must be activated within ${d} day(s) or it will expire.`)
+        ? { text: `${who}'s ${country} visa activation window expired ${-d} day(s) ago — a new application is required.`, severity: 'red' }
+        : { text: `${who}'s ${country} visa must be activated within ${d} day(s) or it will expire.`, severity: 'amber' })
     }
-    for (const a of alerts) if (a.message) msgs.push(a.message)
+    // Sort expired (red) first.
+    msgs.sort((a, b) => (a.severity === 'red' ? 0 : 1) - (b.severity === 'red' ? 0 : 1))
+    for (const a of alerts) if (a.message) msgs.push({ text: a.message, severity: a.severity === 'critical' ? 'red' : 'amber' })
     return msgs
   }, [applications, alerts])
 

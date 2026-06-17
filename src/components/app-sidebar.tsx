@@ -67,6 +67,7 @@ const NAV: NavItem[] = [
     label: "Crew",
     icon: Users,
     children: [
+      { label: "Crew Dashboard", to: "/crew-immigration/dashboard",  icon: LayoutDashboard },
       { label: "Crew List",    to: "/crew-immigration/crew",        icon: UserCircle2 },
       { label: "Visas",        to: "/crew-immigration/visas",       icon: FileText },
       { label: "Sign On / Off", to: "/crew-immigration/sign-on-off", icon: LogIn },

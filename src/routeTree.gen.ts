@@ -80,6 +80,7 @@ import { Route as AppCrewPlacementVacanciesRouteImport } from './routes/_app.cre
 import { Route as AppCrewImmigrationVisasRouteImport } from './routes/_app.crew-immigration.visas'
 import { Route as AppCrewImmigrationSignOnOffRouteImport } from './routes/_app.crew-immigration.sign-on-off'
 import { Route as AppCrewImmigrationDocumentsRouteImport } from './routes/_app.crew-immigration.documents'
+import { Route as AppCrewImmigrationDashboardRouteImport } from './routes/_app.crew-immigration.dashboard'
 import { Route as AppCrewImmigrationCrewRouteImport } from './routes/_app.crew-immigration.crew'
 import { Route as AppCrewCabVehiclesRouteImport } from './routes/_app.crew-cab.vehicles'
 import { Route as AppCrewCabTripsRouteImport } from './routes/_app.crew-cab.trips'
@@ -461,6 +462,12 @@ const AppCrewImmigrationDocumentsRoute =
     path: '/documents',
     getParentRoute: () => AppCrewImmigrationRoute,
   } as any)
+const AppCrewImmigrationDashboardRoute =
+  AppCrewImmigrationDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => AppCrewImmigrationRoute,
+  } as any)
 const AppCrewImmigrationCrewRoute = AppCrewImmigrationCrewRouteImport.update({
   id: '/crew',
   path: '/crew',
@@ -605,6 +612,7 @@ export interface FileRoutesByFullPath {
   '/crew-cab/trips': typeof AppCrewCabTripsRoute
   '/crew-cab/vehicles': typeof AppCrewCabVehiclesRoute
   '/crew-immigration/crew': typeof AppCrewImmigrationCrewRouteWithChildren
+  '/crew-immigration/dashboard': typeof AppCrewImmigrationDashboardRoute
   '/crew-immigration/documents': typeof AppCrewImmigrationDocumentsRoute
   '/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
   '/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
@@ -686,6 +694,7 @@ export interface FileRoutesByTo {
   '/crew-cab/trips': typeof AppCrewCabTripsRoute
   '/crew-cab/vehicles': typeof AppCrewCabVehiclesRoute
   '/crew-immigration/crew': typeof AppCrewImmigrationCrewRouteWithChildren
+  '/crew-immigration/dashboard': typeof AppCrewImmigrationDashboardRoute
   '/crew-immigration/documents': typeof AppCrewImmigrationDocumentsRoute
   '/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
   '/crew-placement/vacancies': typeof AppCrewPlacementVacanciesRoute
@@ -776,6 +785,7 @@ export interface FileRoutesById {
   '/_app/crew-cab/trips': typeof AppCrewCabTripsRoute
   '/_app/crew-cab/vehicles': typeof AppCrewCabVehiclesRoute
   '/_app/crew-immigration/crew': typeof AppCrewImmigrationCrewRouteWithChildren
+  '/_app/crew-immigration/dashboard': typeof AppCrewImmigrationDashboardRoute
   '/_app/crew-immigration/documents': typeof AppCrewImmigrationDocumentsRoute
   '/_app/crew-immigration/sign-on-off': typeof AppCrewImmigrationSignOnOffRoute
   '/_app/crew-immigration/visas': typeof AppCrewImmigrationVisasRouteWithChildren
@@ -868,6 +878,7 @@ export interface FileRouteTypes {
     | '/crew-cab/trips'
     | '/crew-cab/vehicles'
     | '/crew-immigration/crew'
+    | '/crew-immigration/dashboard'
     | '/crew-immigration/documents'
     | '/crew-immigration/sign-on-off'
     | '/crew-immigration/visas'
@@ -949,6 +960,7 @@ export interface FileRouteTypes {
     | '/crew-cab/trips'
     | '/crew-cab/vehicles'
     | '/crew-immigration/crew'
+    | '/crew-immigration/dashboard'
     | '/crew-immigration/documents'
     | '/crew-immigration/sign-on-off'
     | '/crew-placement/vacancies'
@@ -1038,6 +1050,7 @@ export interface FileRouteTypes {
     | '/_app/crew-cab/trips'
     | '/_app/crew-cab/vehicles'
     | '/_app/crew-immigration/crew'
+    | '/_app/crew-immigration/dashboard'
     | '/_app/crew-immigration/documents'
     | '/_app/crew-immigration/sign-on-off'
     | '/_app/crew-immigration/visas'
@@ -1591,6 +1604,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCrewImmigrationDocumentsRouteImport
       parentRoute: typeof AppCrewImmigrationRoute
     }
+    '/_app/crew-immigration/dashboard': {
+      id: '/_app/crew-immigration/dashboard'
+      path: '/dashboard'
+      fullPath: '/crew-immigration/dashboard'
+      preLoaderRoute: typeof AppCrewImmigrationDashboardRouteImport
+      parentRoute: typeof AppCrewImmigrationRoute
+    }
     '/_app/crew-immigration/crew': {
       id: '/_app/crew-immigration/crew'
       path: '/crew'
@@ -1800,6 +1820,7 @@ const AppCrewImmigrationVisasRouteWithChildren =
 
 interface AppCrewImmigrationRouteChildren {
   AppCrewImmigrationCrewRoute: typeof AppCrewImmigrationCrewRouteWithChildren
+  AppCrewImmigrationDashboardRoute: typeof AppCrewImmigrationDashboardRoute
   AppCrewImmigrationDocumentsRoute: typeof AppCrewImmigrationDocumentsRoute
   AppCrewImmigrationSignOnOffRoute: typeof AppCrewImmigrationSignOnOffRoute
   AppCrewImmigrationVisasRoute: typeof AppCrewImmigrationVisasRouteWithChildren
@@ -1807,6 +1828,7 @@ interface AppCrewImmigrationRouteChildren {
 
 const AppCrewImmigrationRouteChildren: AppCrewImmigrationRouteChildren = {
   AppCrewImmigrationCrewRoute: AppCrewImmigrationCrewRouteWithChildren,
+  AppCrewImmigrationDashboardRoute: AppCrewImmigrationDashboardRoute,
   AppCrewImmigrationDocumentsRoute: AppCrewImmigrationDocumentsRoute,
   AppCrewImmigrationSignOnOffRoute: AppCrewImmigrationSignOnOffRoute,
   AppCrewImmigrationVisasRoute: AppCrewImmigrationVisasRouteWithChildren,
