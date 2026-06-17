@@ -184,42 +184,6 @@ export default function StepCountrySelect({ state, onUpdate, onNext }: Props) {
           )
         })}
       </div>
-
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          marginTop: 20,
-          paddingRight: 80,
-          position: 'relative',
-          zIndex: 20,
-        }}
-      >
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={!selected}
-          aria-label={
-            selected
-              ? `Continue with ${COUNTRY_CONFIGS[selected as keyof typeof COUNTRY_CONFIGS]?.countryName}`
-              : 'Select a country to continue'
-          }
-          style={{
-            fontFamily: FONTS.display,
-            fontSize: 14,
-            fontWeight: 600,
-            padding: '10px 28px',
-            borderRadius: 8,
-            border: 'none',
-            background: selected ? COLORS.signal : COLORS.ocean,
-            color: selected ? COLORS.void : COLORS.muted,
-            cursor: selected ? 'pointer' : 'not-allowed',
-            transition: 'background 0.15s, color 0.15s',
-          }}
-        >
-          Continue
-        </button>
-      </div>
     </div>
   )
 }
