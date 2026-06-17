@@ -361,7 +361,7 @@ function FieldCard({ label, note, noteColor, children }: {
 }
 
 // Document Status panel — shared between the add-form and existing-passport cards.
-function DocumentStatusPanel({ status, expiryDate }: {
+function DocumentStatusPanel({ status, expiryDate, seamansNotApplicable }: {
   status: {
     insidePages: 'uploaded' | 'missing' | 'not_uploaded'
     ocrCompleted: boolean
@@ -371,6 +371,7 @@ function DocumentStatusPanel({ status, expiryDate }: {
     seamansBook: 'uploaded' | 'missing' | 'not_uploaded'
   }
   expiryDate?: string
+  seamansNotApplicable?: boolean
 }) {
   const hasExpiry = !!expiryDate
   const valid = hasExpiry && getExpiryLabel(expiryDate!) === 'Valid'
@@ -396,7 +397,7 @@ function DocumentStatusPanel({ status, expiryDate }: {
         <StatusRow label="Passport cover" status={status.cover}
           note={status.cover === 'uploaded' ? 'Uploaded' : 'Not uploaded'} />
         <StatusRow label="Seaman's book" status={status.seamansBook}
-          note={status.seamansBook === 'uploaded' ? 'Uploaded' : 'Not uploaded'} />
+          note={seamansNotApplicable ? 'Not Available' : status.seamansBook === 'uploaded' ? 'Uploaded' : 'Not uploaded'} />
       </div>
 
       {hasExpiry && (
@@ -453,6 +454,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
     seamans: ex?.seamans_book_url ?? null, headshot: ex?.headshot_url ?? null,
   }
   const [dataPreview, setDataPreview] = useState<string | null>(ex?.document_url ?? null)
+  const [dataIsPdf, setDataIsPdf] = useState<boolean>(!!ex?.document_url && /\.pdf(\?|$)/i.test(ex.document_url))
   const [zoomSrc, setZoomSrc] = useState<string | null>(null)
   const [noSeamans, setNoSeamans] = useState(ex?.no_seamans_book ?? false)
   const [uploading, setUploading] = useState(false)
@@ -470,7 +472,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
   async function handleSlot(key: SlotKey, file: File | null) {
     if (!file) {
       setFiles(f => ({ ...f, [key]: null })); setSizes(s => ({ ...s, [key]: null })); setFileNames(n => ({ ...n, [key]: null }))
-      if (key === 'data') { setDataPreview(null); setExtracted(false) }
+      if (key === 'data') { setDataPreview(null); setDataIsPdf(false); setExtracted(false) }
       return
     }
     try {
@@ -478,8 +480,9 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
       setFiles(f => ({ ...f, [key]: c.file }))
       setSizes(s => ({ ...s, [key]: c.sizeKB }))
       setFileNames(n => ({ ...n, [key]: c.file.name }))
-      if (key === 'data' && c.isImage) {
-        try { setDataPreview(URL.createObjectURL(c.file)) } catch { /* ignore */ }
+      if (key === 'data') {
+        // Preview both images and PDFs (PDFs render in an embedded viewer).
+        try { setDataPreview(URL.createObjectURL(c.file)); setDataIsPdf(!c.isImage) } catch { /* ignore */ }
       }
       if (key !== 'data') return
       setScanning('data'); setScanNote(c.isImage ? null : 'Reading PDF…')
@@ -711,7 +714,9 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
                   Passport Preview
                 </span>
                 <div style={{ background: COLORS.void, border: `1px solid ${COLORS.deep}`, borderRadius: 8, overflow: 'hidden' }}>
-                  {dataPreview ? (
+                  {dataPreview && dataIsPdf ? (
+                    <iframe src={dataPreview} title="Uploaded passport PDF" style={{ width: '100%', height: 260, display: 'block', border: 'none' }} />
+                  ) : dataPreview ? (
                     <img
                       src={dataPreview}
                       alt="Uploaded passport — data page"
@@ -721,14 +726,15 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
                     />
                   ) : (
                     <div style={{ padding: '32px 16px', textAlign: 'center', fontFamily: FONTS.display, fontSize: 12, color: COLORS.steel }}>
-                      {files.data ? 'Preview not available for PDF' : 'No preview yet'}
+                      No preview yet
                     </div>
                   )}
                 </div>
                 {dataPreview && (
-                  <button type="button" onClick={() => setZoomSrc(dataPreview)}
+                  <button type="button"
+                    onClick={() => dataIsPdf ? window.open(dataPreview, '_blank', 'noreferrer') : setZoomSrc(dataPreview)}
                     style={{ marginTop: 6, background: 'none', border: 'none', cursor: 'zoom-in', fontFamily: FONTS.display, fontSize: 11, color: COLORS.signal, padding: 0 }}>
-                    🔍 Click to enlarge
+                    🔍 {dataIsPdf ? 'Open full PDF' : 'Click to enlarge'}
                   </button>
                 )}
                 {zoomSrc && (
@@ -902,7 +908,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
         </div>
 
         {/* ── Right column: Document Status ── */}
-        <DocumentStatusPanel status={docStatus} expiryDate={expiryDate || undefined} />
+        <DocumentStatusPanel status={docStatus} expiryDate={expiryDate || undefined} seamansNotApplicable={noSeamans} />
       </div>
     </form>
   )
@@ -1037,7 +1043,7 @@ function PassportCard({ passport, selected, onSelect, onEdit }: PassportCardProp
         </div>
 
         {/* Right: per-passport Document Status */}
-        <DocumentStatusPanel status={docStatus} expiryDate={passport.expiry_date} />
+        <DocumentStatusPanel status={docStatus} expiryDate={passport.expiry_date} seamansNotApplicable={!!passport.no_seamans_book} />
       </div>
 
       {zoomSrc && (
@@ -1129,6 +1135,15 @@ export function StepPassportSelect({ state, onUpdate, onNext, onBack }: StepPass
 
   function handleSelectPassport(passport: CrewPassport) {
     onUpdate({ passport })
+    // Retrospectively keep the crew member's nationality in sync with the chosen
+    // passport (fill if missing, or update if it changed). Best-effort.
+    const crew = state.crew
+    if (crew?.id && passport.nationality && passport.nationality !== crew.nationality) {
+      ;(supabase as any).from('crew_members')
+        .update({ nationality: passport.nationality, updated_at: new Date().toISOString() })
+        .eq('id', crew.id)
+        .then(() => {}, () => {})
+    }
   }
 
   const canContinue = state.passport !== null

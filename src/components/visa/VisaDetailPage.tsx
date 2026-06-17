@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DateInputDMY } from "@/components/ui/date-input-dmy";
 import { SignedAnchor } from "@/components/ui/signed-file";
-import { ArrowLeft, Loader2, Pencil, Trash2, ExternalLink, Upload } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2, ExternalLink, Upload, IdCard } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { fileToBase64 } from "@/lib/file-to-base64";
@@ -209,6 +209,7 @@ export function VisaDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={openEdit} className="h-8 gap-1.5"><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+          <Button size="sm" variant="outline" onClick={() => navigate({ to: `/crew-immigration/visas/new?draft=${id}` as any })} className="h-8 gap-1.5"><IdCard className="h-3.5 w-3.5" /> Edit Passport</Button>
           <Button size="sm" variant="outline" onClick={() => setDel(true)} className="h-8 gap-1.5 text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
         </div>
       </header>

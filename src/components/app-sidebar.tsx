@@ -344,8 +344,8 @@ export function AppSidebar() {
         </Link>
       </div>
 
-      {/* Vessel switcher */}
-      <VesselSwitcher />
+      {/* Vessel switcher — hidden for now (TODO: revisit; restore by un-commenting). */}
+      {/* <VesselSwitcher /> */}
 
       {/* Search */}
       <div className="px-3 pt-3 pb-2">

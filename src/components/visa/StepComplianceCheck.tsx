@@ -90,7 +90,7 @@ export default function StepComplianceCheck({ state, onUpdate, onNext, onBack }:
       {!loading && results.length === 0 && (
         <div
           style={{
-            backgroundColor: '#0D2018',
+            backgroundColor: '#22C55E14',
             border: '1px solid #1A5030',
             borderRadius: 8,
             padding: '20px 24px',
@@ -109,7 +109,7 @@ export default function StepComplianceCheck({ state, onUpdate, onNext, onBack }:
       {!loading && blocking.length > 0 && (
         <div
           style={{
-            backgroundColor: '#1A0A08',
+            backgroundColor: `${COLORS.warn}14`,
             border: `1px solid ${COLORS.warn}`,
             borderRadius: 8,
             padding: '20px 24px',
@@ -135,7 +135,7 @@ export default function StepComplianceCheck({ state, onUpdate, onNext, onBack }:
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: 10,
-                  backgroundColor: '#220E0A',
+                  backgroundColor: `${COLORS.warn}10`,
                   borderRadius: 6,
                   padding: '10px 14px',
                 }}
@@ -151,7 +151,7 @@ export default function StepComplianceCheck({ state, onUpdate, onNext, onBack }:
       {!loading && warnings.length > 0 && (
         <div
           style={{
-            backgroundColor: '#1A1205',
+            backgroundColor: `${COLORS.leoAmber}14`,
             border: `1px solid ${COLORS.leoAmber}`,
             borderRadius: 8,
             padding: '20px 24px',
@@ -174,7 +174,7 @@ export default function StepComplianceCheck({ state, onUpdate, onNext, onBack }:
               <li
                 key={i}
                 style={{
-                  backgroundColor: '#1F1608',
+                  backgroundColor: `${COLORS.leoAmber}10`,
                   borderRadius: 6,
                   padding: '10px 14px',
                   display: 'flex',

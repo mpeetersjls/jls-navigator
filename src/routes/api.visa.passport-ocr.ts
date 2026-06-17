@@ -29,7 +29,8 @@ Return ONLY a single JSON object (no prose, no code fences) with EXACTLY these k
     "full_document_visible": boolean   // page fully in frame, not cropped
   }
 }
-Read place_of_birth and gender from the printed visual zone; cross-check gender against the MRZ sex character. Use null for anything you cannot read confidently. Dates MUST be YYYY-MM-DD.`
+Read place_of_birth and gender from the printed visual zone; cross-check gender against the MRZ sex character.
+DATES: the document may print dates in ANY format or language — e.g. "21 NOV/NOV 1991", "21 NOV 1991", "21/11/1991", "11/21/1991", "1991-11-21", "21.11.1991", or bilingual month names (Dutch/French/Spanish/etc.). Interpret the month from its name or number in any language and ALWAYS output YYYY-MM-DD. Prefer the MRZ dates (format YYMMDD) to disambiguate day-vs-month when the printed date is ambiguous. Use null only if you genuinely cannot read the date.`
 
 const VISA_PROMPT = `You are an entry-visa data-extraction engine. The image is a visa (sticker, label, or e-visa printout).
 Return ONLY a single JSON object (no prose, no code fences) with EXACTLY these keys:
