@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { PhoneInput, EMPTY_PHONE } from "@/components/phone-input";
 import type { PhoneValue } from "@/components/phone-input";
+import { formatName } from "@/lib/formatName";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { useAuth } from "@/lib/auth";
@@ -403,15 +404,33 @@ export function CrewListPage() {
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">First Name <span className="text-destructive">*</span></Label>
-                <Input value={form.first_name} onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))} placeholder="Mark" className="h-8" />
+                <Input
+                  value={form.first_name}
+                  onChange={e => setForm(f => ({ ...f, first_name: e.target.value.replace(/(^|[ \-'])([a-z])/g, (_, pre, ch) => pre + ch.toUpperCase()) }))}
+                  onBlur={e => setForm(f => ({ ...f, first_name: formatName(e.target.value) }))}
+                  placeholder="Mark"
+                  className="h-8"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Middle Name</Label>
-                <Input value={form.middle_name} onChange={e => setForm(f => ({ ...f, middle_name: e.target.value }))} placeholder="James" className="h-8" />
+                <Input
+                  value={form.middle_name}
+                  onChange={e => setForm(f => ({ ...f, middle_name: e.target.value.replace(/(^|[ \-'])([a-z])/g, (_, pre, ch) => pre + ch.toUpperCase()) }))}
+                  onBlur={e => setForm(f => ({ ...f, middle_name: formatName(e.target.value) }))}
+                  placeholder="James"
+                  className="h-8"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Last Name <span className="text-destructive">*</span></Label>
-                <Input value={form.last_name} onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))} placeholder="Jones" className="h-8" />
+                <Input
+                  value={form.last_name}
+                  onChange={e => setForm(f => ({ ...f, last_name: e.target.value.replace(/(^|[ \-'])([a-z])/g, (_, pre, ch) => pre + ch.toUpperCase()) }))}
+                  onBlur={e => setForm(f => ({ ...f, last_name: formatName(e.target.value) }))}
+                  placeholder="Jones"
+                  className="h-8"
+                />
               </div>
             </div>
 

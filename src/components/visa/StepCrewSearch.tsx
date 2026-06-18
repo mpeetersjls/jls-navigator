@@ -5,6 +5,7 @@ import { findCrewMatch, upsertCrewMember, CrewMember } from '@/lib/visa/crewMatc
 import { supabase } from '@/integrations/supabase/client'
 import { PhoneInput, EMPTY_PHONE } from '@/components/phone-input'
 import type { PhoneValue } from '@/components/phone-input'
+import { NameInput } from '@/components/name-input'
 
 // Statuses that mean an application is still alive — a second one must be blocked.
 const ACTIVE_STATUSES = ['draft', 'pending_docs', 'submitted', 'in_review', 'approved']
@@ -366,42 +367,33 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {fieldGroup(
-              <>
-                <label style={labelStyle}>First Name * (as per passport)</label>
-                <input
-                  style={inputStyle}
-                  type="text"
-                  placeholder="As per passport"
-                  value={newForm.first_name}
-                  onChange={e => setNewForm(f => ({ ...f, first_name: e.target.value }))}
-                />
-              </>,
+              <NameInput
+                label="First Name * (as per passport)"
+                placeholder="As per passport"
+                value={newForm.first_name}
+                onChange={v => setNewForm(f => ({ ...f, first_name: v }))}
+                style={{ width: '100%' }}
+              />,
               'fn'
             )}
             {fieldGroup(
-              <>
-                <label style={labelStyle}>Middle Name (as per passport)</label>
-                <input
-                  style={inputStyle}
-                  type="text"
-                  placeholder="As per passport — leave blank if none"
-                  value={newForm.middle_name}
-                  onChange={e => setNewForm(f => ({ ...f, middle_name: e.target.value }))}
-                />
-              </>,
+              <NameInput
+                label="Middle Name (as per passport)"
+                placeholder="As per passport — leave blank if none"
+                value={newForm.middle_name}
+                onChange={v => setNewForm(f => ({ ...f, middle_name: v }))}
+                style={{ width: '100%' }}
+              />,
               'mn'
             )}
             {fieldGroup(
-              <>
-                <label style={labelStyle}>Last Name * (as per passport)</label>
-                <input
-                  style={inputStyle}
-                  type="text"
-                  placeholder="As per passport"
-                  value={newForm.last_name}
-                  onChange={e => setNewForm(f => ({ ...f, last_name: e.target.value }))}
-                />
-              </>,
+              <NameInput
+                label="Last Name * (as per passport)"
+                placeholder="As per passport"
+                value={newForm.last_name}
+                onChange={v => setNewForm(f => ({ ...f, last_name: v }))}
+                style={{ width: '100%' }}
+              />,
               'ln'
             )}
             {fieldGroup(
