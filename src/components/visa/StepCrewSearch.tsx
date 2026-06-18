@@ -118,10 +118,12 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
       setSearchDone(true)
       if (!match) {
         setShowCreateForm(true)
+        const parts = searchName.trim().split(/\s+/).filter(Boolean)
         setNewForm(f => ({
           ...f,
-          first_name: searchName.split(' ')[0] ?? '',
-          last_name: searchName.split(' ').slice(1).join(' '),
+          first_name: parts[0] ?? '',
+          middle_name: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
+          last_name: parts.length > 1 ? parts[parts.length - 1] : '',
           date_of_birth: searchDob,
         }))
       }
