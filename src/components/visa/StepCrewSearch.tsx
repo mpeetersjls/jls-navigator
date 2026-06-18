@@ -3,6 +3,8 @@ import { COLORS, FONTS } from '@/lib/tokens'
 import { DateInputDMY } from '@/components/ui/date-input-dmy'
 import { findCrewMatch, upsertCrewMember, CrewMember } from '@/lib/visa/crewMatching'
 import { supabase } from '@/integrations/supabase/client'
+import { PhoneInput, EMPTY_PHONE } from '@/components/phone-input'
+import type { PhoneValue } from '@/components/phone-input'
 
 // Statuses that mean an application is still alive — a second one must be blocked.
 const ACTIVE_STATUSES = ['draft', 'pending_docs', 'submitted', 'in_review', 'approved']
@@ -46,7 +48,7 @@ interface NewCrewForm {
   last_name: string
   date_of_birth: string
   email: string
-  phone: string
+  phone: PhoneValue
   rank: string
 }
 
@@ -99,7 +101,7 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
     last_name: '',
     date_of_birth: '',
     email: '',
-    phone: '',
+    phone: { ...EMPTY_PHONE },
     rank: '',
   })
 
@@ -172,7 +174,8 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
         last_name: newForm.last_name.trim(),
         date_of_birth: newForm.date_of_birth,
         email: newForm.email.trim() || null,
-        phone: newForm.phone.trim() || null,
+        phone_country_code: newForm.phone.phoneNumber ? newForm.phone.countryCode : null,
+        phone_number: newForm.phone.phoneNumber || null,
         rank: newForm.rank.trim() || null,
         multiple_passports: multiplePassports,
       } as any)
@@ -438,15 +441,10 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
               'email'
             )}
             {fieldGroup(
-              <>
-                <label style={labelStyle}>Phone</label>
-                <input
-                  style={inputStyle}
-                  type="tel"
-                  value={newForm.phone}
-                  onChange={e => setNewForm(f => ({ ...f, phone: e.target.value }))}
-                />
-              </>,
+              <PhoneInput
+                value={newForm.phone}
+                onChange={phone => setNewForm(f => ({ ...f, phone }))}
+              />,
               'phone'
             )}
           </div>

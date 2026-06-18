@@ -14,6 +14,7 @@ import { visaExcelPushHandler } from './routes/api.visa.excel-push'
 import { visaPassportOcrHandler } from './routes/api.visa.passport-ocr'
 import { itTicketsNotifyHandler } from './routes/api.it-tickets.notify'
 import { vesselHandler } from './routes/api.vessels'
+import { phoneHandler } from './routes/api.phone'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -188,6 +189,10 @@ export default {
 
     if (url.pathname.startsWith('/api/vessels/')) {
       return vesselHandler(request)
+    }
+
+    if (url.pathname.startsWith('/api/phone/')) {
+      return phoneHandler(request)
     }
 
     return handleRequest(request, env, ctx)
