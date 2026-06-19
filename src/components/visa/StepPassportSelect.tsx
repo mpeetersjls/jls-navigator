@@ -224,6 +224,45 @@ function UploadZone({ onFile, fileName, fileKB, scanning, onRemove }: {
 // Smaller upload tile for cover / seaman's book / headshot.
 const isImageUrl = (u?: string | null) => !!u && /\.(jpe?g|png|webp|gif)(\?|$)/i.test(u)
 
+// Lightweight client-side check for headshot quality: is it colour (not B&W) and
+// does it have a light/plain background? Samples a downscaled copy on a canvas.
+async function analyzeHeadshot(file: File): Promise<{ isColour: boolean; whiteBackground: boolean }> {
+  return new Promise((resolve) => {
+    const fallback = { isColour: true, whiteBackground: true }
+    try {
+      const url = URL.createObjectURL(file)
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const W = 96, H = Math.max(1, Math.round(96 * (img.height || 1) / (img.width || 1)))
+          const cv = document.createElement('canvas'); cv.width = W; cv.height = H
+          const ctx = cv.getContext('2d'); if (!ctx) return resolve(fallback)
+          ctx.drawImage(img, 0, 0, W, H)
+          const data = ctx.getImageData(0, 0, W, H).data
+          let colourful = 0, total = 0
+          for (let i = 0; i < data.length; i += 4) {
+            const max = Math.max(data[i], data[i + 1], data[i + 2])
+            const min = Math.min(data[i], data[i + 1], data[i + 2])
+            if (max - min > 28) colourful++
+            total++
+          }
+          const isColour = total > 0 && colourful / total > 0.05
+          // Background = the four corners: light and near-neutral?
+          let lightCorners = 0
+          for (const [x, y] of [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]] as const) {
+            const idx = (y * W + x) * 4
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2]
+            if ((r + g + b) / 3 > 195 && Math.max(r, g, b) - Math.min(r, g, b) < 35) lightCorners++
+          }
+          resolve({ isColour, whiteBackground: lightCorners >= 3 })
+        } catch { resolve(fallback) } finally { URL.revokeObjectURL(url) }
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(fallback) }
+      img.src = url
+    } catch { resolve(fallback) }
+  })
+}
+
 /** Small clickable document thumbnail (image preview, or a file glyph for PDFs). */
 function DocThumb({ url, onZoom, size = 56 }: { url: string; onZoom?: (u: string) => void; size?: number }) {
   const img = isImageUrl(url)
@@ -469,6 +508,8 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
   const [dataIsPdf, setDataIsPdf] = useState<boolean>(!!ex?.document_url && /\.pdf(\?|$)/i.test(ex.document_url))
   const [nameMismatch, setNameMismatch] = useState<string | null>(null)
   const [docWarning, setDocWarning] = useState<string | null>(null)
+  const [slotPreviews, setSlotPreviews] = useState<Record<SlotKey, string | null>>({ cover: null, data: null, seamans: null, headshot: null })
+  const [headshotWarn, setHeadshotWarn] = useState<string | null>(null)
   const [zoomSrc, setZoomSrc] = useState<string | null>(null)
   const [noSeamans, setNoSeamans] = useState(ex?.no_seamans_book ?? false)
   const [uploading, setUploading] = useState(false)
@@ -486,6 +527,8 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
   async function handleSlot(key: SlotKey, file: File | null) {
     if (!file) {
       setFiles(f => ({ ...f, [key]: null })); setSizes(s => ({ ...s, [key]: null })); setFileNames(n => ({ ...n, [key]: null }))
+      setSlotPreviews(p => ({ ...p, [key]: null }))
+      if (key === 'headshot') setHeadshotWarn(null)
       if (key === 'data') { setDataPreview(null); setDataIsPdf(false); setExtracted(false); setDocWarning(null) }
       return
     }
@@ -494,6 +537,18 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
       setFiles(f => ({ ...f, [key]: c.file }))
       setSizes(s => ({ ...s, [key]: c.sizeKB }))
       setFileNames(n => ({ ...n, [key]: c.file.name }))
+      // Live preview for the secondary image slots (cover / seaman's / headshot).
+      if (key !== 'data' && c.isImage) {
+        try { setSlotPreviews(p => ({ ...p, [key]: URL.createObjectURL(c.file) })) } catch { /* ignore */ }
+      }
+      // Headshot quality guard: warn if it looks black & white or lacks a plain background.
+      if (key === 'headshot' && c.isImage) {
+        const q = await analyzeHeadshot(c.file)
+        const issues: string[] = []
+        if (!q.isColour) issues.push('it appears to be black & white (a colour photo is required)')
+        if (!q.whiteBackground) issues.push('the background may not be plain/white')
+        setHeadshotWarn(issues.length ? `Please check the headshot — ${issues.join(', and ')}.` : null)
+      }
       if (key === 'data') {
         // Preview both images and PDFs (PDFs render in an embedded viewer).
         try { setDataPreview(URL.createObjectURL(c.file)); setDataIsPdf(!c.isImage) } catch { /* ignore */ }
@@ -742,10 +797,10 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
             {/* Secondary uploads */}
             <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
               <SmallUploadCard number={1} label="Passport Cover" required icon="📄"
-                fileName={fileNames.cover} fileKB={sizes.cover} thumbUrl={!files.cover ? existingUrls.cover : null} onZoom={setZoomSrc}
+                fileName={fileNames.cover} fileKB={sizes.cover} thumbUrl={slotPreviews.cover ?? existingUrls.cover} onZoom={setZoomSrc}
                 onFile={(f) => handleSlot('cover', f)} onRemove={() => handleSlot('cover', null)} />
               <SmallUploadCard number={2} label="Seaman's Book" optional icon="📋"
-                fileName={fileNames.seamans} fileKB={sizes.seamans} disabled={noSeamans} thumbUrl={!files.seamans ? existingUrls.seamans : null} onZoom={setZoomSrc}
+                fileName={fileNames.seamans} fileKB={sizes.seamans} disabled={noSeamans} thumbUrl={slotPreviews.seamans ?? existingUrls.seamans} onZoom={setZoomSrc}
                 onFile={(f) => handleSlot('seamans', f)} onRemove={() => handleSlot('seamans', null)}
                 footer={
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: FONTS.display, fontSize: 11, color: COLORS.muted }}>
@@ -754,9 +809,18 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
                   </label>
                 } />
               <SmallUploadCard number={3} label="Headshot Photo" required icon="👤"
-                fileName={fileNames.headshot} fileKB={sizes.headshot} thumbUrl={!files.headshot ? existingUrls.headshot : null} onZoom={setZoomSrc}
+                fileName={fileNames.headshot} fileKB={sizes.headshot} thumbUrl={slotPreviews.headshot ?? existingUrls.headshot} onZoom={setZoomSrc}
                 onFile={(f) => handleSlot('headshot', f)} onRemove={() => handleSlot('headshot', null)} />
             </div>
+            {headshotWarn && (
+              <div style={{
+                display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12, padding: '10px 14px',
+                background: `${COLORS.warn}16`, border: `1px solid ${COLORS.warn}66`, borderRadius: 8,
+              }}>
+                <span style={{ fontSize: 14, color: COLORS.warn }} aria-hidden="true">⚠</span>
+                <span style={{ fontFamily: FONTS.display, fontSize: 12.5, color: COLORS.frost, lineHeight: 1.5 }}>{headshotWarn}</span>
+              </div>
+            )}
           </section>
 
           {/* Section 2: Passport Preview + Extracted Information */}
