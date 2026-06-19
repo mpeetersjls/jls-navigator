@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client'
 import { formatName } from '@/lib/formatName'
+import { parseCrewSearchInput } from '@/lib/parseCrewSearchInput'
 
 export interface CrewMember {
   id:                 string
@@ -33,23 +34,29 @@ export interface CrewPassport {
 }
 
 /**
- * Look for an existing crew profile matching full_name + date_of_birth.
- * Returns the first match or null. Never matches on nationality alone.
+ * Search for existing crew profiles matching name and/or DOB.
+ * DOB is optional — name alone is sufficient.
+ * Calls /api/crew/search (server-side, bypasses RLS for global search).
+ * Returns an array ranked by relevance — caller handles single vs multiple UI.
  */
 export async function findCrewMatch(
-  fullName: string,
+  fullName:  string,
   dateOfBirth: string,
-): Promise<CrewMember | null> {
-  if (!fullName.trim() || !dateOfBirth) return null
+  authToken: string,
+): Promise<CrewMember[]> {
+  const { name, dob } = parseCrewSearchInput(fullName, dateOfBirth)
+  if (!name && !dob) return []
 
-  const { data } = await (supabase as any)
-    .from('crew_members')
-    .select('*')
-    .ilike('full_name', fullName.trim())
-    .eq('date_of_birth', dateOfBirth)
-    .limit(1)
+  const params = new URLSearchParams()
+  if (name) params.set('name', name)
+  if (dob)  params.set('dob',  dob)
 
-  return data?.[0] ?? null
+  const res = await fetch(`/api/crew/search?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${authToken}` },
+  })
+  if (!res.ok) throw new Error('Search request failed')
+  const data = await res.json()
+  return (data.results ?? []) as CrewMember[]
 }
 
 /** Load all passports for a crew member, primary first */

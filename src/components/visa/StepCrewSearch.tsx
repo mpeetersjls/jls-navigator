@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { PhoneInput, EMPTY_PHONE } from '@/components/phone-input'
 import type { PhoneValue } from '@/components/phone-input'
 import { NameInput } from '@/components/name-input'
+import { useAuth } from '@/lib/auth'
 
 // Statuses that mean an application is still alive — a second one must be blocked.
 const ACTIVE_STATUSES = ['draft', 'pending_docs', 'submitted', 'in_review', 'approved']
@@ -84,12 +85,13 @@ const fieldGroup = (children: React.ReactNode, key?: string) => (
 )
 
 export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Props) {
+  const { session } = useAuth()
   const [searchName, setSearchName] = useState('')
   const [searchDob, setSearchDob] = useState('')
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchDone, setSearchDone] = useState(false)
-  const [matchedCrew, setMatchedCrew] = useState<CrewMember | null>(null)
+  const [matchedCrewList, setMatchedCrewList] = useState<CrewMember[]>([])
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -107,26 +109,28 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
   })
 
   const handleSearch = async () => {
-    if (!searchName.trim() || !searchDob) return
+    if (!searchName.trim() && !searchDob) return
+    const token = session?.access_token ?? ''
+    if (!token) { setSearchError('Not authenticated. Please refresh and try again.'); return }
     setSearching(true)
     setSearchError(null)
     setSearchDone(false)
-    setMatchedCrew(null)
+    setMatchedCrewList([])
     setShowCreateForm(false)
     setDuplicateApp(null)
     onUpdate({ crew: null, isNewCrew: false })
     try {
-      const match = await findCrewMatch(searchName, searchDob)
-      setMatchedCrew(match)
+      const results = await findCrewMatch(searchName, searchDob, token)
+      setMatchedCrewList(results)
       setSearchDone(true)
-      if (!match) {
+      if (results.length === 0) {
         setShowCreateForm(true)
         const parts = searchName.trim().split(/\s+/).filter(Boolean)
         setNewForm(f => ({
           ...f,
-          first_name: parts[0] ?? '',
-          middle_name: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
-          last_name: parts.length > 1 ? parts[parts.length - 1] : '',
+          first_name:    parts[0] ?? '',
+          middle_name:   parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
+          last_name:     parts.length > 1 ? parts[parts.length - 1] : '',
           date_of_birth: searchDob,
         }))
       }
@@ -137,24 +141,23 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
     }
   }
 
-  const handleUseProfile = async () => {
-    if (!matchedCrew) return
+  const handleUseProfile = async (crew: CrewMember) => {
     setDuplicateApp(null)
-    const existing = await findActiveApplication(matchedCrew.id)
+    const existing = await findActiveApplication(crew.id)
     if (existing) { setDuplicateApp(existing); return }
-    onUpdate({ crew: matchedCrew, isNewCrew: false })
+    onUpdate({ crew, isNewCrew: false })
   }
 
   const handleCreateInstead = () => {
     setShowCreateForm(true)
-    setMatchedCrew(null)
+    setMatchedCrewList([])
     onUpdate({ crew: null, isNewCrew: true })
     const parts = searchName.trim().split(/\s+/).filter(Boolean)
     setNewForm(f => ({
       ...f,
-      first_name: parts[0] ?? '',
-      middle_name: parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
-      last_name: parts.length > 1 ? parts[parts.length - 1] : '',
+      first_name:    parts[0] ?? '',
+      middle_name:   parts.length > 2 ? parts.slice(1, -1).join(' ') : '',
+      last_name:     parts.length > 1 ? parts[parts.length - 1] : '',
       date_of_birth: searchDob,
     }))
   }
@@ -234,17 +237,17 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
         </div>
         <button
           onClick={handleSearch}
-          disabled={!searchName.trim() || !searchDob || searching}
+          disabled={(!searchName.trim() && !searchDob) || searching}
           style={{
-            background: (!searchName.trim() || !searchDob || searching) ? COLORS.ocean : COLORS.signal,
-            color: (!searchName.trim() || !searchDob || searching) ? COLORS.muted : COLORS.void,
+            background: ((!searchName.trim() && !searchDob) || searching) ? COLORS.ocean : COLORS.signal,
+            color: ((!searchName.trim() && !searchDob) || searching) ? COLORS.muted : COLORS.void,
             border: 'none',
             borderRadius: 6,
             padding: '8px 20px',
             fontFamily: FONTS.display,
             fontWeight: 700,
             fontSize: 14,
-            cursor: (!searchName.trim() || !searchDob || searching) ? 'not-allowed' : 'pointer',
+            cursor: ((!searchName.trim() && !searchDob) || searching) ? 'not-allowed' : 'pointer',
           }}
         >
           {searching ? 'Searching…' : 'Search'}
@@ -254,8 +257,8 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
         )}
       </div>
 
-      {/* Match found */}
-      {searchDone && matchedCrew && !showCreateForm && (
+      {/* Match(es) found */}
+      {searchDone && matchedCrewList.length > 0 && !showCreateForm && (
         <div style={{
           background: COLORS.abyss,
           border: `1px solid ${COLORS.signal}`,
@@ -264,57 +267,65 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
           marginBottom: 20,
         }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.signal, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-            Existing profile found
+            {matchedCrewList.length === 1 ? 'Existing profile found' : `${matchedCrewList.length} profiles found`}
           </p>
-          <div style={{ marginBottom: 16 }}>
-            <p style={{ fontSize: 16, fontWeight: 700, color: COLORS.frost, margin: 0 }}>
-              {matchedCrew.full_name}
-            </p>
-            {matchedCrew.date_of_birth && (
-              <p style={{ fontSize: 13, color: COLORS.muted, margin: '4px 0 0' }}>
-                DOB: {matchedCrew.date_of_birth}
-              </p>
-            )}
-            {matchedCrew.rank && (
-              <p style={{ fontSize: 13, color: COLORS.muted, margin: '4px 0 0' }}>
-                Rank / Position: {matchedCrew.rank}
-              </p>
-            )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+            {matchedCrewList.map(crew => (
+              <div key={crew.id} style={{
+                background: COLORS.deep,
+                border: `1px solid ${state.crew?.id === crew.id ? COLORS.signal : COLORS.ocean}`,
+                borderRadius: 8,
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}>
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: COLORS.frost, margin: 0 }}>
+                    {crew.full_name}
+                  </p>
+                  <p style={{ fontSize: 12, color: COLORS.muted, margin: '3px 0 0' }}>
+                    {[crew.date_of_birth && `DOB: ${crew.date_of_birth}`, crew.rank].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleUseProfile(crew)}
+                  style={{
+                    background: state.crew?.id === crew.id ? COLORS.signal : COLORS.ocean,
+                    color: state.crew?.id === crew.id ? COLORS.void : COLORS.frost,
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '7px 16px',
+                    fontFamily: FONTS.display,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  {state.crew?.id === crew.id ? 'Selected' : 'Use profile'}
+                </button>
+              </div>
+            ))}
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button
-              onClick={handleUseProfile}
-              style={{
-                background: state.crew?.id === matchedCrew.id ? COLORS.signal : COLORS.ocean,
-                color: state.crew?.id === matchedCrew.id ? COLORS.void : COLORS.frost,
-                border: 'none',
-                borderRadius: 6,
-                padding: '8px 18px',
-                fontFamily: FONTS.display,
-                fontWeight: 700,
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              {state.crew?.id === matchedCrew.id ? 'Profile selected' : 'Use this profile'}
-            </button>
-            <button
-              onClick={handleCreateInstead}
-              style={{
-                background: 'transparent',
-                color: COLORS.muted,
-                border: `1px solid ${COLORS.steel}`,
-                borderRadius: 6,
-                padding: '8px 18px',
-                fontFamily: FONTS.display,
-                fontWeight: 600,
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              Create new instead
-            </button>
-          </div>
+          <button
+            onClick={handleCreateInstead}
+            style={{
+              background: 'transparent',
+              color: COLORS.muted,
+              border: `1px solid ${COLORS.steel}`,
+              borderRadius: 6,
+              padding: '8px 18px',
+              fontFamily: FONTS.display,
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+            }}
+          >
+            None of these — create new
+          </button>
         </div>
       )}
 
@@ -324,12 +335,12 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
           display: 'flex', gap: 14, alignItems: 'flex-start',
           padding: '14px 16px', marginBottom: 20,
           background: '#1A0808',
-          border: `1px solid ${COLORS.error}`,
+          border: `1px solid ${COLORS.warn}`,
           borderRadius: 8,
         }} role="alert">
-          <span style={{ fontSize: 20, flexShrink: 0, color: COLORS.error }} aria-hidden="true">⊘</span>
+          <span style={{ fontSize: 20, flexShrink: 0, color: COLORS.warn }} aria-hidden="true">⊘</span>
           <div>
-            <p style={{ fontFamily: FONTS.display, fontSize: 13, fontWeight: 700, color: COLORS.error, margin: '0 0 4px' }}>
+            <p style={{ fontFamily: FONTS.display, fontSize: 13, fontWeight: 700, color: COLORS.warn, margin: '0 0 4px' }}>
               Application already exists for this crew member
             </p>
             <p style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.muted, margin: '0 0 10px', lineHeight: 1.6 }}>
@@ -362,7 +373,7 @@ export default function StepCrewSearch({ state, onUpdate, onNext, onBack }: Prop
           marginBottom: 20,
         }}>
           <p style={{ fontSize: 13, fontWeight: 700, color: COLORS.leoAmber, marginBottom: 16, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-            {searchDone && !matchedCrew ? 'No profile found — create new' : 'Create new crew member'}
+            {searchDone && matchedCrewList.length === 0 ? 'No profile found — create new' : 'Create new crew member'}
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>

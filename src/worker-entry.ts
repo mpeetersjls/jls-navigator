@@ -20,6 +20,7 @@ import { configFeesHandler } from './routes/api.config.fees'
 import { visaSupportingDocsHandler } from './routes/api.visa.supporting-docs'
 import { crewPassportsHandler } from './routes/api.crew.passports'
 import { visaPassportSelectHandler } from './routes/api.visa.passport-select'
+import { crewSearchHandler } from './routes/api.crew.search'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -210,6 +211,10 @@ export default {
 
     if (url.pathname === '/api/visa/supporting-docs' && request.method === 'POST') {
       return visaSupportingDocsHandler(request)
+    }
+
+    if (url.pathname === '/api/crew/search' && request.method === 'GET') {
+      return crewSearchHandler(request)
     }
 
     if (url.pathname.match(/^\/api\/crew\/[^/]+\/passports\/?([^/]*)$/)) {
