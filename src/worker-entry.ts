@@ -18,6 +18,8 @@ import { vesselHandler } from './routes/api.vessels'
 import { phoneHandler } from './routes/api.phone'
 import { configFeesHandler } from './routes/api.config.fees'
 import { visaSupportingDocsHandler } from './routes/api.visa.supporting-docs'
+import { crewPassportsHandler } from './routes/api.crew.passports'
+import { visaPassportSelectHandler } from './routes/api.visa.passport-select'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -208,6 +210,14 @@ export default {
 
     if (url.pathname === '/api/visa/supporting-docs' && request.method === 'POST') {
       return visaSupportingDocsHandler(request)
+    }
+
+    if (url.pathname.match(/^\/api\/crew\/[^/]+\/passports\/?([^/]*)$/)) {
+      return crewPassportsHandler(request)
+    }
+
+    if (url.pathname.match(/^\/api\/visa\/[^/]+\/passport$/) && request.method === 'PATCH') {
+      return visaPassportSelectHandler(request)
     }
 
     return handleRequest(request, env, ctx)
