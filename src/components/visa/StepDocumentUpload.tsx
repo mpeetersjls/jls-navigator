@@ -6,6 +6,8 @@ import type { CountryVisaConfig } from '@/lib/visa/countryConfig'
 import { COUNTRY_CONFIGS } from '@/lib/visa/countryConfig'
 import { SignedAnchor } from '@/components/ui/signed-file'
 import type { ComplianceResult } from '@/lib/visa/complianceChecks'
+import { resolveApplicationDocuments, slotComplete } from '@/lib/visa/resolveApplicationDocuments'
+import type { DocumentSlot } from '@/lib/visa/resolveApplicationDocuments'
 
 export interface WizardState {
   step: number
@@ -31,37 +33,49 @@ function docKey(label: string) {
   return label.replace(/ /g, '_')
 }
 
-/** Match a required-document label to a scan already captured on the passport
- *  step, so it doesn't have to be uploaded again. Returns the existing URL or null. */
-function passportSourceFor(label: string, p: CrewPassport | null): string | null {
-  if (!p) return null
-  const l = label.toLowerCase()
-  if (l.includes('seaman')) return p.seamans_book_url ?? null
-  if (l.includes('photo') || l.includes('headshot')) return p.headshot_url ?? null
-  if (l.includes('passport') || l.includes('cover') || l.includes('bio') || l.includes('data page'))
-    return p.document_url ?? p.cover_url ?? null
-  return null
+/** For non-UAE countries, resolve slots from the country config. */
+function legacySlotsFromConfig(config: CountryVisaConfig | undefined, passport: CrewPassport | null): DocumentSlot[] {
+  const docs = config?.requiredDocuments ?? []
+  return docs.map(label => {
+    const l   = label.toLowerCase()
+    let url: string | null = null
+    if (passport) {
+      if (l.includes('seaman'))                                          url = passport.seamans_book_url ?? null
+      else if (l.includes('photo') || l.includes('headshot'))           url = passport.headshot_url    ?? null
+      else if (l.includes('cover'))                                      url = passport.cover_url       ?? null
+      else if (l.includes('passport') || l.includes('bio') || l.includes('data page')) url = passport.document_url ?? null
+    }
+    return {
+      key:      docKey(label),
+      label,
+      url,
+      source:   url ? 'passport' as const : null,
+      required: true,
+    }
+  })
 }
 
 export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: Props) {
   const config: CountryVisaConfig | undefined =
     (COUNTRY_CONFIGS as Record<string, CountryVisaConfig>)[state.countryCode]
-  const requiredDocs: string[] = config?.requiredDocuments ?? []
+
+  // UAE uses fixed 4-slot resolution; all other countries use config-driven list.
+  const slots: DocumentSlot[] = state.countryCode === 'AE'
+    ? resolveApplicationDocuments(state.passport)
+    : legacySlotsFromConfig(config, state.passport)
 
   const [uploading, setUploading] = useState<Record<string, boolean>>({})
   const [errors, setErrors]       = useState<Record<string, string>>({})
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
-  // Pre-fill any document already captured on the Passport step (passport copy,
-  // photo, seaman's book) so the crew member isn't asked to upload it twice.
+  // Pre-fill passport-sourced documents into uploadedDocs on mount / passport change.
   useEffect(() => {
     if (!state.passport) return
     const updates: Record<string, string> = {}
-    for (const docLabel of requiredDocs) {
-      const key = docKey(docLabel)
-      if (state.uploadedDocs[key]) continue
-      const src = passportSourceFor(docLabel, state.passport)
-      if (src) updates[key] = src
+    for (const slot of slots) {
+      if (!slot.url) continue
+      if (state.uploadedDocs[slot.key]) continue
+      updates[slot.key] = slot.url
     }
     if (Object.keys(updates).length) {
       onUpdate({ uploadedDocs: { ...state.uploadedDocs, ...updates } })
@@ -69,30 +83,34 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.passport, state.countryCode])
 
-  // URLs that came from the passport on file (for the "from passport" hint).
+  // URLs that originated from the passport record (for the "from passport" badge).
   const passportUrls = new Set(
-    [state.passport?.document_url, state.passport?.cover_url, state.passport?.headshot_url, state.passport?.seamans_book_url]
-      .filter(Boolean) as string[],
+    [
+      state.passport?.document_url,
+      state.passport?.cover_url,
+      state.passport?.headshot_url,
+      state.passport?.seamans_book_url,
+    ].filter(Boolean) as string[],
   )
 
-  const uploadedCount = requiredDocs.filter(d => !!state.uploadedDocs[docKey(d)]).length
-  const canContinue   = uploadedCount >= 1
+  const completedCount = slots.filter(s => slotComplete(s, state.uploadedDocs)).length
+  const allComplete    = completedCount === slots.length
+  const canContinue    = allComplete
 
-  async function handleFileChange(docLabel: string, file: File | null) {
+  async function handleFileChange(slot: DocumentSlot, file: File | null) {
     if (!file) return
-    const key = docKey(docLabel)
-    setUploading(u => ({ ...u, [key]: true }))
-    setErrors(e => ({ ...e, [key]: '' }))
+    setUploading(u => ({ ...u, [slot.key]: true }))
+    setErrors(e => ({ ...e, [slot.key]: '' }))
 
     const crewId    = state.crew?.id ?? 'unknown'
-    const path      = `visa/${crewId}/${state.countryCode}/${key}`
+    const path      = `visa/${crewId}/${state.countryCode}/${slot.key}`
     const { error } = await supabase.storage
       .from('permit-documents')
       .upload(path, file, { upsert: true })
 
     if (error) {
-      setErrors(e => ({ ...e, [key]: error.message }))
-      setUploading(u => ({ ...u, [key]: false }))
+      setErrors(e => ({ ...e, [slot.key]: error.message }))
+      setUploading(u => ({ ...u, [slot.key]: false }))
       return
     }
 
@@ -101,29 +119,30 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
       .getPublicUrl(path)
 
     onUpdate({
-      uploadedDocs: { ...state.uploadedDocs, [key]: urlData.publicUrl },
+      uploadedDocs: { ...state.uploadedDocs, [slot.key]: urlData.publicUrl },
     })
-    setUploading(u => ({ ...u, [key]: false }))
+    setUploading(u => ({ ...u, [slot.key]: false }))
   }
 
-  function handleRemove(docLabel: string) {
-    const key = docKey(docLabel)
+  function handleRemove(slot: DocumentSlot) {
+    // Do not allow removing a passport-sourced document — it came from the passport step.
+    if (slot.source === 'passport') return
     const next = { ...state.uploadedDocs }
-    delete next[key]
+    delete next[slot.key]
     onUpdate({ uploadedDocs: next })
-    if (fileRefs.current[key]) {
-      fileRefs.current[key]!.value = ''
+    if (fileRefs.current[slot.key]) {
+      fileRefs.current[slot.key]!.value = ''
     }
   }
 
   const card: React.CSSProperties = {
-    background:   COLORS.abyss,
-    border:       `1px solid ${COLORS.deep}`,
-    borderRadius: 10,
-    padding:      '18px 20px',
-    display:      'flex',
+    background:    COLORS.abyss,
+    border:        `1px solid ${COLORS.deep}`,
+    borderRadius:  10,
+    padding:       '18px 20px',
+    display:       'flex',
     flexDirection: 'column',
-    gap:          10,
+    gap:           10,
   }
 
   const labelStyle: React.CSSProperties = {
@@ -139,6 +158,15 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
     color:      COLORS.muted,
   }
 
+  // Banner colour: green = all done, amber = missing or pending
+  const bannerGreen = allComplete
+  const bannerBg    = bannerGreen ? `${COLORS.signal}18`       : `${COLORS.leoAmber}14`
+  const bannerBorder= bannerGreen ? COLORS.signal               : COLORS.leoAmber
+  const bannerColor = bannerGreen ? COLORS.signal               : COLORS.leoAmber
+  const bannerText  = bannerGreen
+    ? `${completedCount} of ${slots.length} — all documents provided`
+    : `${completedCount} of ${slots.length} provided — all documents required before continuing`
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Header */}
@@ -153,132 +181,161 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
         </p>
       </div>
 
-      {/* Progress summary */}
-      {requiredDocs.length > 0 && (
-        <div
-          style={{
-            background:   uploadedCount === requiredDocs.length ? `${COLORS.signal}18` : `color-mix(in oklab, ${COLORS.ocean} 33%, transparent)`,
-            border:       `1px solid ${uploadedCount === requiredDocs.length ? COLORS.signal : COLORS.deep}`,
-            borderRadius: 8,
-            padding:      '10px 16px',
-            fontFamily:   FONTS.display,
-            fontSize:     13,
-            color:        uploadedCount === requiredDocs.length ? COLORS.signal : COLORS.muted,
-          }}
-        >
-          {uploadedCount === requiredDocs.length
-            ? `${uploadedCount} of ${requiredDocs.length} uploaded — all documents provided`
-            : `${uploadedCount} of ${requiredDocs.length} uploaded — you may continue or add remaining later`}
+      {/* Progress banner */}
+      {slots.length > 0 && (
+        <div style={{
+          background:   bannerBg,
+          border:       `1px solid ${bannerBorder}`,
+          borderRadius: 8,
+          padding:      '10px 16px',
+          fontFamily:   FONTS.display,
+          fontSize:     13,
+          color:        bannerColor,
+        }}>
+          {bannerText}
         </div>
       )}
 
-      {/* Document slots */}
-      {requiredDocs.length === 0 && (
+      {slots.length === 0 && (
         <p style={{ fontFamily: FONTS.display, fontSize: 14, color: COLORS.muted }}>
           No specific documents required for this country configuration.
         </p>
       )}
 
-      {requiredDocs.map(docLabel => {
-        const key        = docKey(docLabel)
-        const isUploaded = !!state.uploadedDocs[key]
-        const isLoading  = !!uploading[key]
-        const errMsg     = errors[key]
+      {/* Document slots */}
+      {slots.map(slot => {
+        const effectiveUrl = state.uploadedDocs[slot.key] ?? slot.url ?? null
+        const isComplete   = slotComplete(slot, state.uploadedDocs)
+        const isUploading  = !!uploading[slot.key]
+        const errMsg       = errors[slot.key]
+        const fromPassport = effectiveUrl ? passportUrls.has(effectiveUrl) : false
 
         return (
-          <div key={key} style={card}>
-            {/* Row: icon + label */}
+          <div key={slot.key} style={card}>
+            {/* Row: status dot + label */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {/* Status dot */}
-              <div
-                style={{
-                  width:        20,
-                  height:       20,
-                  borderRadius: '50%',
-                  background:   isUploaded ? COLORS.signal : COLORS.steel,
-                  flexShrink:   0,
-                  display:      'flex',
-                  alignItems:   'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {isUploaded && (
+              <div style={{
+                width:          20,
+                height:         20,
+                borderRadius:   '50%',
+                flexShrink:     0,
+                display:        'flex',
+                alignItems:     'center',
+                justifyContent: 'center',
+                background:     isComplete ? COLORS.signal
+                              : slot.letterPending ? COLORS.leoAmber
+                              : COLORS.steel,
+              }}>
+                {isComplete && !slot.letterPending && (
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                     <path d="M2 6l3 3 5-5" stroke="#080D14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
+                {slot.letterPending && (
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 2v4l2.5 2.5" stroke="#080D14" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="6" cy="6" r="5" stroke="#080D14" strokeWidth="1.5" />
+                  </svg>
+                )}
               </div>
-              <span style={labelStyle}>{docLabel}</span>
+              <span style={labelStyle}>{slot.label}</span>
             </div>
 
-            {/* Uploaded state */}
-            {isUploaded && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 30, flexWrap: 'wrap' }}>
-                <span style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.signal, textDecoration: 'underline', wordBreak: 'break-all' }}>
-                  <SignedAnchor stored={state.uploadedDocs[key]}>
-                    {decodeURIComponent(state.uploadedDocs[key].split('/').pop() ?? 'View file')}
-                  </SignedAnchor>
+            {/* Letter pending state */}
+            {slot.letterPending && (
+              <div style={{
+                paddingLeft: 30,
+                display:     'flex',
+                flexDirection: 'column',
+                gap:         4,
+              }}>
+                <span style={{ fontFamily: FONTS.display, fontSize: 13, color: COLORS.leoAmber, fontWeight: 600 }}>
+                  Will be issued by our Port & Agency Team
                 </span>
-                {passportUrls.has(state.uploadedDocs[key]) && (
-                  <span style={{
-                    fontFamily: FONTS.display, fontSize: 9, fontWeight: 700, letterSpacing: '0.12em',
-                    textTransform: 'uppercase', color: COLORS.signal, padding: '1px 6px',
-                    background: `${COLORS.signal}18`, border: `1px solid ${COLORS.signal}30`, borderRadius: 3,
-                  }}>From passport on file</span>
-                )}
-                <button
-                  onClick={() => handleRemove(docLabel)}
-                  style={{
-                    background:   'none',
-                    border:       'none',
-                    cursor:       'pointer',
-                    fontFamily:   FONTS.display,
-                    fontSize:     12,
-                    color:        COLORS.warn,
-                    padding:      0,
-                    flexShrink:   0,
-                  }}
-                >
-                  Remove
-                </button>
+                <span style={{ ...mutedStyle }}>
+                  No Seaman's Book declared. A JLS Crew Verification Letter will be prepared before submission.
+                </span>
               </div>
             )}
 
-            {/* Upload button */}
-            {!isUploaded && (
+            {/* Uploaded / pre-filled state */}
+            {!slot.letterPending && isComplete && effectiveUrl && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 30, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.signal, textDecoration: 'underline', wordBreak: 'break-all' }}>
+                  <SignedAnchor stored={effectiveUrl}>
+                    {decodeURIComponent(effectiveUrl.split('/').pop() ?? 'View file')}
+                  </SignedAnchor>
+                </span>
+                {fromPassport && (
+                  <span style={{
+                    fontFamily:    FONTS.display,
+                    fontSize:      9,
+                    fontWeight:    700,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color:         COLORS.signal,
+                    padding:       '1px 6px',
+                    background:    `${COLORS.signal}18`,
+                    border:        `1px solid ${COLORS.signal}30`,
+                    borderRadius:  3,
+                  }}>
+                    From passport on file
+                  </span>
+                )}
+                {/* Only allow removing manually-uploaded docs, not passport-sourced ones */}
+                {slot.source !== 'passport' && (
+                  <button
+                    onClick={() => handleRemove(slot)}
+                    style={{
+                      background: 'none',
+                      border:     'none',
+                      cursor:     'pointer',
+                      fontFamily: FONTS.display,
+                      fontSize:   12,
+                      color:      COLORS.warn,
+                      padding:    0,
+                      flexShrink: 0,
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Upload button — only shown when slot has no URL and isn't letter_pending */}
+            {!slot.letterPending && !isComplete && (
               <div style={{ paddingLeft: 30 }}>
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
                   style={{ display: 'none' }}
-                  ref={el => { fileRefs.current[key] = el }}
-                  onChange={e => handleFileChange(docLabel, e.target.files?.[0] ?? null)}
-                  disabled={isLoading}
+                  ref={el => { fileRefs.current[slot.key] = el }}
+                  onChange={e => handleFileChange(slot, e.target.files?.[0] ?? null)}
+                  disabled={isUploading}
                 />
                 <button
-                  onClick={() => fileRefs.current[key]?.click()}
-                  disabled={isLoading}
+                  onClick={() => fileRefs.current[slot.key]?.click()}
+                  disabled={isUploading}
                   style={{
-                    background:    isLoading ? COLORS.ocean : COLORS.deep,
+                    background:    isUploading ? COLORS.ocean : COLORS.deep,
                     border:        `1px solid ${COLORS.ocean}`,
                     borderRadius:  6,
                     padding:       '7px 16px',
-                    cursor:        isLoading ? 'not-allowed' : 'pointer',
+                    cursor:        isUploading ? 'not-allowed' : 'pointer',
                     fontFamily:    FONTS.display,
                     fontSize:      13,
                     fontWeight:    600,
-                    color:         isLoading ? COLORS.muted : COLORS.frost,
+                    color:         isUploading ? COLORS.muted : COLORS.frost,
                     display:       'flex',
                     alignItems:    'center',
                     gap:           8,
                   }}
                 >
-                  {isLoading ? (
+                  {isUploading ? (
                     <>
-                      <svg
-                        width="14" height="14" viewBox="0 0 14 14" fill="none"
-                        style={{ animation: 'spin 1s linear infinite' }}
-                      >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+                           style={{ animation: 'spin 1s linear infinite' }}>
                         <circle cx="7" cy="7" r="5" stroke={COLORS.muted} strokeWidth="2" strokeDasharray="20 10" />
                       </svg>
                       Uploading…
@@ -293,10 +350,15 @@ export default function StepDocumentUpload({ state, onUpdate, onNext, onBack }: 
                   )}
                 </button>
                 <p style={{ ...mutedStyle, marginTop: 4 }}>PDF, JPG, or PNG accepted</p>
+                {slot.key === 'seamans_book_or_letter' && (
+                  <p style={{ ...mutedStyle, marginTop: 2 }}>
+                    No Seaman's Book? Declare this on the Supporting Documents step — our Port & Agency Team will issue a verification letter.
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Error */}
+            {/* Upload error */}
             {errMsg && (
               <p style={{ fontFamily: FONTS.display, fontSize: 12, color: COLORS.warn, paddingLeft: 30, margin: 0 }}>
                 {errMsg}
