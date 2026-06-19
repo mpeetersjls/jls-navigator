@@ -21,6 +21,7 @@ import { visaSupportingDocsHandler } from './routes/api.visa.supporting-docs'
 import { crewPassportsHandler } from './routes/api.crew.passports'
 import { visaPassportSelectHandler } from './routes/api.visa.passport-select'
 import { crewSearchHandler } from './routes/api.crew.search'
+import { crewPersonalInfoHandler } from './routes/api.crew.personal-info'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -215,6 +216,16 @@ export default {
 
     if (url.pathname === '/api/crew/search' && request.method === 'GET') {
       return crewSearchHandler(request)
+    }
+
+    if (url.pathname.match(/^\/api\/crew\/[^/]+\/personal-info$/) &&
+        (request.method === 'GET' || request.method === 'PATCH')) {
+      return crewPersonalInfoHandler(request)
+    }
+
+    if (url.pathname.match(/^\/api\/crew\/[^/]+\/passports\/[^/]+\/ocr$/) &&
+        request.method === 'GET') {
+      return crewPersonalInfoHandler(request)
     }
 
     if (url.pathname.match(/^\/api\/crew\/[^/]+\/passports\/?([^/]*)$/)) {

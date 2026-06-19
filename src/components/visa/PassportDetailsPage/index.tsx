@@ -6,6 +6,7 @@ import { PassportCard } from './PassportCard'
 import { AddPassportModal } from './AddPassportModal'
 import type { Passport, PassportRow } from './PassportDetailsPage.types'
 import { rowToPassport } from './PassportDetailsPage.types'
+import { AdditionalPersonalInfoSection } from '@/components/visa/AdditionalPersonalInfoSection'
 
 const MAX_PASSPORTS = 3
 const GREEN = '#1D9E75'
@@ -28,8 +29,6 @@ export function PassportDetailsPage() {
   const [isLoading,  setIsLoading]  = useState(true)
   const [loadError,  setLoadError]  = useState<string | null>(null)
   const [modalOpen,  setModalOpen]  = useState(false)
-  const [saving,     setSaving]     = useState(false)
-  const [saveError,  setSaveError]  = useState<string | null>(null)
 
   // Load passports on mount
   useEffect(() => {
@@ -81,36 +80,7 @@ export function PassportDetailsPage() {
     }
   }
 
-  async function handleContinue() {
-    if (!canContinue || saving) return
-    setSaving(true)
-    setSaveError(null)
-    try {
-      if (applicationId) {
-        const res = await fetch(`/api/visa/${applicationId}/passport`, {
-          method:  'PATCH',
-          headers: {
-            'Content-Type':  'application/json',
-            Authorization:   `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ passport_id: selectedId }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? 'Failed to save selection')
-      }
-      void navigate({
-        to:     '/crew-immigration/visas/supporting-docs',
-        search: { applicationId },
-      })
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Failed to save. Please try again.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const canContinue = selectedId !== null && passports.length > 0
-  const atLimit     = passports.length >= MAX_PASSPORTS
+  const atLimit = passports.length >= MAX_PASSPORTS
   const selectedPassport = passports.find(p => p.id === selectedId) ?? null
 
   if (isLoading) {
@@ -265,22 +235,8 @@ export function PassportDetailsPage() {
         </>
       )}
 
-      {/* Save error */}
-      {saveError && (
-        <div style={{
-          marginBottom: 16, padding: '10px 14px', borderRadius: 8,
-          background: `${COLORS.warn}14`, border: `1px solid ${COLORS.warn}40`,
-          fontFamily: FONTS.display, fontSize: 12, color: COLORS.warn,
-        }}>
-          {saveError}
-        </div>
-      )}
-
-      {/* Navigation row */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: 20, borderTop: `1px solid var(--border)`,
-      }}>
+      {/* ← Back navigation */}
+      <div style={{ paddingTop: 20, borderTop: `1px solid var(--border)` }}>
         <button
           type="button"
           onClick={() => navigate({ to: -1 as never })}
@@ -293,23 +249,17 @@ export function PassportDetailsPage() {
         >
           ← Back
         </button>
-        <button
-          type="button"
-          disabled={!canContinue || saving}
-          onClick={handleContinue}
-          style={{
-            fontFamily: FONTS.display, fontSize: 13, fontWeight: 700,
-            color: '#fff', background: COLORS.signal,
-            border: 'none', borderRadius: 7,
-            padding: '9px 28px',
-            cursor: canContinue && !saving ? 'pointer' : 'not-allowed',
-            opacity: canContinue && !saving ? 1 : 0.45,
-            transition: 'opacity 0.15s',
-          }}
-        >
-          {saving ? 'Saving…' : 'Continue →'}
-        </button>
       </div>
+
+      {/* Additional Personal Information — shown once crew is known */}
+      {crewId && (
+        <AdditionalPersonalInfoSection
+          crewId={crewId}
+          applicationId={applicationId}
+          selectedPassportId={selectedId}
+          authToken={authToken}
+        />
+      )}
 
       {/* Add Passport Modal */}
       {modalOpen && (
