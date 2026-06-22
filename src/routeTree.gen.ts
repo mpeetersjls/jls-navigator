@@ -61,6 +61,9 @@ import { Route as AppYachtsNewRouteImport } from './routes/_app.yachts.new'
 import { Route as AppYachtsIdRouteImport } from './routes/_app.yachts.$id'
 import { Route as AppWaypointQuotationsRouteImport } from './routes/_app.waypoint.quotations'
 import { Route as AppTrainingCertificationsRouteImport } from './routes/_app.training.certifications'
+import { Route as AppPortalTrainingRouteImport } from './routes/_app.portal.training'
+import { Route as AppPortalSupplierRouteImport } from './routes/_app.portal.supplier'
+import { Route as AppPortalShipsyncRouteImport } from './routes/_app.portal.shipsync'
 import { Route as AppPortalOwnerRouteImport } from './routes/_app.portal.owner'
 import { Route as AppPortalCrewRouteImport } from './routes/_app.portal.crew'
 import { Route as AppPermitsTdraRouteImport } from './routes/_app.permits.tdra'
@@ -370,6 +373,21 @@ const AppTrainingCertificationsRoute =
     path: '/certifications',
     getParentRoute: () => AppTrainingRoute,
   } as any)
+const AppPortalTrainingRoute = AppPortalTrainingRouteImport.update({
+  id: '/portal/training',
+  path: '/portal/training',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPortalSupplierRoute = AppPortalSupplierRouteImport.update({
+  id: '/portal/supplier',
+  path: '/portal/supplier',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPortalShipsyncRoute = AppPortalShipsyncRouteImport.update({
+  id: '/portal/shipsync',
+  path: '/portal/shipsync',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppPortalOwnerRoute = AppPortalOwnerRouteImport.update({
   id: '/portal/owner',
   path: '/portal/owner',
@@ -698,6 +716,9 @@ export interface FileRoutesByFullPath {
   '/permits/tdra': typeof AppPermitsTdraRoute
   '/portal/crew': typeof AppPortalCrewRoute
   '/portal/owner': typeof AppPortalOwnerRoute
+  '/portal/shipsync': typeof AppPortalShipsyncRoute
+  '/portal/supplier': typeof AppPortalSupplierRoute
+  '/portal/training': typeof AppPortalTrainingRoute
   '/training/certifications': typeof AppTrainingCertificationsRoute
   '/waypoint/quotations': typeof AppWaypointQuotationsRoute
   '/yachts/$id': typeof AppYachtsIdRoute
@@ -787,6 +808,9 @@ export interface FileRoutesByTo {
   '/permits/tdra': typeof AppPermitsTdraRoute
   '/portal/crew': typeof AppPortalCrewRoute
   '/portal/owner': typeof AppPortalOwnerRoute
+  '/portal/shipsync': typeof AppPortalShipsyncRoute
+  '/portal/supplier': typeof AppPortalSupplierRoute
+  '/portal/training': typeof AppPortalTrainingRoute
   '/training/certifications': typeof AppTrainingCertificationsRoute
   '/waypoint/quotations': typeof AppWaypointQuotationsRoute
   '/yachts/$id': typeof AppYachtsIdRoute
@@ -889,6 +913,9 @@ export interface FileRoutesById {
   '/_app/permits/tdra': typeof AppPermitsTdraRoute
   '/_app/portal/crew': typeof AppPortalCrewRoute
   '/_app/portal/owner': typeof AppPortalOwnerRoute
+  '/_app/portal/shipsync': typeof AppPortalShipsyncRoute
+  '/_app/portal/supplier': typeof AppPortalSupplierRoute
+  '/_app/portal/training': typeof AppPortalTrainingRoute
   '/_app/training/certifications': typeof AppTrainingCertificationsRoute
   '/_app/waypoint/quotations': typeof AppWaypointQuotationsRoute
   '/_app/yachts/$id': typeof AppYachtsIdRoute
@@ -991,6 +1018,9 @@ export interface FileRouteTypes {
     | '/permits/tdra'
     | '/portal/crew'
     | '/portal/owner'
+    | '/portal/shipsync'
+    | '/portal/supplier'
+    | '/portal/training'
     | '/training/certifications'
     | '/waypoint/quotations'
     | '/yachts/$id'
@@ -1080,6 +1110,9 @@ export interface FileRouteTypes {
     | '/permits/tdra'
     | '/portal/crew'
     | '/portal/owner'
+    | '/portal/shipsync'
+    | '/portal/supplier'
+    | '/portal/training'
     | '/training/certifications'
     | '/waypoint/quotations'
     | '/yachts/$id'
@@ -1181,6 +1214,9 @@ export interface FileRouteTypes {
     | '/_app/permits/tdra'
     | '/_app/portal/crew'
     | '/_app/portal/owner'
+    | '/_app/portal/shipsync'
+    | '/_app/portal/supplier'
+    | '/_app/portal/training'
     | '/_app/training/certifications'
     | '/_app/waypoint/quotations'
     | '/_app/yachts/$id'
@@ -1582,6 +1618,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/training/certifications'
       preLoaderRoute: typeof AppTrainingCertificationsRouteImport
       parentRoute: typeof AppTrainingRoute
+    }
+    '/_app/portal/training': {
+      id: '/_app/portal/training'
+      path: '/portal/training'
+      fullPath: '/portal/training'
+      preLoaderRoute: typeof AppPortalTrainingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portal/supplier': {
+      id: '/_app/portal/supplier'
+      path: '/portal/supplier'
+      fullPath: '/portal/supplier'
+      preLoaderRoute: typeof AppPortalSupplierRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/portal/shipsync': {
+      id: '/_app/portal/shipsync'
+      path: '/portal/shipsync'
+      fullPath: '/portal/shipsync'
+      preLoaderRoute: typeof AppPortalShipsyncRouteImport
+      parentRoute: typeof AppRoute
     }
     '/_app/portal/owner': {
       id: '/_app/portal/owner'
@@ -2209,6 +2266,9 @@ interface AppRouteChildren {
   AppPermitsTdraRoute: typeof AppPermitsTdraRoute
   AppPortalCrewRoute: typeof AppPortalCrewRoute
   AppPortalOwnerRoute: typeof AppPortalOwnerRoute
+  AppPortalShipsyncRoute: typeof AppPortalShipsyncRoute
+  AppPortalSupplierRoute: typeof AppPortalSupplierRoute
+  AppPortalTrainingRoute: typeof AppPortalTrainingRoute
   AppYachtsIdRoute: typeof AppYachtsIdRoute
   AppYachtsNewRoute: typeof AppYachtsNewRoute
   AppYachtsIndexRoute: typeof AppYachtsIndexRoute
@@ -2261,6 +2321,9 @@ const AppRouteChildren: AppRouteChildren = {
   AppPermitsTdraRoute: AppPermitsTdraRoute,
   AppPortalCrewRoute: AppPortalCrewRoute,
   AppPortalOwnerRoute: AppPortalOwnerRoute,
+  AppPortalShipsyncRoute: AppPortalShipsyncRoute,
+  AppPortalSupplierRoute: AppPortalSupplierRoute,
+  AppPortalTrainingRoute: AppPortalTrainingRoute,
   AppYachtsIdRoute: AppYachtsIdRoute,
   AppYachtsNewRoute: AppYachtsNewRoute,
   AppYachtsIndexRoute: AppYachtsIndexRoute,

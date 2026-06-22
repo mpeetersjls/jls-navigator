@@ -179,7 +179,7 @@ export function getLandingPath(claims: PolarisClaims): string {
  */
 export function isBuiltRoute(path: string): boolean {
   if (path === "/dashboard") return true;
-  if (path === "/portal/crew" || path === "/portal/owner") return true;
+  if (["/portal/crew", "/portal/owner", "/portal/supplier", "/portal/shipsync", "/portal/training"].includes(path)) return true;
   if (/^\/dashboard\/vessel\/[^/]+/.test(path)) return true;
   if (/^\/dashboard\/location\/[^/]+/.test(path)) return true;
   return false;
