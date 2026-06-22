@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { getSpSyncs, syncById, downloadPendingImages } from "@/lib/sharepoint-sync.server";
 
 export type SyncStatus = {
   name: string;
@@ -57,4 +58,51 @@ export const getIntegrationsStatus = createServerFn({ method: "GET" })
         errorSample: s.last_sync_error_sample ?? null,
       })),
     };
+  });
+
+// ─── "Sync all" support (Developer → Integrations) ────────────────────────────
+
+/** The list of enabled sync configs, so the client can drive them one at a time. */
+export const getEnabledSyncs = createServerFn({ method: "GET" })
+  // @ts-expect-error — TanStack Start v1 serverFn handler typing
+  .handler(async (): Promise<Array<{ id: string; label: string }>> => {
+    const syncs = await getSpSyncs().catch(() => []);
+    return syncs.filter((s) => s.enabled).map((s) => ({ id: s.id!, label: s.listName ?? s.name }));
+  });
+
+/** Run a single list sync by id (client loops over getEnabledSyncs to "sync all"). */
+export const syncOneList = createServerFn({ method: "POST" })
+  // @ts-expect-error — TanStack Start v1 serverFn handler typing
+  .handler(async (ctx: { data: { id: string } }): Promise<{ synced: number; errors: number }> => {
+    return syncById(ctx.data.id);
+  });
+
+/**
+ * Download a bounded batch of pending yacht images and report progress.
+ * The client calls this repeatedly until `remaining` is 0 or a batch makes no
+ * progress (the leftover are vessels with no usable image in SharePoint).
+ * Returns failure reasons with vessel names so the cause is visible in the UI.
+ */
+export const syncImagesBatch = createServerFn({ method: "POST" })
+  // @ts-expect-error — TanStack Start v1 serverFn handler typing
+  .handler(async (): Promise<{ downloaded: number; remaining: number; failures: Array<{ vessel: string; reason: string }> }> => {
+    const res = await downloadPendingImages(12);
+
+    const db = supabaseAdmin as any;
+    const { count } = await db
+      .from("yachts")
+      .select("id", { count: "exact", head: true })
+      .is("vessel_image", null)
+      .not("sharepoint_item_id", "is", null);
+
+    const failIds = res.results.filter((r) => !r.ok).map((r) => r.id);
+    let failures: Array<{ vessel: string; reason: string }> = [];
+    if (failIds.length) {
+      const { data } = await db.from("yachts").select("id, vessel_name").in("id", failIds);
+      const nameById = new Map((data ?? []).map((y: any) => [y.id, y.vessel_name]));
+      failures = res.results
+        .filter((r) => !r.ok)
+        .map((r) => ({ vessel: (nameById.get(r.id) as string) ?? r.id, reason: r.reason ?? "unknown error" }));
+    }
+    return { downloaded: res.downloaded, remaining: count ?? 0, failures };
   });

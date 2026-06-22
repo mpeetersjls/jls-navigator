@@ -1,8 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import { getIntegrationsStatus, type IntegrationsStatus } from "@/lib/integrations.server";
-import { useDevAccess } from "@/lib/dev-access";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
-  Plug, ShieldOff, CheckCircle2, XCircle, Loader2, Copy, AlertTriangle, Cloud,
+  getIntegrationsStatus, getEnabledSyncs, syncOneList, syncImagesBatch, type IntegrationsStatus,
+} from "@/lib/integrations.server";
+import { useDevAccess } from "@/lib/dev-access";
+import { Button } from "@/components/ui/button";
+import {
+  Plug, ShieldOff, CheckCircle2, XCircle, Loader2, Copy, AlertTriangle, Cloud, RefreshCw, Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -93,7 +97,10 @@ export function IntegrationsPage() {
 
               {/* Sync configs */}
               <section className="rounded-xl border border-border bg-card p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.4)]">
-                <h2 className="mb-3 font-display text-sm font-semibold">SharePoint Sync Lists <span className="text-muted-foreground">({data.syncs.length})</span></h2>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="font-display text-sm font-semibold">SharePoint Sync Lists <span className="text-muted-foreground">({data.syncs.length})</span></h2>
+                  <SyncAllControls />
+                </div>
                 {data.syncs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No sync lists configured.</p>
                 ) : (
@@ -153,6 +160,83 @@ function Field({ label, value, mono, onCopy }: { label: string; value: string | 
           </button>
         )}
       </dd>
+    </div>
+  );
+}
+
+function SyncAllControls() {
+  const qc = useQueryClient();
+  const [listBusy, setListBusy] = useState(false);
+  const [imgBusy, setImgBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [failures, setFailures] = useState<Array<{ vessel: string; reason: string }>>([]);
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["integrations-status"] });
+
+  async function syncAllLists() {
+    setListBusy(true); setStatus(null);
+    try {
+      const syncs = await (getEnabledSyncs as any)();
+      let i = 0;
+      for (const s of syncs) {
+        setStatus(`Syncing list ${++i}/${syncs.length}: ${s.label}…`);
+        try { await (syncOneList as any)({ data: { id: s.id } }); } catch { /* keep going */ }
+      }
+      setStatus(`Re-synced ${syncs.length} list${syncs.length === 1 ? "" : "s"}.`);
+      toast.success("All list syncs complete");
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "List sync failed");
+    } finally { setListBusy(false); }
+  }
+
+  async function syncAllImages() {
+    setImgBusy(true); setStatus("Starting image sync…"); setFailures([]);
+    const fails = new Map<string, string>();
+    let total = 0;
+    try {
+      for (let i = 0; i < 60; i++) { // safety cap: 60×12 ≫ fleet size
+        const r = await (syncImagesBatch as any)();
+        total += r.downloaded;
+        for (const f of r.failures) fails.set(f.vessel, f.reason);
+        setStatus(`Downloaded ${total} image${total === 1 ? "" : "s"} · ${r.remaining} remaining…`);
+        if (r.remaining === 0) break;
+        if (r.downloaded === 0) break; // no more progress — leftovers have no usable SP image
+      }
+      setFailures([...fails].map(([vessel, reason]) => ({ vessel, reason })));
+      setStatus(`Image sync complete — ${total} downloaded${fails.size ? `, ${fails.size} skipped` : ""}.`);
+      toast.success(`Image sync complete — ${total} downloaded`);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Image sync failed");
+    } finally { setImgBusy(false); }
+  }
+
+  const busy = listBusy || imgBusy;
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" className="h-8 gap-1.5" disabled={busy} onClick={syncAllLists}>
+          {listBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Re-sync all lists
+        </Button>
+        <Button size="sm" className="h-8 gap-1.5" disabled={busy} onClick={syncAllImages}>
+          {imgBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />} Sync all images
+        </Button>
+      </div>
+      {status && <p className="text-[11px] text-muted-foreground">{status}</p>}
+      {failures.length > 0 && (
+        <details className="w-full max-w-md text-right">
+          <summary className="cursor-pointer text-[11px] text-amber-400/90">{failures.length} vessel{failures.length === 1 ? "" : "s"} without an image — why?</summary>
+          <div className="mt-1 max-h-48 overflow-auto rounded-lg border border-border bg-muted/30 p-2 text-left">
+            {failures.map((f) => (
+              <div key={f.vessel} className="text-[11px] leading-relaxed">
+                <span className="font-medium">{f.vessel}</span>{" — "}
+                <span className="text-muted-foreground">{f.reason}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
