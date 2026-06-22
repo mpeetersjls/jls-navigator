@@ -28,10 +28,28 @@ type SignEvent = {
   event_date: string | null;
   port: string | null;
   notes: string | null;
+  // Flight / logistics detail (SOSO)
+  airline?: string | null;
+  flight_number?: string | null;
+  departure_airport?: string | null;
+  arrival_airport?: string | null;
+  departure_datetime?: string | null;
+  arrival_datetime?: string | null;
+  pickup_required?: boolean | null;
+  pickup_time?: string | null;
+  crew_contact_number?: string | null;
+  driver_name?: string | null;
+};
+
+const EMPTY_FORM = {
+  yacht_id: "", event_type: "sign_on", event_date: "", port: "", notes: "",
+  airline: "", flight_number: "", departure_airport: "", arrival_airport: "",
+  departure_datetime: "", arrival_datetime: "", pickup_required: false,
+  pickup_time: "", crew_contact_number: "", driver_name: "",
 };
 
 export function SignOnOffPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [events, setEvents] = useState<SignEvent[]>([]);
   const [crew, setCrew] = useState<CrewLite[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
@@ -49,9 +67,7 @@ export function SignOnOffPage() {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SignEvent | null>(null);
-  const [form, setForm] = useState({
-    yacht_id: "", event_type: "sign_on", event_date: "", port: "", notes: "",
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   // Multi-select crew + in-modal search.
   const [selectedCrew, setSelectedCrew] = useState<string[]>([]);
   const [crewQ, setCrewQ] = useState("");
@@ -124,7 +140,7 @@ export function SignOnOffPage() {
 
   function openNew() {
     setEditId(null);
-    setForm({ yacht_id: "", event_type: "sign_on", event_date: new Date().toISOString().slice(0, 10), port: "", notes: "" });
+    setForm({ ...EMPTY_FORM, event_date: new Date().toISOString().slice(0, 10) });
     setSelectedCrew([]);
     setCrewQ("");
     setOpen(true);
@@ -132,7 +148,16 @@ export function SignOnOffPage() {
 
   function openEdit(e: SignEvent) {
     setEditId(e.id);
-    setForm({ yacht_id: e.yacht_id ?? "", event_type: e.event_type, event_date: e.event_date ?? "", port: e.port ?? "", notes: e.notes ?? "" });
+    setForm({
+      yacht_id: e.yacht_id ?? "", event_type: e.event_type, event_date: e.event_date ?? "",
+      port: e.port ?? "", notes: e.notes ?? "",
+      airline: e.airline ?? "", flight_number: e.flight_number ?? "",
+      departure_airport: e.departure_airport ?? "", arrival_airport: e.arrival_airport ?? "",
+      departure_datetime: e.departure_datetime ? e.departure_datetime.slice(0, 16) : "",
+      arrival_datetime: e.arrival_datetime ? e.arrival_datetime.slice(0, 16) : "",
+      pickup_required: !!e.pickup_required, pickup_time: e.pickup_time ? e.pickup_time.slice(0, 16) : "",
+      crew_contact_number: e.crew_contact_number ?? "", driver_name: e.driver_name ?? "",
+    });
     setSelectedCrew([e.crew_member_id]);
     setCrewQ("");
     setOpen(true);
@@ -151,6 +176,40 @@ export function SignOnOffPage() {
   const toggleCrew = (id: string) =>
     setSelectedCrew((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
+  // Flight / logistics fields shared across the batch (blank → null).
+  function movementFields() {
+    return {
+      yacht_id: form.yacht_id || null,
+      event_type: form.event_type,
+      event_date: form.event_date || null,
+      port: form.port || null,
+      notes: form.notes || null,
+      airline: form.airline || null,
+      flight_number: form.flight_number || null,
+      departure_airport: form.departure_airport ? form.departure_airport.toUpperCase() : null,
+      arrival_airport: form.arrival_airport ? form.arrival_airport.toUpperCase() : null,
+      departure_datetime: form.departure_datetime || null,
+      arrival_datetime: form.arrival_datetime || null,
+      pickup_required: !!form.pickup_required,
+      pickup_time: form.pickup_required ? (form.pickup_time || null) : null,
+      crew_contact_number: form.crew_contact_number || null,
+      driver_name: form.driver_name || null,
+    };
+  }
+
+  // Best-effort email to ops/visa team (in-app notifications fire via DB trigger).
+  function notifyMovement(crewIds: string[]) {
+    fetch("/api/movements/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${(session as any)?.access_token ?? ""}` },
+      body: JSON.stringify({
+        crew_ids: crewIds, yacht_id: form.yacht_id || null, event_type: form.event_type,
+        event_date: form.event_date || null, port: form.port || null,
+        airline: form.airline || null, flight_number: form.flight_number || null,
+      }),
+    }).catch(() => {});
+  }
+
   async function save() {
     if (selectedCrew.length === 0) { toast.error("Select at least one crew member"); return; }
     setBusy(true);
@@ -158,28 +217,20 @@ export function SignOnOffPage() {
       // Edit mode — update the single existing event.
       if (editId) {
         const { error } = await (supabase as any).from("crew_signon_events").update({
-          crew_member_id: selectedCrew[0], yacht_id: form.yacht_id || null,
-          event_type: form.event_type, event_date: form.event_date || null,
-          port: form.port || null, notes: form.notes || null,
+          ...movementFields(), crew_member_id: selectedCrew[0],
         }).eq("id", editId);
         if (error) throw error;
         await (supabase as any).from("crew_members")
           .update({ status: form.event_type === "sign_on" ? "active" : "off_signed", updated_at: new Date().toISOString() })
           .eq("id", selectedCrew[0]);
         doPushToSharePoint({ data: { target: "crew_signon_events", id: editId } } as any).catch(() => {});
+        notifyMovement(selectedCrew);
         toast.success("Event updated");
         setOpen(false); setEditId(null); void load();
         return;
       }
-      const rows = selectedCrew.map((id) => ({
-        crew_member_id: id,
-        yacht_id: form.yacht_id || null,
-        event_type: form.event_type,
-        event_date: form.event_date || null,
-        port: form.port || null,
-        notes: form.notes || null,
-        created_by: user?.id,
-      }));
+      const fields = movementFields();
+      const rows = selectedCrew.map((id) => ({ ...fields, crew_member_id: id, created_by: user?.id }));
       const { data: saved, error } = await (supabase as any)
         .from("crew_signon_events").insert(rows).select("id");
       if (error) throw error;
@@ -191,6 +242,7 @@ export function SignOnOffPage() {
       (saved ?? []).forEach((s: any) => {
         if (s?.id) doPushToSharePoint({ data: { target: "crew_signon_events", id: s.id } } as any).catch(() => {});
       });
+      notifyMovement(selectedCrew);
       const verb = form.event_type === "sign_on" ? "signed on" : "signed off";
       toast.success(`${selectedCrew.length} crew ${verb}`);
       setOpen(false);
@@ -360,7 +412,7 @@ export function SignOnOffPage() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editId ? "Edit" : "Record"} Sign On / Sign Off</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="space-y-1.5">
@@ -429,6 +481,62 @@ export function SignOnOffPage() {
                 <Input value={form.port} onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))} className="h-8" placeholder="e.g. Port Rashid, Dubai" />
               </div>
             </div>
+            {/* Flight & logistics — applied to all selected crew (same flight/batch). */}
+            <div className="rounded-lg border border-border/70 p-3">
+              <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Flight &amp; logistics <span className="font-normal normal-case">— applies to the whole batch</span></p>
+              <div className="grid gap-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Airline</Label>
+                    <Input value={form.airline} onChange={(e) => setForm((f) => ({ ...f, airline: e.target.value }))} className="h-8" placeholder="e.g. Emirates" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Flight no.</Label>
+                    <Input value={form.flight_number} onChange={(e) => setForm((f) => ({ ...f, flight_number: e.target.value }))} className="h-8" placeholder="e.g. EK204" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">From (IATA)</Label>
+                    <Input value={form.departure_airport} onChange={(e) => setForm((f) => ({ ...f, departure_airport: e.target.value }))} className="h-8 uppercase" maxLength={4} placeholder="LHR" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">To (IATA)</Label>
+                    <Input value={form.arrival_airport} onChange={(e) => setForm((f) => ({ ...f, arrival_airport: e.target.value }))} className="h-8 uppercase" maxLength={4} placeholder="DXB" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Departure</Label>
+                    <Input type="datetime-local" value={form.departure_datetime} onChange={(e) => setForm((f) => ({ ...f, departure_datetime: e.target.value }))} className="h-8" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Arrival</Label>
+                    <Input type="datetime-local" value={form.arrival_datetime} onChange={(e) => setForm((f) => ({ ...f, arrival_datetime: e.target.value }))} className="h-8" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Driver</Label>
+                    <Input value={form.driver_name} onChange={(e) => setForm((f) => ({ ...f, driver_name: e.target.value }))} className="h-8" placeholder="Driver / coordinator" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Crew contact</Label>
+                    <Input value={form.crew_contact_number} onChange={(e) => setForm((f) => ({ ...f, crew_contact_number: e.target.value }))} className="h-8" placeholder="Phone" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={form.pickup_required} onChange={(e) => setForm((f) => ({ ...f, pickup_required: e.target.checked }))} className="accent-primary" />
+                    Pickup required
+                  </label>
+                  {form.pickup_required && (
+                    <Input type="datetime-local" value={form.pickup_time} onChange={(e) => setForm((f) => ({ ...f, pickup_time: e.target.value }))} className="h-8 flex-1" />
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1.5">
               <Label className="text-xs">Notes</Label>
               <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className="resize-none text-sm" />

@@ -29,6 +29,7 @@ import { adminUserByIdHandler } from './routes/api.admin.users.$id'
 import { adminPermissionsHandler } from './routes/api.admin.permissions'
 import { adminAuditHandler } from './routes/api.admin.audit'
 import { adminAuditExportHandler } from './routes/api.admin.audit.export'
+import { movementsNotifyHandler } from './routes/api.movements.notify'
 import { runVisaExpiryFlagJob } from './lib/visa/visaExpiryFlags.server'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
@@ -278,6 +279,9 @@ export default {
     if (url.pathname.startsWith('/api/admin/users/')) {
       const id = decodeURIComponent(url.pathname.slice('/api/admin/users/'.length))
       if (id) return adminUserByIdHandler(request, id)
+    }
+    if (url.pathname === '/api/movements/notify' && request.method === 'POST') {
+      return movementsNotifyHandler(request)
     }
 
     return handleRequest(request, env, ctx)
