@@ -193,7 +193,16 @@ export async function crewVerificationHandler(request: Request): Promise<Respons
     });
     return json({ ok: true, pdfUrl });
   } catch (e: any) {
-    return json({ ok: false, error: e?.message ?? "Generation failed" }, 500);
+    const msg = e?.message ?? "Generation failed";
+    // Surface server-side failures in the Error & Warning Log for diagnosis.
+    try {
+      await (supabaseAdmin as any).from("client_logs").insert({
+        level: "error", message: `Crew verification letter generation failed: ${msg}`,
+        source: "api/crew/verification-letter", stack: e?.stack ? String(e.stack).slice(0, 4000) : null,
+        user_id: user.id, user_email: user.email ?? null,
+      });
+    } catch { /* non-fatal */ }
+    return json({ ok: false, error: msg }, 500);
   }
 }
 

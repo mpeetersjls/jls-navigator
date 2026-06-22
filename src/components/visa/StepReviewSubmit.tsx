@@ -65,6 +65,37 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
 
+  // Crew Verification letter — allow generating it here if it wasn't produced earlier.
+  const [vlBusy, setVlBusy] = useState(false)
+  const [vlErr, setVlErr] = useState<string | null>(null)
+  const [vlUrl, setVlUrl] = useState<string | null>((state.passport as any)?.crew_verification_letter_url ?? null)
+  async function generateVerificationLetter() {
+    const p: any = state.passport
+    const vessel = state.countryFields['vessel_name'] ?? ''
+    if (!p?.id || !state.crew?.id) { setVlErr('Missing crew/passport.'); return }
+    if (!vessel.trim()) { setVlErr('Vessel name is required (set it on the Details step).'); return }
+    setVlBusy(true); setVlErr(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const fullName = (state.crew as any)?.full_name
+        || [state.crew?.first_name, (state.crew as any)?.middle_name, state.crew?.last_name].filter(Boolean).join(' ')
+      const r = await fetch('/api/crew/verification-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({
+          crewId: state.crew.id, passportId: p.id, fullName,
+          passportNumber: p.passport_number ?? '', nationality: p.nationality ?? '', vesselName: vessel.trim(),
+        }),
+      })
+      const res = await r.json()
+      if (!r.ok || !res.ok) throw new Error(res.error ?? `Generation failed (${r.status})`)
+      setVlUrl(res.pdfUrl)
+      onUpdate({ passport: { ...p, crew_verification_letter_url: res.pdfUrl } as any })
+      toast.success('Verification letter generated')
+    } catch (e: any) { setVlErr(e?.message ?? 'Could not generate'); }
+    finally { setVlBusy(false) }
+  }
+
   const config: CountryVisaConfig | undefined =
     COUNTRY_CONFIGS[state.countryCode as keyof typeof COUNTRY_CONFIGS]
 
@@ -259,13 +290,16 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
           // book) or the Seaman's book itself.
           const docs: Record<string, string> = { ...state.uploadedDocs }
           const p: any = state.passport
-          if (p?.crew_verification_letter_url) docs['crew_verification_letter'] = p.crew_verification_letter_url
+          const letterUrl = vlUrl ?? p?.crew_verification_letter_url
+          if (letterUrl) docs['crew_verification_letter'] = letterUrl
           else if (p?.seamans_book_url) docs['seamans_book'] = p.seamans_book_url
           const entries = Object.entries(docs).filter(([, url]) => !!url)
-          return entries.length === 0 ? (
-            <span style={{ color: COLORS.muted, fontSize: 13 }}>No documents uploaded.</span>
-          ) : (
+          const needsLetter = !!p?.no_seamans_book && !letterUrl
+          return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {entries.length === 0 && !needsLetter && (
+                <span style={{ color: COLORS.muted, fontSize: 13 }}>No documents uploaded.</span>
+              )}
               {entries.map(([key, url]) => (
                 <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ color: COLORS.steel, fontSize: 13, minWidth: 180 }}>
@@ -278,6 +312,19 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
                   </span>
                 </div>
               ))}
+              {needsLetter && (
+                <div style={{ marginTop: 4, padding: '10px 12px', background: `${COLORS.warn}10`, border: `1px solid ${COLORS.warn}33`, borderRadius: 8 }}>
+                  <div style={{ fontSize: 12.5, color: COLORS.frost, marginBottom: 8 }}>
+                    No Seaman's book — the Crew Verification letter hasn't been generated yet.
+                  </div>
+                  <button type="button" onClick={generateVerificationLetter} disabled={vlBusy}
+                    style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: COLORS.signal,
+                      background: `${COLORS.signal}14`, border: `1px solid ${COLORS.signal}44`, borderRadius: 7, padding: '7px 12px', cursor: vlBusy ? 'default' : 'pointer' }}>
+                    {vlBusy ? 'Generating…' : 'Generate verification letter'}
+                  </button>
+                  {vlErr && <div style={{ marginTop: 8, fontSize: 12, color: COLORS.warn }}>{vlErr}</div>}
+                </div>
+              )}
             </div>
           )
         })()}
