@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import { doPushToSharePoint } from "@/lib/sharepoint-push.server";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { useActiveVessel } from "@/components/vessel-switcher";
 import { CrewCards, CrewGrid, CsvImportDialog } from "@/components/crew-immigration/crew-list-views";
 
 type Yacht = { id: string; vessel_name: string };
@@ -78,7 +77,6 @@ export function CrewListPage() {
   const [q, setQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterYacht, setFilterYacht] = useState("all");
-  const activeVessel = useActiveVessel();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CrewMember | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -96,8 +94,8 @@ export function CrewListPage() {
     if (error) { toast.error(error.message); void load(); }
   }
 
-  // Sync page filter to the global active vessel
-  useEffect(() => { setFilterYacht(activeVessel ?? "all"); }, [activeVessel]);
+  // Crew List opens unfiltered (all vessels) — it's a fleet-wide list, so it must
+  // not inherit the global active-vessel filter (that hid all crew not on it).
 
   async function load() {
     setLoading(true);

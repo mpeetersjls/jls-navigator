@@ -190,6 +190,11 @@ export default {
       return visaPassportOcrHandler(request)
     }
 
+    if (url.pathname === '/api/crew/verification-letter' && request.method === 'POST') {
+      const { crewVerificationHandler } = await import('./lib/crew-verification.server')
+      return crewVerificationHandler(request)
+    }
+
     if (url.pathname === '/api/it-tickets/notify' && request.method === 'POST') {
       return itTicketsNotifyHandler(request)
     }

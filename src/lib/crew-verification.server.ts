@@ -159,6 +159,44 @@ export async function generateCrewVerificationLetter(
   return { pdfUrl };
 }
 
+/**
+ * Worker API route — POST /api/crew/verification-letter
+ * Used instead of a serverFn import so this server-only module (supabaseAdmin,
+ * fflate, the embedded template, Graph) never enters the client bundle.
+ */
+export async function crewVerificationHandler(request: Request): Promise<Response> {
+  const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
+  if (request.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
+
+  // Authenticate the caller.
+  const auth = request.headers.get("authorization") ?? "";
+  if (!auth.startsWith("Bearer ")) return json({ ok: false, error: "Unauthorized" }, 401);
+  const { data: { user }, error: aErr } = await (supabaseAdmin as any).auth.getUser(auth.slice(7));
+  if (aErr || !user) return json({ ok: false, error: "Unauthorized" }, 401);
+
+  let d: any;
+  try { d = await request.json(); } catch { return json({ ok: false, error: "Invalid body" }, 400); }
+  if (!d?.crewId || !d?.passportId || !d?.vesselName) {
+    return json({ ok: false, error: "crewId, passportId and vesselName are required" }, 400);
+  }
+  try {
+    let officialNo = d.officialNo ?? "";
+    if (!officialNo && d.vesselName) {
+      const { data: y } = await (supabaseAdmin as any)
+        .from("yachts").select("official_no").ilike("vessel_name", d.vesselName).maybeSingle();
+      officialNo = y?.official_no ?? "";
+    }
+    const { pdfUrl } = await generateCrewVerificationLetter({
+      crewId: d.crewId, passportId: d.passportId,
+      fullName: d.fullName ?? "", passportNumber: d.passportNumber ?? "", nationality: d.nationality ?? "",
+      vesselName: d.vesselName, officialNo,
+    });
+    return json({ ok: true, pdfUrl });
+  } catch (e: any) {
+    return json({ ok: false, error: e?.message ?? "Generation failed" }, 500);
+  }
+}
+
 export const doGenerateCrewVerification = createServerFn({ method: "POST" })
   // @ts-expect-error — TanStack Start v1 serverFn handler typing
   .handler(async (ctx: {

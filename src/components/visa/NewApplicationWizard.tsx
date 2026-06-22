@@ -195,6 +195,14 @@ export default function NewApplicationWizard({ onClose }: Props) {
     setState(prev => ({ ...prev, step: Math.max(prev.step - 1, 1) }))
   }, [])
 
+  // Highest step the user has reached — lets them jump back/forward via the
+  // step header to any step they've already visited.
+  const [maxStep, setMaxStep] = useState(state.step)
+  useEffect(() => { setMaxStep(m => Math.max(m, state.step)) }, [state.step])
+  const goToStep = useCallback((n: number) => {
+    setState(prev => (n <= Math.max(maxStep, prev.step) ? { ...prev, step: n } : prev))
+  }, [maxStep])
+
   const stepProps = { state, onUpdate, onNext, onBack }
 
   const countryName =
@@ -309,11 +317,17 @@ export default function NewApplicationWizard({ onClose }: Props) {
           const stepNum = i + 1
           const isActive = stepNum === state.step
           const isCompleted = stepNum < state.step
+          const reachable = stepNum <= maxStep
 
           return (
             <React.Fragment key={stepNum}>
               {/* Step node */}
               <div
+                role={reachable ? 'button' : undefined}
+                tabIndex={reachable && !isActive ? 0 : undefined}
+                onClick={() => reachable && goToStep(stepNum)}
+                onKeyDown={(e) => { if (reachable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); goToStep(stepNum) } }}
+                title={reachable ? `Go to ${STEP_LABELS[i]}` : undefined}
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
@@ -321,6 +335,7 @@ export default function NewApplicationWizard({ onClose }: Props) {
                   gap: 4,
                   minWidth: 56,
                   flex: '0 0 auto',
+                  cursor: reachable && !isActive ? 'pointer' : 'default',
                 }}
               >
                 <div

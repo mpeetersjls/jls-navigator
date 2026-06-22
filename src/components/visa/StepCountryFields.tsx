@@ -6,7 +6,6 @@ import type { CrewMember, CrewPassport } from '@/lib/visa/crewMatching'
 import type { ComplianceResult } from '@/lib/visa/complianceChecks'
 import { supabase } from '@/integrations/supabase/client'
 import { AdditionalPersonalInfoSection } from '@/components/visa/AdditionalPersonalInfoSection'
-import { doGenerateCrewVerification } from '@/lib/crew-verification.server'
 
 export interface WizardState {
   step: number
@@ -436,7 +435,7 @@ export function StepCountryFields({ state, onUpdate, onNext, onBack }: StepCount
 
       {/* Crew Verification letter — auto-generated when no Seaman's book. */}
       {state.passport?.no_seamans_book && (
-        <CrewVerificationPanel state={state} onUpdate={onUpdate} />
+        <CrewVerificationPanel state={state} onUpdate={onUpdate} authToken={authToken} />
       )}
 
       {/* Additional Personal Information (mother's maiden name, etc.) — Mike's
@@ -508,7 +507,7 @@ export function StepCountryFields({ state, onUpdate, onNext, onBack }: StepCount
 }
 
 // ─── Crew Verification letter (auto-generated when no Seaman's book) ──────────
-function CrewVerificationPanel({ state, onUpdate }: { state: WizardState; onUpdate: (p: Partial<WizardState>) => void }) {
+function CrewVerificationPanel({ state, onUpdate, authToken }: { state: WizardState; onUpdate: (p: Partial<WizardState>) => void; authToken: string }) {
   const passport = state.passport!
   const vesselName = state.countryFields['vessel_name'] ?? ''
   const existingUrl: string | null = (passport as any).crew_verification_letter_url ?? null
@@ -524,12 +523,17 @@ function CrewVerificationPanel({ state, onUpdate }: { state: WizardState; onUpda
     if (!vesselName.trim()) { setErr('Enter the vessel name first.'); return }
     setStatus('running'); setErr(null)
     try {
-      const res = await (doGenerateCrewVerification as any)({ data: {
-        crewId: state.crew!.id, passportId: passport.id, fullName,
-        passportNumber: passport.passport_number ?? '', nationality: passport.nationality ?? '',
-        vesselName: vesselName.trim(),
-      } })
-      if (!res.ok) throw new Error(res.error ?? 'Generation failed')
+      const r = await fetch('/api/crew/verification-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
+        body: JSON.stringify({
+          crewId: state.crew!.id, passportId: passport.id, fullName,
+          passportNumber: passport.passport_number ?? '', nationality: passport.nationality ?? '',
+          vesselName: vesselName.trim(),
+        }),
+      })
+      const res = await r.json()
+      if (!r.ok || !res.ok) throw new Error(res.error ?? `Generation failed (${r.status})`)
       setUrl(res.pdfUrl); setStatus('done')
       onUpdate({ passport: { ...passport, crew_verification_letter_url: res.pdfUrl } as any })
     } catch (e: any) { setErr(e?.message ?? 'Could not generate'); setStatus('error') }
