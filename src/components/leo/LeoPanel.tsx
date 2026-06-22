@@ -239,7 +239,8 @@ export function LeoPanel({ token, userName, onReady }: LeoPanelProps) {
               <div
                 style={{
                   display:             'grid',
-                  gridTemplateColumns: '1fr 1fr 1fr',
+                  // #121 — wrap to 1–2 columns under ~768px, 3 across on desktop.
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
                   gap:                 10,
                   marginTop:           16,
                 }}
