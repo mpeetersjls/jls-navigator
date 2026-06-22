@@ -111,14 +111,26 @@ async function uploadToFolders(
   return { id: created.id, webUrl: created.webUrl };
 }
 
-/** Download a drive item converted to PDF via Graph. */
+/**
+ * Download a drive item converted to PDF via Graph.
+ * Graph 302-redirects to a pre-signed download URL; that URL must be fetched
+ * WITHOUT the Authorization header (re-sending it makes the storage host reject
+ * with HTTP 406/401). So we intercept the redirect and fetch the location clean.
+ */
 async function convertItemToPdf(siteId: string, token: string, itemId: string): Promise<Uint8Array> {
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${itemId}/content?format=pdf`,
-    { headers: { Authorization: `Bearer ${token}` } }, // fetch follows the redirect to the converted file
+    { headers: { Authorization: `Bearer ${token}` }, redirect: "manual" },
   );
-  if (!res.ok) throw new Error(`Graph PDF conversion failed: HTTP ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
+  if (res.status >= 300 && res.status < 400) {
+    const loc = res.headers.get("location");
+    if (!loc) throw new Error("Graph PDF conversion returned a redirect with no location");
+    const pdfRes = await fetch(loc); // pre-signed URL — no auth header
+    if (!pdfRes.ok) throw new Error(`Graph PDF download failed: HTTP ${pdfRes.status}`);
+    return new Uint8Array(await pdfRes.arrayBuffer());
+  }
+  if (res.ok) return new Uint8Array(await res.arrayBuffer());
+  throw new Error(`Graph PDF conversion failed: HTTP ${res.status}`);
 }
 
 /** The full generate → upload → convert → store → write-back pipeline. */
