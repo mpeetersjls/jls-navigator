@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DateInputDMY } from "@/components/ui/date-input-dmy";
 import { SignedAnchor } from "@/components/ui/signed-file";
-import { ArrowLeft, Loader2, Pencil, Trash2, ExternalLink, Upload, IdCard } from "lucide-react";
+import { ArrowLeft, Loader2, Pencil, Trash2, ExternalLink, Upload, IdCard, FileCheck2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { fileToBase64 } from "@/lib/file-to-base64";
@@ -76,6 +76,19 @@ export function VisaDetailPage() {
         const j = await r.json();
         if (j.ok && j.data) {
           const d = j.data;
+          // Safety: confirm the visa's holder name matches this crew member, so the
+          // wrong visa isn't filed against someone.
+          const crewFull = [visa?.given_name, visa?.surname].filter(Boolean).join(" ").trim().toLowerCase();
+          const visaFull = (d.holder_name || [d.given_names, d.surname].filter(Boolean).join(" ")).trim().toLowerCase();
+          if (crewFull && visaFull) {
+            const toks = (s: string) => new Set(s.split(/\s+/).filter((t: string) => t.length > 1));
+            const a = toks(crewFull); const b = toks(visaFull);
+            const overlap = [...a].filter((t) => b.has(t)).length;
+            if (overlap === 0) {
+              const ok = window.confirm(`⚠ Name mismatch\n\nThis visa appears to be for "${d.holder_name ?? visaFull}", but the crew member is "${[visa?.given_name, visa?.surname].filter(Boolean).join(" ")}".\n\nUpload anyway?`);
+              if (!ok) { toast.error("Upload cancelled — visa name did not match the crew member"); setAttaching(false); return; }
+            }
+          }
           if (d.visa_number) patch.visa_number = d.visa_number;
           if (d.issue_date) patch.visa_issuance_date = d.issue_date;
           if (d.expiry_date) patch.visa_expiry = d.expiry_date;
@@ -104,6 +117,15 @@ export function VisaDetailPage() {
     } finally {
       setAttaching(false);
     }
+  }
+
+  async function deleteVisaFile() {
+    if (!window.confirm("Remove the attached visa document? The application will revert to Submitted.")) return;
+    const { error } = await (supabase as any).from("visa_applications")
+      .update({ visa_document_url: null, status: "submitted", updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    setVisa(v => ({ ...v!, visa_document_url: null, status: "submitted" }));
+    toast.success("Visa document removed");
   }
 
   useEffect(() => { void load(); /* eslint-disable-next-line */ }, [id]);
@@ -292,28 +314,52 @@ export function VisaDetailPage() {
               })}
             </div>
 
-            {/* Attach issued visa — drag & drop or click; files into SharePoint */}
+            {/* Issued visa — attached state (view/replace/delete) or dropzone */}
             <div className="mt-5">
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Attach Issued Visa</div>
-              <div
-                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={e => { e.preventDefault(); setDragOver(false); void attachVisaFile(e.dataTransfer.files?.[0] ?? null); }}
-                onClick={() => !attaching && document.getElementById("visa-attach-input")?.click()}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3 py-5 text-center transition",
-                  attaching ? "cursor-wait" : "cursor-pointer",
-                  dragOver ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
-                )}
-              >
-                {attaching
-                  ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  : <Upload className="h-5 w-5 text-primary" />}
-                <span className="text-[12px] font-medium">{attaching ? "Uploading…" : "Drag the visa here, or click"}</span>
-                <span className="text-[10.5px] leading-snug text-muted-foreground">Drop a file from Outlook or your PC — it's filed into the crew folder and the application is marked Approved.</span>
-                <input id="visa-attach-input" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                  onChange={e => { void attachVisaFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
-              </div>
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 mb-2">Issued Visa</div>
+              {visa.visa_document_url ? (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+                  <div className="flex items-center gap-2">
+                    <FileCheck2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12.5px] font-medium">Visa attached</div>
+                      <SignedAnchor stored={visa.visa_document_url} className="text-[11px] text-primary hover:underline">View visa document</SignedAnchor>
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex gap-2">
+                    <button onClick={() => !attaching && document.getElementById("visa-attach-input")?.click()}
+                      className="flex-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-medium hover:bg-accent">
+                      {attaching ? "Uploading…" : "Replace"}
+                    </button>
+                    <button onClick={deleteVisaFile}
+                      className="flex-1 rounded-lg border border-destructive/30 px-2.5 py-1.5 text-[11px] font-medium text-destructive hover:bg-destructive/10">
+                      Delete
+                    </button>
+                  </div>
+                  <input id="visa-attach-input" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                    onChange={e => { void attachVisaFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                </div>
+              ) : (
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={e => { e.preventDefault(); setDragOver(false); void attachVisaFile(e.dataTransfer.files?.[0] ?? null); }}
+                  onClick={() => !attaching && document.getElementById("visa-attach-input")?.click()}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed px-3 py-5 text-center transition",
+                    attaching ? "cursor-wait" : "cursor-pointer",
+                    dragOver ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+                  )}
+                >
+                  {attaching
+                    ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    : <Upload className="h-5 w-5 text-primary" />}
+                  <span className="text-[12px] font-medium">{attaching ? "Uploading…" : "Drag the visa here, or click"}</span>
+                  <span className="text-[10.5px] leading-snug text-muted-foreground">Drop a file from Outlook or your PC — it's filed into the crew folder, name-checked, and the application is marked Approved.</span>
+                  <input id="visa-attach-input" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                    onChange={e => { void attachVisaFile(e.target.files?.[0] ?? null); e.target.value = ""; }} />
+                </div>
+              )}
             </div>
           </div>
         </div>
