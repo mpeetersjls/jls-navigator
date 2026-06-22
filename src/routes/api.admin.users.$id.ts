@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { requireAdminAccess } from '@/lib/admin/access'
 import { logAuditEvent } from '@/lib/admin/audit'
+import { sendAuthLinkViaSES } from '@/lib/admin/auth-email.server'
 
 function getAdmin() {
   return createClient(
@@ -41,7 +42,22 @@ const handlers = {
       const { error: mailErr } = body.action === 'reset_password'
         ? await sb.auth.resetPasswordForEmail(email, { redirectTo: `${base}/auth` })
         : await sb.auth.admin.inviteUserByEmail(email, { redirectTo: `${base}/auth/mfa-setup` })
-      if (mailErr) return json({ error: mailErr.message }, 400)
+
+      // Fallback: if Supabase couldn't send (rate limit / SMTP error), deliver via SES.
+      if (mailErr) {
+        const ok = await sendAuthLinkViaSES(sb, {
+          email,
+          type: 'recovery',
+          redirectTo: `${base}/auth`,
+          subject: body.action === 'reset_password' ? 'Reset your Polaris password' : 'Your Polaris invitation',
+          heading: body.action === 'reset_password' ? 'Reset your password' : 'You have been invited to Polaris',
+          intro: body.action === 'reset_password'
+            ? 'A password reset was requested for your Polaris account. Set a new password using the link below.'
+            : 'An administrator has invited you to the Polaris operational platform. Set your password to activate your account.',
+          cta: body.action === 'reset_password' ? 'Reset my password' : 'Set up my account',
+        })
+        if (!ok) return json({ error: mailErr.message }, 400)
+      }
 
       await logAuditEvent({
         event_type:  body.action === 'reset_password' ? 'AUTH' : 'PERM',

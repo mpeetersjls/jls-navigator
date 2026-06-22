@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { requireAdminAccess } from '@/lib/admin/access'
 import { logAuditEvent } from '@/lib/admin/audit'
+import { sendAuthLinkViaSES } from '@/lib/admin/auth-email.server'
 
 function getAdmin() {
   return createClient(
@@ -111,14 +112,37 @@ const handlers = {
       redirectTo: `${base}/auth/mfa-setup`,
     })
 
-    // Idempotent: if the auth user already exists (e.g. a prior invite), find them
-    // and repair/assign their profile rather than failing.
+    // Resolve the auth user. inviteUserByEmail may have: succeeded (sent email),
+    // failed on the email step (user created, no email), or failed because the
+    // user already exists. Find or create the user so the invite never half-fails.
     let userId = inviteData?.user?.id
+    let emailSent = !inviteErr
     if (!userId) {
       const { data: list } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 })
-      const existing = (list?.users ?? []).find((u: any) => (u.email ?? '').toLowerCase() === email.toLowerCase())
-      if (!existing) return json({ error: inviteErr?.message ?? 'Invite failed' }, 400)
-      userId = existing.id
+      userId = (list?.users ?? []).find((u: any) => (u.email ?? '').toLowerCase() === email.toLowerCase())?.id
+    }
+    if (!userId) {
+      const { data: created, error: createErr } = await sb.auth.admin.createUser({
+        email, email_confirm: false, user_metadata: { role },
+      })
+      if (createErr || !created?.user) {
+        return json({ error: createErr?.message ?? inviteErr?.message ?? 'Invite failed' }, 400)
+      }
+      userId = created.user.id
+    }
+
+    // Fallback: if Supabase couldn't send the email (rate limit / SMTP error),
+    // deliver the onboarding link ourselves via SES.
+    if (!emailSent) {
+      emailSent = await sendAuthLinkViaSES(sb, {
+        email,
+        type: 'recovery',
+        redirectTo: `${base}/auth`,
+        subject: 'Your Polaris invitation',
+        heading: 'You have been invited to Polaris',
+        intro: 'An administrator has invited you to the Polaris operational platform. Set your password to activate your account.',
+        cta: 'Set up my account',
+      })
     }
 
     const { error: profileErr } = await sb.from('user_profiles').upsert({
@@ -141,12 +165,16 @@ const handlers = {
       actor_role:  session.user.role,
       target_type: 'user',
       target_label: email,
-      detail:      `User invited: ${email} — role: ${role}`,
+      detail:      `User invited: ${email} — role: ${role}${emailSent ? '' : ' (email NOT delivered)'}`,
       ip_address:  request.headers.get('x-forwarded-for'),
       result:      'pending',
     })
 
-    return json({ success: true })
+    return json({
+      success: true,
+      emailSent,
+      warning: emailSent ? undefined : 'User created, but the invite email could not be sent. Use "Resend invite" once email is configured.',
+    })
   },
 }
 

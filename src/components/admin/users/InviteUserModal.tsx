@@ -15,6 +15,7 @@ export function InviteUserModal({ roles, onClose, onSuccess }: Props) {
   const [sending,  setSending] = useState(false)
   const [error,    setError]   = useState('')
   const [done,     setDone]    = useState(false)
+  const [warning,  setWarning] = useState('')
 
   async function handleInvite() {
     if (!email.trim()) { setError('Email is required'); return }
@@ -31,8 +32,10 @@ export function InviteUserModal({ roles, onClose, onSuccess }: Props) {
       })
       const j = await res.json()
       if (!res.ok) { setError(j.error ?? 'Invite failed'); return }
+      setWarning(j.warning ?? '')
       setDone(true)
-      setTimeout(() => { onSuccess(); onClose() }, 1200)
+      // Keep the dialog open a little longer when there's a warning to read.
+      setTimeout(() => { onSuccess(); onClose() }, j.warning ? 3500 : 1200)
     } catch {
       setError('Network error')
     } finally {
@@ -46,9 +49,13 @@ export function InviteUserModal({ roles, onClose, onSuccess }: Props) {
         <h3 className="mb-4 text-sm font-semibold text-white">Invite user</h3>
 
         {done ? (
-          <p className="py-4 text-center text-xs text-emerald-400">
-            Invite sent — user will complete MFA setup on first login.
-          </p>
+          warning ? (
+            <p className="py-4 text-center text-xs text-amber-400">{warning}</p>
+          ) : (
+            <p className="py-4 text-center text-xs text-emerald-400">
+              Invite sent — user will complete setup on first login.
+            </p>
+          )
         ) : (
           <>
             <div className="space-y-3">
