@@ -244,6 +244,26 @@ export function StepCountryFields({ state, onUpdate, onNext, onBack }: StepCount
     supabase.auth.getSession().then(({ data }) => setAuthToken(data.session?.access_token ?? ''))
   }, [])
 
+  // Cross-link crew ↔ vessel globally: when the vessel is set here, resolve the
+  // yacht and set crew_members.yacht_id so the association applies everywhere
+  // (crew list, sign-on/off, etc.) — no double data entry.
+  const vesselNameValue = state.countryFields['vessel_name'] ?? ''
+  useEffect(() => {
+    const vn = vesselNameValue.trim()
+    const crewId = state.crew?.id
+    if (!vn || !crewId) return
+    let alive = true
+    void (async () => {
+      const { data: y } = await (supabase as any).from('yachts').select('id').ilike('vessel_name', vn).maybeSingle()
+      if (!alive || !y?.id) return
+      if ((state.crew as any)?.yacht_id !== y.id) {
+        await (supabase as any).from('crew_members').update({ yacht_id: y.id, updated_at: new Date().toISOString() }).eq('id', crewId)
+      }
+    })()
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vesselNameValue, state.crew?.id])
+
   const config: CountryVisaConfig | undefined =
     COUNTRY_CONFIGS[state.countryCode as keyof typeof COUNTRY_CONFIGS]
 
@@ -357,8 +377,8 @@ export function StepCountryFields({ state, onUpdate, onNext, onBack }: StepCount
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 2 }}>
             {[
               { icon: '⚠', color: COLORS.warn, text: 'Crew must enter the UAE within 30 days of visa issuance. If not used within 30 days, the visa expires and a new application is required.' },
-              { icon: '◆', color: COLORS.info,  text: 'Visa validity (180 days) runs from the date of first entry — not from the date of issuance.' },
-              { icon: '◆', color: COLORS.info,  text: 'The vessel name below is used on all documents and correspondence throughout this application. Confirm it is correct before continuing.' },
+              { icon: '◆', color: COLORS.signal,  text: 'Visa validity (180 days) runs from the date of first entry — not from the date of issuance.' },
+              { icon: '◆', color: COLORS.signal,  text: 'The vessel name below is used on all documents and correspondence throughout this application. Confirm it is correct before continuing.' },
             ].map(({ icon, color, text }) => (
               <div key={text} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                 <span style={{ color, fontSize: 12, flexShrink: 0, marginTop: 1 }} aria-hidden="true">{icon}</span>

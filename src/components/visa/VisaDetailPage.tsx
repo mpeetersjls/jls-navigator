@@ -48,6 +48,10 @@ export function VisaDetailPage() {
   const [del, setDel] = useState(false);
   const [attaching, setAttaching] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  // Cross-linked data: latest sign-on/off from crew_signon_events + passport documents.
+  const [signOn, setSignOn] = useState<string | null>(null);
+  const [signOff, setSignOff] = useState<string | null>(null);
+  const [docs, setDocs] = useState<Record<string, string | null> | null>(null);
 
   // Attach the issued visa: store it, mark the application Approved, and file the
   // document into the SharePoint crew folder automatically (best-effort).
@@ -115,6 +119,22 @@ export function VisaDetailPage() {
     setVisa(data);
     setVesselName(data.vessel_name ?? data.yachts?.vessel_name ?? "—");
     setLoading(false);
+
+    // Cross-link: pull the latest sign-on/sign-off and the passport documents so
+    // this page reflects data entered elsewhere (no double-handling).
+    const crewId = (data as any).crew_member_id;
+    if (crewId) {
+      const db2 = supabase as any;
+      const [{ data: events }, { data: pp }] = await Promise.all([
+        db2.from("crew_signon_events").select("event_type, event_date").eq("crew_member_id", crewId).order("event_date", { ascending: false, nullsFirst: false }),
+        (data as any).selected_passport_id
+          ? db2.from("crew_passports").select("document_url, cover_url, headshot_url, seamans_book_url, crew_verification_letter_url").eq("id", (data as any).selected_passport_id).maybeSingle()
+          : db2.from("crew_passports").select("document_url, cover_url, headshot_url, seamans_book_url, crew_verification_letter_url").eq("crew_id", crewId).order("is_primary", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      setSignOn((events ?? []).find((e: any) => e.event_type === "sign_on")?.event_date ?? null);
+      setSignOff((events ?? []).find((e: any) => e.event_type === "sign_off")?.event_date ?? null);
+      setDocs(pp ?? null);
+    }
     (supabase as any).from("yachts").select("vessel_name").not("vessel_name", "is", null).order("vessel_name")
       .then(({ data: ys }: { data: { vessel_name: string }[] | null }) =>
         setYachtNames(Array.from(new Set((ys ?? []).map(y => y.vessel_name).filter(Boolean))) as string[]));
@@ -193,8 +213,8 @@ export function VisaDetailPage() {
     ["Visa Expiry", fmt(visa.visa_expiry)],
     ["1st Entry Expiry", fmt(visa.first_entry_expiry)],
     ["Arrival", fmt(visa.arrival_date)],
-    ["Sign On", fmt(visa.sign_on_date)],
-    ["Sign Off", fmt(visa.sign_off_date)],
+    ["Sign On", fmt(signOn ?? visa.sign_on_date)],
+    ["Sign Off", fmt(signOff ?? visa.sign_off_date)],
     ["Submitted", fmt(visa.submitted_at?.slice(0, 10))],
   ];
 
@@ -231,6 +251,30 @@ export function VisaDetailPage() {
                 <ExternalLink className="h-3.5 w-3.5" /> Visa document
               </SignedAnchor>
             )}
+            {docs && (() => {
+              const items: [string, string | null][] = [
+                ["Passport — inside pages", docs.document_url],
+                ["Passport — cover", docs.cover_url],
+                ["Headshot photo", docs.headshot_url],
+                docs.crew_verification_letter_url
+                  ? ["Crew verification letter", docs.crew_verification_letter_url]
+                  : ["Seaman's book", docs.seamans_book_url],
+              ];
+              const present = items.filter(([, u]) => !!u);
+              if (present.length === 0) return null;
+              return (
+                <div className="px-4 py-3">
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Documents</div>
+                  <div className="flex flex-col gap-1">
+                    {present.map(([label, u]) => (
+                      <SignedAnchor key={label} stored={u!} className="flex items-center gap-1.5 text-[13px] text-primary hover:underline">
+                        <ExternalLink className="h-3.5 w-3.5" /> {label}
+                      </SignedAnchor>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Status pipeline */}
