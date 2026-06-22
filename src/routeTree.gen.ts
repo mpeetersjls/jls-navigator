@@ -96,6 +96,7 @@ import { Route as AppGuidesDepartmentIndexRouteImport } from './routes/_app.guid
 import { Route as AppCrewImmigrationVisasIndexRouteImport } from './routes/_app.crew-immigration.visas.index'
 import { Route as AppGuidesDepartmentGuideIdRouteImport } from './routes/_app.guides.$department.$guideId'
 import { Route as AppCrewImmigrationVisasSupportingDocsRouteImport } from './routes/_app.crew-immigration.visas.supporting-docs'
+import { Route as AppCrewImmigrationVisasPassportDetailsRouteImport } from './routes/_app.crew-immigration.visas.passport-details'
 import { Route as AppCrewImmigrationVisasNewRouteImport } from './routes/_app.crew-immigration.visas.new'
 import { Route as AppCrewImmigrationVisasIdRouteImport } from './routes/_app.crew-immigration.visas.$id'
 import { Route as AppCrewImmigrationCrewNewRouteImport } from './routes/_app.crew-immigration.crew.new'
@@ -550,6 +551,12 @@ const AppCrewImmigrationVisasSupportingDocsRoute =
     path: '/supporting-docs',
     getParentRoute: () => AppCrewImmigrationVisasRoute,
   } as any)
+const AppCrewImmigrationVisasPassportDetailsRoute =
+  AppCrewImmigrationVisasPassportDetailsRouteImport.update({
+    id: '/passport-details',
+    path: '/passport-details',
+    getParentRoute: () => AppCrewImmigrationVisasRoute,
+  } as any)
 const AppCrewImmigrationVisasNewRoute =
   AppCrewImmigrationVisasNewRouteImport.update({
     id: '/new',
@@ -674,6 +681,7 @@ export interface FileRoutesByFullPath {
   '/crew-immigration/crew/new': typeof AppCrewImmigrationCrewNewRoute
   '/crew-immigration/visas/$id': typeof AppCrewImmigrationVisasIdRoute
   '/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
+  '/crew-immigration/visas/passport-details': typeof AppCrewImmigrationVisasPassportDetailsRoute
   '/crew-immigration/visas/supporting-docs': typeof AppCrewImmigrationVisasSupportingDocsRoute
   '/guides/$department/$guideId': typeof AppGuidesDepartmentGuideIdRoute
   '/crew-immigration/visas/': typeof AppCrewImmigrationVisasIndexRoute
@@ -757,6 +765,7 @@ export interface FileRoutesByTo {
   '/crew-immigration/crew/new': typeof AppCrewImmigrationCrewNewRoute
   '/crew-immigration/visas/$id': typeof AppCrewImmigrationVisasIdRoute
   '/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
+  '/crew-immigration/visas/passport-details': typeof AppCrewImmigrationVisasPassportDetailsRoute
   '/crew-immigration/visas/supporting-docs': typeof AppCrewImmigrationVisasSupportingDocsRoute
   '/guides/$department/$guideId': typeof AppGuidesDepartmentGuideIdRoute
   '/crew-immigration/visas': typeof AppCrewImmigrationVisasIndexRoute
@@ -853,6 +862,7 @@ export interface FileRoutesById {
   '/_app/crew-immigration/crew/new': typeof AppCrewImmigrationCrewNewRoute
   '/_app/crew-immigration/visas/$id': typeof AppCrewImmigrationVisasIdRoute
   '/_app/crew-immigration/visas/new': typeof AppCrewImmigrationVisasNewRoute
+  '/_app/crew-immigration/visas/passport-details': typeof AppCrewImmigrationVisasPassportDetailsRoute
   '/_app/crew-immigration/visas/supporting-docs': typeof AppCrewImmigrationVisasSupportingDocsRoute
   '/_app/guides/$department/$guideId': typeof AppGuidesDepartmentGuideIdRoute
   '/_app/crew-immigration/visas/': typeof AppCrewImmigrationVisasIndexRoute
@@ -949,6 +959,7 @@ export interface FileRouteTypes {
     | '/crew-immigration/crew/new'
     | '/crew-immigration/visas/$id'
     | '/crew-immigration/visas/new'
+    | '/crew-immigration/visas/passport-details'
     | '/crew-immigration/visas/supporting-docs'
     | '/guides/$department/$guideId'
     | '/crew-immigration/visas/'
@@ -1032,6 +1043,7 @@ export interface FileRouteTypes {
     | '/crew-immigration/crew/new'
     | '/crew-immigration/visas/$id'
     | '/crew-immigration/visas/new'
+    | '/crew-immigration/visas/passport-details'
     | '/crew-immigration/visas/supporting-docs'
     | '/guides/$department/$guideId'
     | '/crew-immigration/visas'
@@ -1127,6 +1139,7 @@ export interface FileRouteTypes {
     | '/_app/crew-immigration/crew/new'
     | '/_app/crew-immigration/visas/$id'
     | '/_app/crew-immigration/visas/new'
+    | '/_app/crew-immigration/visas/passport-details'
     | '/_app/crew-immigration/visas/supporting-docs'
     | '/_app/guides/$department/$guideId'
     | '/_app/crew-immigration/visas/'
@@ -1753,6 +1766,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppCrewImmigrationVisasSupportingDocsRouteImport
       parentRoute: typeof AppCrewImmigrationVisasRoute
     }
+    '/_app/crew-immigration/visas/passport-details': {
+      id: '/_app/crew-immigration/visas/passport-details'
+      path: '/passport-details'
+      fullPath: '/crew-immigration/visas/passport-details'
+      preLoaderRoute: typeof AppCrewImmigrationVisasPassportDetailsRouteImport
+      parentRoute: typeof AppCrewImmigrationVisasRoute
+    }
     '/_app/crew-immigration/visas/new': {
       id: '/_app/crew-immigration/visas/new'
       path: '/new'
@@ -1858,6 +1878,7 @@ const AppCrewImmigrationCrewRouteWithChildren =
 interface AppCrewImmigrationVisasRouteChildren {
   AppCrewImmigrationVisasIdRoute: typeof AppCrewImmigrationVisasIdRoute
   AppCrewImmigrationVisasNewRoute: typeof AppCrewImmigrationVisasNewRoute
+  AppCrewImmigrationVisasPassportDetailsRoute: typeof AppCrewImmigrationVisasPassportDetailsRoute
   AppCrewImmigrationVisasSupportingDocsRoute: typeof AppCrewImmigrationVisasSupportingDocsRoute
   AppCrewImmigrationVisasIndexRoute: typeof AppCrewImmigrationVisasIndexRoute
   AppCrewImmigrationVisasInfoCountryCodeRoute: typeof AppCrewImmigrationVisasInfoCountryCodeRoute
@@ -1867,6 +1888,8 @@ const AppCrewImmigrationVisasRouteChildren: AppCrewImmigrationVisasRouteChildren
   {
     AppCrewImmigrationVisasIdRoute: AppCrewImmigrationVisasIdRoute,
     AppCrewImmigrationVisasNewRoute: AppCrewImmigrationVisasNewRoute,
+    AppCrewImmigrationVisasPassportDetailsRoute:
+      AppCrewImmigrationVisasPassportDetailsRoute,
     AppCrewImmigrationVisasSupportingDocsRoute:
       AppCrewImmigrationVisasSupportingDocsRoute,
     AppCrewImmigrationVisasIndexRoute: AppCrewImmigrationVisasIndexRoute,

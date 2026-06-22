@@ -50,17 +50,36 @@ export async function requireAdminAccess(
 
   const email = user.email ?? ''
 
-  // Role from app_metadata (set by JWT hook once migrations are live),
-  // falling back to developer email list for the current build phase.
-  const role: PolarisRole =
-    (user.app_metadata?.role as PolarisRole) ??
-    (DEVELOPER_EMAILS.includes(email.toLowerCase()) ? 'global_admin' : null as unknown as PolarisRole)
+  // Resolve role + org. Source order:
+  //   1. app_metadata (set by the JWT hook — not deployed yet, Edge Fns off)
+  //   2. user_profiles (the access-control table from #128) — server-side claims
+  //   3. developer allow-list fallback for the current build phase
+  let role = user.app_metadata?.role as PolarisRole | undefined
+  let org_id: string | null = user.app_metadata?.org_id ?? null
+
+  if (!role) {
+    const { data: profile } = await sb
+      .from('user_profiles')
+      .select('org_id, roles:role_id(name)')
+      .eq('user_id', user.id)
+      .maybeSingle()
+    const roleName = (profile as any)?.roles?.name as string | undefined
+    if (roleName) {
+      // Global-tier roles all satisfy admin-access checks.
+      role = (['global_admin', 'platform_owner', 'developer'].includes(roleName)
+        ? 'global_admin'
+        : roleName) as PolarisRole
+      org_id = org_id ?? ((profile as any)?.org_id ?? null)
+    }
+  }
+
+  if (!role && DEVELOPER_EMAILS.includes(email.toLowerCase())) {
+    role = 'global_admin'
+  }
 
   if (!role || !allowedRoles.includes(role)) {
     return denied(403, 'Forbidden — insufficient role')
   }
-
-  const org_id: string | null = user.app_metadata?.org_id ?? null
 
   return {
     ok: true,
