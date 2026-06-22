@@ -3,9 +3,14 @@
 -- This migration adds what was missing from the original spec.
 
 -- Unique passport number per crew member (not globally unique)
-ALTER TABLE crew_passports
-  ADD CONSTRAINT IF NOT EXISTS uq_crew_passport_number
-  UNIQUE (crew_id, passport_number);
+-- NB: Postgres has no `ADD CONSTRAINT IF NOT EXISTS`, so guard with a DO block.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_crew_passport_number') THEN
+    ALTER TABLE crew_passports
+      ADD CONSTRAINT uq_crew_passport_number UNIQUE (crew_id, passport_number);
+  END IF;
+END $$;
 
 -- Enforce max 3 passports per crew member at DB level
 CREATE OR REPLACE FUNCTION check_passport_limit()
