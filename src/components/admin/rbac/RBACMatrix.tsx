@@ -4,8 +4,8 @@ import { EditPermissionModal } from './EditPermissionModal'
 import type { PermissionRule } from '@/lib/admin/types'
 
 const ROLES = [
-  'global_admin', 'jls_staff', 'vessel_owner',
-  'captain', 'crew', 'supplier', 'port_agent',
+  'global_admin', 'org_admin', 'jls_staff',
+  'captain', 'crew_member', 'supplier', 'owner',
 ]
 
 const ACTIONS = [
@@ -40,14 +40,14 @@ export function RBACMatrix({ rules, onRefresh }: Props) {
       <div className="overflow-x-auto">
         <table className="w-full text-xs" style={{ tableLayout: 'auto' }}>
           <thead>
-            <tr className="bg-[#0a1220]">
-              <th className="text-left px-3 py-2 text-[9px] font-semibold tracking-wider text-white/35 w-32">
+            <tr className="bg-muted">
+              <th className="text-left px-3 py-2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground w-32">
                 Permission
               </th>
               {ROLES.map(role => (
                 <th
                   key={role}
-                  className="text-center px-2 py-2 text-[9px] font-semibold tracking-wider text-white/35 min-w-[80px]"
+                  className="text-center px-2 py-2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground min-w-[80px]"
                 >
                   {role.replace(/_/g, ' ')}
                 </th>
@@ -56,8 +56,8 @@ export function RBACMatrix({ rules, onRefresh }: Props) {
           </thead>
           <tbody>
             {ACTIONS.map(action => (
-              <tr key={action} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                <td className="px-3 py-2 text-[11px] text-white/70 font-medium capitalize">
+              <tr key={action} className="border-b border-border hover:bg-muted/40">
+                <td className="px-3 py-2 text-[11px] text-foreground font-medium capitalize">
                   {action.replace(/_/g, ' ')}
                 </td>
                 {ROLES.map(role => {

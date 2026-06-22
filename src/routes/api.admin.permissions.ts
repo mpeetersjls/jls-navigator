@@ -17,10 +17,10 @@ const handlers = {
 
     const sb = getAdmin()
     const { data, error } = await sb
-      .from('permission_rules')
-      .select('*')
+      .from('role_permissions')
+      .select('id, role, action, scope, resource')
       .order('role')
-      .order('resource')
+      .order('action')
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
@@ -37,11 +37,7 @@ const handlers = {
     const session = await requireAdminAccess(request, ['global_admin'])
     if (!session.ok) return session.response
 
-    const body = await request.json() as {
-      id: string
-      scope: string
-      conditions?: Record<string, unknown>
-    }
+    const body = await request.json() as { id: string; scope: string }
 
     if (!body.id || !body.scope) {
       return new Response(JSON.stringify({ error: 'id and scope are required' }), {
@@ -50,21 +46,25 @@ const handlers = {
     }
 
     const sb = getAdmin()
-    const { data: existing } = await sb.from('permission_rules').select('*').eq('id', body.id).single()
+    const { data: existing } = await sb.from('role_permissions').select('role, action').eq('id', body.id).single()
 
-    await sb.from('permission_rules').update({
-      scope:      body.scope,
-      conditions: body.conditions ?? null,
-    }).eq('id', body.id)
+    const { error } = await sb.from('role_permissions')
+      .update({ scope: body.scope, updated_at: new Date().toISOString() })
+      .eq('id', body.id)
+    if (error) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      })
+    }
 
     await logAuditEvent({
       event_type:  'PERM',
       actor_id:    session.user.id,
       actor_email: session.user.email,
       actor_role:  session.user.role,
-      target_type: 'permission_rule',
+      target_type: 'role_permission',
       target_id:   body.id,
-      detail:      `Permission updated: ${existing?.role}/${existing?.resource}/${existing?.action} → scope: ${body.scope}`,
+      detail:      `Permission updated: ${existing?.role}/${existing?.action} → scope: ${body.scope}`,
       ip_address:  request.headers.get('x-forwarded-for'),
       result:      'success',
     })

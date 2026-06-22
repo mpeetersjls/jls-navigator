@@ -29,6 +29,7 @@ import { adminUserByIdHandler } from './routes/api.admin.users.$id'
 import { adminPermissionsHandler } from './routes/api.admin.permissions'
 import { adminAuditHandler } from './routes/api.admin.audit'
 import { adminAuditExportHandler } from './routes/api.admin.audit.export'
+import { adminStatsHandler } from './routes/api.admin.stats'
 import { movementsNotifyHandler } from './routes/api.movements.notify'
 import { movementReportsHandler, runWeeklyImmigrationReports } from './routes/api.movements.reports'
 import { runVisaExpiryFlagJob } from './lib/visa/visaExpiryFlags.server'
@@ -270,6 +271,9 @@ export default {
     }
     if (url.pathname === '/api/admin/audit' && request.method === 'GET') {
       return adminAuditHandler(request)
+    }
+    if (url.pathname === '/api/admin/stats' && request.method === 'GET') {
+      return adminStatsHandler(request)
     }
     if (url.pathname === '/api/admin/permissions') {
       return adminPermissionsHandler(request)

@@ -44,21 +44,21 @@ export function EditPermissionModal({ rule, onClose, onSuccess }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-80 rounded-xl border border-white/10 bg-[#0d1520] p-5 shadow-2xl">
-        <h3 className="mb-1 text-sm font-semibold text-white">Edit permission</h3>
-        <p className="mb-4 text-[10px] text-white/40">
-          {rule.role.replace(/_/g, ' ')} · {rule.resource} · {rule.action}
+      <div className="w-80 rounded-xl border border-border bg-card p-5 shadow-2xl">
+        <h3 className="mb-1 text-sm font-semibold text-foreground">Edit permission</h3>
+        <p className="mb-4 text-[10px] capitalize text-muted-foreground">
+          {rule.role.replace(/_/g, ' ')} · {rule.resource} · {rule.action.replace(/_/g, ' ')}
         </p>
 
         <div>
-          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-white/40">
+          <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Scope
           </label>
           <select
             value={scope}
             onChange={e => setScope(e.target.value)}
-            className="w-full rounded-md border border-white/10 bg-[#0f1d2e] px-3 py-2
-                       text-xs text-white focus:outline-none focus:ring-1 focus:ring-amber-500/40"
+            className="w-full rounded-md border border-border bg-background px-3 py-2
+                       text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/40"
           >
             {SCOPE_OPTIONS.map(s => (
               <option key={s} value={s}>{s}</option>
@@ -66,13 +66,13 @@ export function EditPermissionModal({ rule, onClose, onSuccess }: Props) {
           </select>
         </div>
 
-        {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-[11px] text-red-500">{error}</p>}
 
         <div className="mt-4 flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="rounded-md border border-white/10 px-3 py-1.5 text-xs text-white/60
-                       hover:bg-white/5 transition-colors"
+            className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground
+                       hover:bg-muted transition-colors"
           >
             Cancel
           </button>
@@ -80,7 +80,7 @@ export function EditPermissionModal({ rule, onClose, onSuccess }: Props) {
             onClick={handleSave}
             disabled={saving || scope === rule.scope}
             className="rounded-md bg-amber-500/15 border border-amber-500/25 px-3 py-1.5
-                       text-xs text-amber-400 hover:bg-amber-500/25 transition-colors
+                       text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-colors
                        disabled:opacity-40"
           >
             {saving ? 'Saving…' : 'Save'}

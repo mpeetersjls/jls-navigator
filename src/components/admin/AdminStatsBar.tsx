@@ -17,21 +17,16 @@ export function AdminStatsBar() {
     if (!session) return
     const token = (session as any).access_token ?? ''
 
-    Promise.all([
-      fetch('/api/admin/users?pageSize=1', {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(r => r.json()),
-      fetch('/api/admin/audit?pageSize=1', {
-        headers: { Authorization: `Bearer ${token}` },
-      }).then(r => r.json()),
-    ]).then(([usersData, auditData]) => {
-      setStats({
-        totalUsers:     usersData.total ?? 0,
-        activeSessions: 0,
-        mfaEnrolled:    0,
-        auditToday:     auditData.total ?? 0,
-      })
-    }).catch(() => {})
+    fetch('/api/admin/stats', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then((s) => {
+        setStats({
+          totalUsers:     s.total_users ?? 0,
+          activeSessions: s.active_sessions ?? 0,
+          mfaEnrolled:    s.mfa_enrolled ?? 0,
+          auditToday:     s.audit_today ?? 0,
+        })
+      }).catch(() => {})
   }, [session])
 
   const items = [

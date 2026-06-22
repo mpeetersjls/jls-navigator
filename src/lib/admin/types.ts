@@ -57,11 +57,11 @@ export interface RoleOption {
 
 export interface PermissionRule {
   id: string
-  role: PolarisRole
+  role: string          // a roles.name value
   resource: string
   action: string
   scope: string
-  conditions: Record<string, unknown> | null
+  conditions?: Record<string, unknown> | null
 }
 
 export interface AuditEvent {
