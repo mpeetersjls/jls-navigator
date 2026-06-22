@@ -76,15 +76,15 @@ function VisaPipelinePage() {
     }
   }
 
-  async function exportCsv() {
-    const res = await fetch(`/api/visa/reports/pipeline?format=csv&${queryString()}`, {
+  async function exportFile(format: 'csv' | 'pdf') {
+    const res = await fetch(`/api/visa/reports/pipeline?format=${format}&${queryString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) return
     const blob = await res.blob()
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'uae-visa-pipeline.csv'
+    a.download = `uae-visa-pipeline.${format}`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -113,9 +113,14 @@ function VisaPipelinePage() {
     <div style={{ maxWidth: 980, margin: '0 auto', padding: '24px 20px', fontFamily: FONTS.display }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: COLORS.frost, margin: 0 }}>UAE Visa Pipeline</h1>
-        <button onClick={exportCsv} style={{ ...select, cursor: 'pointer', color: COLORS.signal, fontWeight: 600 }}>
-          Export CSV
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => exportFile('csv')} style={{ ...select, cursor: 'pointer', color: COLORS.signal, fontWeight: 600 }}>
+            Export CSV
+          </button>
+          <button onClick={() => exportFile('pdf')} style={{ ...select, cursor: 'pointer', color: COLORS.signal, fontWeight: 600 }}>
+            Export PDF
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>

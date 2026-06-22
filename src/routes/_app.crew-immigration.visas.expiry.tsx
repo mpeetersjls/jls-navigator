@@ -59,15 +59,15 @@ function VisaExpiryReportPage() {
     }
   }
 
-  async function exportCsv() {
-    const res = await fetch(`/api/visa/reports/expiry?days=${days}&format=csv`, {
+  async function exportFile(format: 'csv' | 'pdf') {
+    const res = await fetch(`/api/visa/reports/expiry?days=${days}&format=${format}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) return
     const blob = await res.blob()
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = 'uae-visa-expiry.csv'
+    a.download = `uae-visa-expiry.${format}`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -97,7 +97,8 @@ function VisaExpiryReportPage() {
           {WINDOWS.map((w) => (
             <button key={w} onClick={() => setDays(w)} style={btn(days === w)}>{w}d</button>
           ))}
-          <button onClick={exportCsv} style={{ ...btn(false), color: COLORS.signal }}>Export CSV</button>
+          <button onClick={() => exportFile('csv')} style={{ ...btn(false), color: COLORS.signal }}>Export CSV</button>
+          <button onClick={() => exportFile('pdf')} style={{ ...btn(false), color: COLORS.signal }}>Export PDF</button>
         </div>
       </div>
 
