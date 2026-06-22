@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Users, Shield, Plus, RotateCcw, Trash2, ChevronDown,
-  CheckCircle2, XCircle, Loader2, Lock, Plug, Mail, Pencil, Save, X, Search,
+  CheckCircle2, XCircle, Loader2, Lock, Plug, Mail, Pencil, Save, X, Search, ShieldCheck,
 } from 'lucide-react'
+import { MfaSetup } from '@/components/auth/MfaSetup'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -289,7 +290,7 @@ const MODULES = [
   'Director',
 ]
 
-type SettingsTab = 'users' | 'permissions' | 'integrations' | 'emailTemplates'
+type SettingsTab = 'users' | 'permissions' | 'integrations' | 'emailTemplates' | 'security'
 
 function SettingsPage() {
   const [tab, setTab] = useState<SettingsTab>('users')
@@ -302,6 +303,7 @@ function SettingsPage() {
         </p>
         {([
           { key: 'users', label: 'Users', Icon: Users },
+          { key: 'security', label: 'Security', Icon: ShieldCheck },
           { key: 'permissions', label: 'Permissions', Icon: Shield },
           { key: 'integrations', label: 'Integrations', Icon: Plug },
           { key: 'emailTemplates', label: 'Email Templates', Icon: Mail },
@@ -323,6 +325,7 @@ function SettingsPage() {
 
       <div className="flex-1 overflow-auto">
         {tab === 'users' && <UsersPanel />}
+        {tab === 'security' && <MfaSetup />}
         {tab === 'permissions' && <PermissionsPanel />}
         {tab === 'integrations' && <IntegrationsPanel />}
         {tab === 'emailTemplates' && <EmailTemplatesPanel />}

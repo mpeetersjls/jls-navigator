@@ -24,6 +24,7 @@ import { Route as AppProcurementRouteImport } from './routes/_app.procurement'
 import { Route as AppPackagesRouteImport } from './routes/_app.packages'
 import { Route as AppOrbitRouteImport } from './routes/_app.orbit'
 import { Route as AppMyFleetRouteImport } from './routes/_app.my-fleet'
+import { Route as AppMfaSetupRouteImport } from './routes/_app.mfa-setup'
 import { Route as AppLicensingRouteImport } from './routes/_app.licensing'
 import { Route as AppItYachtsRouteImport } from './routes/_app.it-yachts'
 import { Route as AppItTicketsRouteImport } from './routes/_app.it-tickets'
@@ -177,6 +178,11 @@ const AppOrbitRoute = AppOrbitRouteImport.update({
 const AppMyFleetRoute = AppMyFleetRouteImport.update({
   id: '/my-fleet',
   path: '/my-fleet',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMfaSetupRoute = AppMfaSetupRouteImport.update({
+  id: '/mfa-setup',
+  path: '/mfa-setup',
   getParentRoute: () => AppRoute,
 } as any)
 const AppLicensingRoute = AppLicensingRouteImport.update({
@@ -619,6 +625,7 @@ export interface FileRoutesByFullPath {
   '/it-tickets': typeof AppItTicketsRouteWithChildren
   '/it-yachts': typeof AppItYachtsRoute
   '/licensing': typeof AppLicensingRoute
+  '/mfa-setup': typeof AppMfaSetupRoute
   '/my-fleet': typeof AppMyFleetRoute
   '/orbit': typeof AppOrbitRouteWithChildren
   '/packages': typeof AppPackagesRouteWithChildren
@@ -709,6 +716,7 @@ export interface FileRoutesByTo {
   '/integrations': typeof AppIntegrationsRoute
   '/it-yachts': typeof AppItYachtsRoute
   '/licensing': typeof AppLicensingRoute
+  '/mfa-setup': typeof AppMfaSetupRoute
   '/my-fleet': typeof AppMyFleetRoute
   '/procurement': typeof AppProcurementRoute
   '/provisioning': typeof AppProvisioningRoute
@@ -800,6 +808,7 @@ export interface FileRoutesById {
   '/_app/it-tickets': typeof AppItTicketsRouteWithChildren
   '/_app/it-yachts': typeof AppItYachtsRoute
   '/_app/licensing': typeof AppLicensingRoute
+  '/_app/mfa-setup': typeof AppMfaSetupRoute
   '/_app/my-fleet': typeof AppMyFleetRoute
   '/_app/orbit': typeof AppOrbitRouteWithChildren
   '/_app/packages': typeof AppPackagesRouteWithChildren
@@ -897,6 +906,7 @@ export interface FileRouteTypes {
     | '/it-tickets'
     | '/it-yachts'
     | '/licensing'
+    | '/mfa-setup'
     | '/my-fleet'
     | '/orbit'
     | '/packages'
@@ -987,6 +997,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/it-yachts'
     | '/licensing'
+    | '/mfa-setup'
     | '/my-fleet'
     | '/procurement'
     | '/provisioning'
@@ -1077,6 +1088,7 @@ export interface FileRouteTypes {
     | '/_app/it-tickets'
     | '/_app/it-yachts'
     | '/_app/licensing'
+    | '/_app/mfa-setup'
     | '/_app/my-fleet'
     | '/_app/orbit'
     | '/_app/packages'
@@ -1260,6 +1272,13 @@ declare module '@tanstack/react-router' {
       path: '/my-fleet'
       fullPath: '/my-fleet'
       preLoaderRoute: typeof AppMyFleetRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/mfa-setup': {
+      id: '/_app/mfa-setup'
+      path: '/mfa-setup'
+      fullPath: '/mfa-setup'
+      preLoaderRoute: typeof AppMfaSetupRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/licensing': {
@@ -2074,6 +2093,7 @@ interface AppRouteChildren {
   AppItTicketsRoute: typeof AppItTicketsRouteWithChildren
   AppItYachtsRoute: typeof AppItYachtsRoute
   AppLicensingRoute: typeof AppLicensingRoute
+  AppMfaSetupRoute: typeof AppMfaSetupRoute
   AppMyFleetRoute: typeof AppMyFleetRoute
   AppOrbitRoute: typeof AppOrbitRouteWithChildren
   AppPackagesRoute: typeof AppPackagesRouteWithChildren
@@ -2123,6 +2143,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppItTicketsRoute: AppItTicketsRouteWithChildren,
   AppItYachtsRoute: AppItYachtsRoute,
   AppLicensingRoute: AppLicensingRoute,
+  AppMfaSetupRoute: AppMfaSetupRoute,
   AppMyFleetRoute: AppMyFleetRoute,
   AppOrbitRoute: AppOrbitRouteWithChildren,
   AppPackagesRoute: AppPackagesRouteWithChildren,
