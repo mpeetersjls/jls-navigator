@@ -219,16 +219,26 @@ async function assembleLeoContext(userId: string, userEmail: string) {
 }
 
 // ── System prompt builder ─────────────────────────────────────────────────────
-function buildSystemPrompt(userName: string, accessLabel: string, context: any): string {
+type Workspace = { type: string; id: string; label: string } | null
+
+function buildSystemPrompt(userName: string, accessLabel: string, context: any, workspace: Workspace): string {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+
+  // #136 — scope the briefing to the workspace the user selected at login.
+  const workspaceBlock = workspace
+    ? `\nWORKSPACE CONTEXT:
+The user has selected the ${workspace.type} workspace — "${workspace.label}".
+Focus the briefing on this ${workspace.type}. Lead with what matters for it, and
+treat fleet-wide items as secondary unless they directly affect this ${workspace.type}.\n`
+    : ''
 
   return `You are Leo — the active intelligence engine inside Polaris, the yacht management and concierge platform operated by JLS Yachts.
 
 You are not a chatbot or assistant. You are a proactive operational briefing officer. You speak first. You deliver intelligence.
 
 USER: ${userName} | ACCESS: ${accessLabel} | TIME: ${greeting}
-LIVE CONTEXT (as of ${new Date().toUTCString()}):
+${workspaceBlock}LIVE CONTEXT (as of ${new Date().toUTCString()}):
 ${JSON.stringify(context, null, 2)}
 
 BRIEFING STRUCTURE (follow exactly when delivering an initial briefing):
@@ -280,10 +290,14 @@ export async function leoBriefingHandler(request: Request): Promise<Response> {
 
     let token: string
     let userName = 'there'
+    let workspace: Workspace = null
     try {
       const body = await request.json()
       token    = body.token
       userName = body.userName ?? 'there'
+      if (body.workspace?.type && body.workspace?.label) {
+        workspace = { type: String(body.workspace.type), id: String(body.workspace.id ?? ''), label: String(body.workspace.label) }
+      }
     } catch {
       return new Response(JSON.stringify({ error: 'Invalid request body' }), {
         status: 400,
@@ -317,7 +331,7 @@ export async function leoBriefingHandler(request: Request): Promise<Response> {
     }
 
     const accessLabel = ACCESS_LABELS[getAccessLevel(userEmail)]
-    const systemPrompt = buildSystemPrompt(userName, accessLabel, context)
+    const systemPrompt = buildSystemPrompt(userName, accessLabel, context, workspace)
 
     // Call Anthropic — stream the response
     let anthropicRes: Response

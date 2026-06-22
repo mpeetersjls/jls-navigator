@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { COLORS } from '@/lib/tokens'
 import { LeoIcon } from './LeoIcon'
+import { getStoredWorkspace } from '@/lib/auth/workspace'
 
 type LeoStatus = 'idle' | 'loading' | 'streaming' | 'ready' | 'error'
 
@@ -44,7 +45,7 @@ export function LeoPanel({ token, userName, onReady }: LeoPanelProps) {
       const res = await fetch('/api/leo/briefing', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ token, userName }),
+        body:    JSON.stringify({ token, userName, workspace: getStoredWorkspace() }),
       })
 
       if (!res.ok) {

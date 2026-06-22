@@ -7,22 +7,35 @@
  */
 import type { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { useBranding } from "@/lib/platform/branding";
 
 export function PolarisShell({
-  label, title, workspace, actions, children,
+  label, title, workspace, actions, children, brandOrgId,
 }: {
   label: string;
   title: string;
   workspace?: { type: string; label: string } | null;
   actions?: ReactNode;
   children: ReactNode;
+  /** Override which org's branding to show (defaults to the viewer's org). */
+  brandOrgId?: string | null;
 }) {
+  const brand = useBranding(brandOrgId);
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-border/70 bg-card/30 px-6 py-3.5">
-        <div className="min-w-0">
-          <div className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">{label}</div>
-          <h1 className="mt-0.5 truncate font-display text-[1.25rem] font-semibold tracking-tight">{title}</h1>
+        <div className="flex min-w-0 items-center gap-3">
+          {brand.logoUrl && (
+            <img src={brand.logoUrl} alt="" className="h-8 w-8 shrink-0 rounded object-contain" />
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">
+              {label}
+              {brand.displayName && <span className="text-muted-foreground/40">· {brand.displayName}</span>}
+            </div>
+            <h1 className="mt-0.5 truncate font-display text-[1.25rem] font-semibold tracking-tight"
+              style={brand.primaryColor ? { color: brand.primaryColor } : undefined}>{title}</h1>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {workspace && (
