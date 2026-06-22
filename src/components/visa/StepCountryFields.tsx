@@ -448,6 +448,7 @@ export function StepCountryFields({ state, onUpdate, onNext, onBack }: StepCount
             applicationId={state.draftId ?? ''}
             selectedPassportId={state.passport?.id ?? null}
             authToken={authToken}
+            onContinue={onNext}
           />
         </div>
       )}

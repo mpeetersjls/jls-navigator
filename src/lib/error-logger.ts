@@ -50,7 +50,11 @@ function isNoise(message: string): boolean {
   return (
     message.includes("ResizeObserver loop") ||
     message.includes("Non-Error promise rejection captured") ||
-    message.startsWith("Warning: ") && message.includes("DevTools")
+    (message.startsWith("Warning: ") && message.includes("DevTools")) ||
+    // Benign framework warnings, not actionable faults:
+    message.includes("Multiple GoTrueClient instances") ||
+    (message.includes("aria-describedby") && message.includes("DialogContent")) ||
+    message.includes("Missing `Description`")
   );
 }
 

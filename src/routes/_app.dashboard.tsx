@@ -5,7 +5,7 @@ import { getAccessLevel, ACCESS_LABELS } from '@/lib/leo-access'
 import { LeoPanel } from '@/components/leo/LeoPanel'
 import { LeoChat } from '@/components/leo/LeoChat'
 import { COLORS } from '@/lib/tokens'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/integrations/supabase/client'
 import { Ship, AlertTriangle, ClipboardList, FileSignature } from 'lucide-react'
 
 export const Route = createFileRoute('/_app/dashboard')({
@@ -26,11 +26,10 @@ function useDashboardStats(token: string): Stats | null {
 
   useEffect(() => {
     if (!token) return
-    const url = import.meta.env.VITE_SUPABASE_URL
-    const key  = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-    if (!url || !key) return
 
-    const sb    = createClient(url, key)
+    // Reuse the shared singleton — a second browser client clashes on the auth
+    // storage key (the "Multiple GoTrueClient" warning + auth-session churn).
+    const sb    = supabase
     const today = new Date().toISOString().split('T')[0]
     const in14  = new Date(Date.now() + 14 * 864e5).toISOString().split('T')[0]
 

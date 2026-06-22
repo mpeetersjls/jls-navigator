@@ -183,6 +183,8 @@ export interface AdditionalPersonalInfoSectionProps {
   applicationId:     string
   selectedPassportId: string | null
   authToken:         string
+  /** When provided (wizard mode), called after save instead of route navigation. */
+  onContinue?:       () => void
 }
 
 export function AdditionalPersonalInfoSection({
@@ -190,6 +192,7 @@ export function AdditionalPersonalInfoSection({
   applicationId,
   selectedPassportId,
   authToken,
+  onContinue,
 }: AdditionalPersonalInfoSectionProps) {
   const navigate = useNavigate()
 
@@ -245,7 +248,7 @@ export function AdditionalPersonalInfoSection({
       }
 
       const religionRaw  = pi.religion ?? ''
-      const isOtherRelig = religionRaw && !['Christianity','Islam','Hinduism','Buddhism','Judaism','None / prefer not to say'].includes(religionRaw)
+      const isOtherRelig = religionRaw && !['Christianity','Islam','Muslim','Hinduism','Buddhism','Judaism','None / prefer not to say'].includes(religionRaw)
 
       setFields({
         nationalityCitizenship: makeField('nationalityCitizenship', pi.nationalityCitizenship, ocr?.nationality),
@@ -390,11 +393,15 @@ export function AdditionalPersonalInfoSection({
         }
       }
 
-      // 3. Navigate
-      void navigate({
-        to:     '/crew-immigration/visas/supporting-docs',
-        search: { applicationId },
-      })
+      // 3. Continue — advance the wizard step when embedded, else navigate.
+      if (onContinue) {
+        onContinue()
+      } else {
+        void navigate({
+          to:     '/crew-immigration/visas/supporting-docs',
+          search: { applicationId },
+        })
+      }
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Save failed. Please try again.')
     } finally {
@@ -706,7 +713,7 @@ export function AdditionalPersonalInfoSection({
               onChange={e => setField('religion', e.target.value)}
             >
               <option value="">Prefer not to say / not specified</option>
-              {['Christianity','Islam','Hinduism','Buddhism','Judaism','None / prefer not to say','Other'].map(o => (
+              {['Christianity','Islam','Muslim','Hinduism','Buddhism','Judaism','None / prefer not to say','Other'].map(o => (
                 <option key={o} value={o}>{o}</option>
               ))}
             </select>
