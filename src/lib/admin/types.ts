@@ -32,6 +32,8 @@ export interface UserRole {
   granted_at: string
   expires_at: string | null
   is_active: boolean
+  /** Derived server-side: invited (never signed in), active, or suspended. */
+  status?: 'invited' | 'active' | 'suspended'
   // joined
   user?: {
     id: string

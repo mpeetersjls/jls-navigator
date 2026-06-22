@@ -18,32 +18,50 @@ interface Props {
   onRefresh: () => void
 }
 
+const STATUS_META: Record<string, { dot: string; label: string; text: string }> = {
+  active:    { dot: 'bg-emerald-400', label: 'active',    text: 'text-white/50' },
+  invited:   { dot: 'bg-amber-400',   label: 'invited',   text: 'text-amber-400/80' },
+  suspended: { dot: 'bg-red-400',     label: 'suspended', text: 'text-white/50' },
+}
+
 export function UserRow({ userRole, onRefresh }: Props) {
   const { session } = useAuth()
   const [editOpen, setEditOpen] = useState(false)
   const [busy, setBusy]         = useState(false)
+  const [msg, setMsg]           = useState('')
 
   const email      = (userRole as any).user?.email ?? userRole.user_id
   const lastSeen   = (userRole as any).user?.last_sign_in_at ?? null
   const hasMFA     = ((userRole as any).mfa_factors ?? []).some((f: any) => f.status === 'verified')
+  const status     = userRole.status ?? (userRole.is_active ? 'active' : 'suspended')
+  const statusMeta = STATUS_META[status] ?? STATUS_META.active
   const scopeLabel = userRole.vessel_id
     ? 'vessel-scoped'
     : userRole.org_id
     ? 'org-scoped'
     : 'global'
 
-  async function patchUser(action: 'suspend' | 'unsuspend') {
+  async function act(action: 'suspend' | 'unsuspend' | 'reset_password' | 'resend_invite', okMsg?: string) {
     setBusy(true)
-    await fetch(`/api/admin/users/${userRole.id}`, {
-      method:  'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization:  `Bearer ${(session as any)?.access_token ?? ''}`,
-      },
-      body: JSON.stringify({ action }),
-    })
-    setBusy(false)
-    onRefresh()
+    setMsg('')
+    try {
+      const res = await fetch(`/api/admin/users/${userRole.id}`, {
+        method:  'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization:  `Bearer ${(session as any)?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({ action }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) { setMsg(j.error ?? 'Failed'); return }
+      if (okMsg) { setMsg(okMsg); setTimeout(() => setMsg(''), 4000) }
+      if (action === 'suspend' || action === 'unsuspend') onRefresh()
+    } catch {
+      setMsg('Network error')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -65,11 +83,8 @@ export function UserRow({ userRole, onRefresh }: Props) {
           <span className="text-[10px] text-white/40">{scopeLabel}</span>
         </td>
         <td className="px-3 py-2.5">
-          <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1.5
-                            ${userRole.is_active ? 'bg-emerald-400' : 'bg-red-400'}`} />
-          <span className="text-[10px] text-white/50">
-            {userRole.is_active ? 'active' : 'inactive'}
-          </span>
+          <span className={`inline-block h-1.5 w-1.5 rounded-full mr-1.5 ${statusMeta.dot}`} />
+          <span className={`text-[10px] ${statusMeta.text}`}>{statusMeta.label}</span>
         </td>
         <td className="px-3 py-2.5 text-center">
           {hasMFA ? (
@@ -82,7 +97,7 @@ export function UserRow({ userRole, onRefresh }: Props) {
           <span className="text-[10px] text-white/35">{relativeTime(lastSeen)}</span>
         </td>
         <td className="px-3 py-2.5">
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <button
               onClick={() => setEditOpen(true)}
               className="rounded px-1.5 py-0.5 text-[9px] text-white/40 hover:text-amber-400
@@ -90,14 +105,33 @@ export function UserRow({ userRole, onRefresh }: Props) {
             >
               Role
             </button>
+            {status === 'invited' && (
+              <button
+                onClick={() => act('resend_invite', 'Invite re-sent')}
+                disabled={busy}
+                className="rounded px-1.5 py-0.5 text-[9px] text-white/40 hover:text-cyan-400
+                           hover:bg-cyan-500/10 transition-colors disabled:opacity-30"
+              >
+                Resend invite
+              </button>
+            )}
             <button
-              onClick={() => patchUser(userRole.is_active ? 'suspend' : 'unsuspend')}
+              onClick={() => act('reset_password', 'Reset email sent')}
+              disabled={busy}
+              className="rounded px-1.5 py-0.5 text-[9px] text-white/40 hover:text-cyan-400
+                         hover:bg-cyan-500/10 transition-colors disabled:opacity-30"
+            >
+              Reset password
+            </button>
+            <button
+              onClick={() => act(userRole.is_active ? 'suspend' : 'unsuspend')}
               disabled={busy}
               className="rounded px-1.5 py-0.5 text-[9px] text-white/40 hover:text-red-400
                          hover:bg-red-500/10 transition-colors disabled:opacity-30"
             >
               {userRole.is_active ? 'Suspend' : 'Restore'}
             </button>
+            {msg && <span className="text-[9px] text-cyan-400/80">{msg}</span>}
           </div>
         </td>
       </tr>

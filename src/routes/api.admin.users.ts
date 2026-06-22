@@ -27,10 +27,11 @@ const handlers = {
     const role     = searchParams.get('role')   ?? ''
 
     const sb = getAdmin()
+    // Include inactive rows so pending invites (is_active=false until accepted)
+    // and suspended users are visible — the row's derived `status` distinguishes them.
     let query = sb
       .from('user_roles')
       .select('*', { count: 'exact' })
-      .eq('is_active', true)
       .order('granted_at', { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1)
 
@@ -47,10 +48,33 @@ const handlers = {
       })
     }
 
-    // Filter by email search client-side (auth.users join not available via RLS)
+    // Enrich with auth.users data (email, last sign-in, MFA factors) — service-role
+    // only; there's no RLS-safe join from user_roles to auth.users.
+    const authById = new Map<string, any>()
+    try {
+      const { data: list } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 })
+      for (const u of list?.users ?? []) authById.set(u.id, u)
+    } catch { /* enrichment is best-effort — fall back to user_id */ }
+
+    const enriched = (data ?? []).map((r: any) => {
+      const au = authById.get(r.user_id)
+      const lastSignIn = au?.last_sign_in_at ?? null
+      // Pending invite = deactivated row for someone who has never signed in.
+      const status: 'invited' | 'active' | 'suspended' =
+        r.is_active ? 'active' : (lastSignIn ? 'suspended' : 'invited')
+      return {
+        ...r,
+        status,
+        user: au
+          ? { id: au.id, email: au.email ?? r.user_id, last_sign_in_at: lastSignIn, created_at: au.created_at ?? null }
+          : undefined,
+        mfa_factors: (au?.factors ?? []).map((f: any) => ({ id: f.id, factor_type: f.factor_type, status: f.status })),
+      }
+    })
+
     const users = search
-      ? (data ?? []).filter(u => (u as any).email?.toLowerCase().includes(search.toLowerCase()))
-      : (data ?? [])
+      ? enriched.filter(u => (u.user?.email ?? '').toLowerCase().includes(search.toLowerCase()))
+      : enriched
 
     return new Response(JSON.stringify({ users, total: count ?? 0, page, pageSize }), {
       headers: { 'Content-Type': 'application/json' },
