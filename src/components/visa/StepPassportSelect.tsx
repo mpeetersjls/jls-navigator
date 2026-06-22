@@ -400,7 +400,7 @@ function FieldCard({ label, note, noteColor, children }: {
 }
 
 // Document Status panel — shared between the add-form and existing-passport cards.
-function DocumentStatusPanel({ status, expiryDate, seamansNotApplicable }: {
+function DocumentStatusPanel({ status, expiryDate, seamansNotApplicable, downloads }: {
   status: {
     insidePages: 'uploaded' | 'missing' | 'not_uploaded'
     ocrCompleted: boolean
@@ -411,7 +411,10 @@ function DocumentStatusPanel({ status, expiryDate, seamansNotApplicable }: {
   }
   expiryDate?: string
   seamansNotApplicable?: boolean
+  /** Saved files available to download (null url = hidden). */
+  downloads?: { label: string; url: string | null }[]
 }) {
+  const dls = (downloads ?? []).filter((d) => d.url)
   const hasExpiry = !!expiryDate
   const valid = hasExpiry && getExpiryLabel(expiryDate!) === 'Valid'
   const years = hasExpiry ? yearsUntil(expiryDate!) : 0
@@ -455,6 +458,28 @@ function DocumentStatusPanel({ status, expiryDate, seamansNotApplicable }: {
               {valid ? `Expires in ${years} ${years === 1 ? 'year' : 'years'}` : 'Check validity before continuing'}<br />
               Expires {formatDate(expiryDate!)}
             </div>
+          </div>
+        </div>
+      )}
+
+      {dls.length > 0 && (
+        <div style={{ marginTop: 16, borderTop: `1px solid ${COLORS.deep}`, paddingTop: 14 }}>
+          <h3 style={{ fontFamily: FONTS.display, fontSize: 11, fontWeight: 700, color: COLORS.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            Downloads
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {dls.map((d) => (
+              <a key={d.label} href={d.url!} target="_blank" rel="noopener noreferrer" download
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                  background: COLORS.void, border: `1px solid ${COLORS.deep}`, borderRadius: 7,
+                  fontFamily: FONTS.display, fontSize: 12, color: COLORS.frost, textDecoration: 'none',
+                }}>
+                <span aria-hidden="true" style={{ fontSize: 14 }}>📄</span>
+                <span style={{ flex: 1 }}>{d.label}</span>
+                <span aria-hidden="true" style={{ color: COLORS.signal, fontSize: 13 }}>↓</span>
+              </a>
+            ))}
           </div>
         </div>
       )}
@@ -1039,7 +1064,15 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
         </div>
 
         {/* ── Right column: Document Status ── */}
-        <DocumentStatusPanel status={docStatus} expiryDate={expiryDate || undefined} seamansNotApplicable={noSeamans} />
+        <DocumentStatusPanel status={docStatus} expiryDate={expiryDate || undefined} seamansNotApplicable={noSeamans}
+          downloads={[
+            { label: 'Passport cover', url: existingUrls.cover },
+            { label: 'Passport inside pages', url: existingUrls.data },
+            noSeamans
+              ? { label: 'Crew verification letter', url: (ex as any)?.crew_verification_letter_url ?? null }
+              : { label: "Seaman's book", url: existingUrls.seamans },
+            { label: 'Headshot photo', url: existingUrls.headshot },
+          ]} />
       </div>
     </form>
   )
@@ -1181,7 +1214,15 @@ function PassportCard({ passport, selected, onSelect, onEdit, crewFirst, crewMid
         </div>
 
         {/* Right: per-passport Document Status */}
-        <DocumentStatusPanel status={docStatus} expiryDate={passport.expiry_date} seamansNotApplicable={!!passport.no_seamans_book} />
+        <DocumentStatusPanel status={docStatus} expiryDate={passport.expiry_date} seamansNotApplicable={!!passport.no_seamans_book}
+          downloads={[
+            { label: 'Passport cover', url: (passport as any).cover_url ?? null },
+            { label: 'Passport inside pages', url: (passport as any).document_url ?? null },
+            passport.no_seamans_book
+              ? { label: 'Crew verification letter', url: (passport as any).crew_verification_letter_url ?? null }
+              : { label: "Seaman's book", url: (passport as any).seamans_book_url ?? null },
+            { label: 'Headshot photo', url: (passport as any).headshot_url ?? null },
+          ]} />
       </div>
 
       {zoomSrc && (
