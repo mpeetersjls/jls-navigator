@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { supabase } from '@/integrations/supabase/client'
@@ -30,6 +30,12 @@ interface Props {
 }
 
 const font = { fontFamily: 'Space Grotesk, sans-serif' }
+
+const extractBtn: React.CSSProperties = {
+  fontFamily: 'Space Grotesk, sans-serif', fontSize: 12.5, fontWeight: 600,
+  color: COLORS.signal, background: `${COLORS.signal}14`, border: `1px solid ${COLORS.signal}44`,
+  borderRadius: 8, padding: '8px 14px', cursor: 'pointer', whiteSpace: 'nowrap',
+}
 
 const SectionCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div style={{
@@ -100,6 +106,90 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
     COUNTRY_CONFIGS[state.countryCode as keyof typeof COUNTRY_CONFIGS]
 
   const warningCount = state.complianceResults.filter(r => !r.blocks).length
+
+  // Re-fetch the persisted crew + passport so the summary is complete regardless
+  // of what the wizard threaded through (e.g. the additional personal-info fields).
+  const [crewFull, setCrewFull] = useState<any>(state.crew)
+  const [passportFull, setPassportFull] = useState<any>(state.passport)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const db = supabase as any
+      if (state.crew?.id) {
+        const { data } = await db.from('crew_members').select('*').eq('id', state.crew.id).maybeSingle()
+        if (data && !cancelled) setCrewFull((prev: any) => ({ ...prev, ...data }))
+      }
+      if (state.passport?.id) {
+        const { data } = await db.from('crew_passports').select('*').eq('id', state.passport.id).maybeSingle()
+        if (data && !cancelled) setPassportFull((prev: any) => ({ ...prev, ...data }))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [state.crew?.id, state.passport?.id])
+
+  // Build the full summary as labelled sections — drives both the display and the
+  // Copy / CSV extract so what you see is exactly what gets exported.
+  const summary = useMemo(() => {
+    const c: any = crewFull ?? {}
+    const p: any = passportFull ?? {}
+    const fullName = c.full_name || [c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' ') || '—'
+    const clean = (rows: { label: string; value: any }[]) =>
+      rows.map(r => ({ label: r.label, value: (r.value ?? '') === '' ? '—' : String(r.value) }))
+    const sections: { title: string; rows: { label: string; value: string }[] }[] = [
+      { title: 'Destination', rows: clean([
+        { label: 'Country', value: config?.countryName ?? state.countryCode },
+        { label: 'Country code', value: state.countryCode },
+      ]) },
+      { title: 'Personal Details', rows: clean([
+        { label: 'Full name', value: fullName },
+        { label: 'First name', value: c.first_name },
+        { label: 'Middle name', value: c.middle_name },
+        { label: 'Last name', value: c.last_name },
+        { label: 'Date of birth', value: c.date_of_birth },
+        { label: 'Place of birth', value: c.place_of_birth },
+        { label: 'Country of birth', value: c.country_of_birth },
+        { label: 'Gender', value: c.gender },
+        { label: 'Nationality', value: c.nationality ?? c.nationality_citizenship },
+        { label: 'Marital status', value: c.marital_status },
+        { label: 'Religion', value: c.religion },
+        { label: "Mother's maiden name", value: c.mothers_maiden_name ?? c.mother_name },
+        { label: "Father's full name", value: c.fathers_full_name ?? c.father_name },
+        { label: 'Native language', value: c.native_language },
+        { label: 'Occupation / rank', value: c.occupation ?? c.rank },
+        { label: 'Email', value: c.email },
+        { label: 'Phone', value: c.phone_full ?? c.phone },
+      ]) },
+      { title: 'Passport', rows: clean([
+        { label: 'Passport number', value: p.passport_number },
+        { label: 'Passport nationality', value: p.nationality },
+        { label: 'Issuing country', value: p.issuing_country },
+        { label: 'Place of issue', value: p.place_of_issue ?? c.passport_place_of_issue },
+        { label: 'Issue date', value: p.issue_date },
+        { label: 'Expiry date', value: p.expiry_date },
+      ]) },
+      { title: 'Vessel', rows: clean([
+        { label: 'Vessel', value: state.countryFields['vessel_name'] },
+      ]) },
+    ]
+    const fieldRows = (config?.fields ?? [])
+      .map(f => ({ label: f.label, value: state.countryFields[f.key] }))
+      .filter(r => r.value != null && r.value !== '')
+    if (fieldRows.length) sections.push({ title: 'Application Fields', rows: clean(fieldRows) })
+    return sections
+  }, [crewFull, passportFull, config, state.countryCode, state.countryFields])
+
+  function copySummary() {
+    const text = summary.map(s => `${s.title.toUpperCase()}\n` + s.rows.map(r => `${r.label}: ${r.value}`).join('\n')).join('\n\n')
+    navigator.clipboard.writeText(text).then(() => toast.success('Summary copied to clipboard')).catch(() => toast.error('Copy failed'))
+  }
+  function downloadCsv() {
+    const esc = (v: string) => /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v
+    const lines = ['Section,Field,Value', ...summary.flatMap(s => s.rows.map(r => [s.title, r.label, r.value].map(esc).join(',')))]
+    const name = (crewFull?.full_name || [crewFull?.first_name, crewFull?.last_name].filter(Boolean).join('_') || 'crew').replace(/\s+/g, '_')
+    const url = URL.createObjectURL(new Blob([lines.join('\r\n')], { type: 'text/csv' }))
+    const a = document.createElement('a'); a.href = url; a.download = `visa-${name}-${state.countryCode}.csv`; a.click(); URL.revokeObjectURL(url)
+    toast.success('CSV downloaded')
+  }
 
   async function handleSubmit() {
     if (!state.crew || !state.passport) {
@@ -201,21 +291,22 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
     }
   }
 
-  const displayName =
-    state.crew?.full_name ||
-    [state.crew?.first_name, state.crew?.last_name].filter(Boolean).join(' ') ||
-    '—'
-
   return (
     <div style={{ ...font, color: COLORS.frost }}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: COLORS.frost, margin: 0 }}>
-          Review &amp; Submit
-        </h2>
-        <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
-          Confirm all details below before submitting the visa application.
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 24 }}>
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: COLORS.frost, margin: 0 }}>
+            Review &amp; Submit
+          </h2>
+          <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6, marginBottom: 0 }}>
+            Confirm all details below. Use <strong>Copy</strong> or <strong>CSV</strong> to extract everything for the Immigration file.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button type="button" onClick={copySummary} style={extractBtn}>Copy details</button>
+          <button type="button" onClick={downloadCsv} style={extractBtn}>Download CSV</button>
+        </div>
       </div>
 
       {/* 1. Country */}
@@ -244,43 +335,19 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
         )}
       </SectionCard>
 
-      {/* 2. Crew Member */}
-      <SectionCard title="Crew Member">
-        <KV label="Name" value={displayName} />
-        <KV label="Date of Birth" value={state.crew?.date_of_birth ?? '—'} />
-        <KV label="Position / Rank" value={state.crew?.rank ?? '—'} />
-        <KV label="Nationality" value={state.crew?.nationality ?? '—'} />
-      </SectionCard>
-
-      {/* 3. Passport */}
-      <SectionCard title="Passport">
-        {state.passport ? (
-          <>
-            <KV label="Passport Nationality" value={state.passport.nationality} />
-            <KV label="Passport Number" value={state.passport.passport_number} />
-            <KV label="Issuing Country" value={state.passport.issuing_country} />
-            <KV label="Issue Date" value={state.passport.issue_date} />
-            <KV label="Expiry Date" value={
-              <span style={{ color: isExpiringSoon(state.passport.expiry_date) ? COLORS.warn : COLORS.frost }}>
-                {state.passport.expiry_date}
-              </span>
+      {/* 2–4. Personal details, passport, vessel & application fields — complete
+              record, identical to what Copy / CSV export. */}
+      {summary.filter(s => s.title !== 'Destination').map(section => (
+        <SectionCard key={section.title} title={section.title}>
+          {section.rows.map(r => (
+            <KV key={r.label} label={r.label} value={
+              r.label === 'Expiry date' && r.value !== '—' && isExpiringSoon(r.value)
+                ? <span style={{ color: COLORS.warn }}>{r.value}</span>
+                : r.value
             } />
-          </>
-        ) : (
-          <span style={{ color: COLORS.muted }}>No passport selected.</span>
-        )}
-      </SectionCard>
-
-      {/* 4. Country Fields */}
-      {Object.keys(state.countryFields).length > 0 && (
-        <SectionCard title="Application Fields">
-          {config?.fields.map(f => {
-            const val = state.countryFields[f.key]
-            if (!val && val !== '0') return null
-            return <KV key={f.key} label={f.label} value={val} />
-          })}
+          ))}
         </SectionCard>
-      )}
+      ))}
 
       {/* 5. Documents */}
       <SectionCard title="Uploaded Documents">
