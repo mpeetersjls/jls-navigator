@@ -41,6 +41,13 @@ async function hmacBase64(key: string, msg: string): Promise<string> {
 export async function qbWebhookHandler(request: Request): Promise<Response> {
   if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 })
 
+  // KILL-SWITCH: the QuickBooks automation runs in n8n for now. This Cloudflare
+  // receiver/orchestrator stays disabled until QB_RECEIVER_ENABLED='true' is set,
+  // so it can never double-process or interfere with the live n8n workflow.
+  if (process.env.QB_RECEIVER_ENABLED !== 'true') {
+    return new Response('QB receiver disabled — QuickBooks automation runs in n8n', { status: 503 })
+  }
+
   const raw = await request.text()
 
   // 1. Signature verification (Intuit signs the raw body with the webhook verifier).
