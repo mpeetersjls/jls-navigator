@@ -44,8 +44,12 @@ function fmtWhen(iso: string | null) {
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+type RunRow = { automation_key: string; status: string; started_at: string };
+type KeyStats = { runs: number; success: number; error: number; retry: number; hit: number; lastRun: string | null };
+
 export function AutomationsPage() {
   const [items, setItems] = useState<Automation[]>([]);
+  const [runs, setRuns] = useState<RunRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,12 +58,33 @@ export function AutomationsPage() {
 
   async function load() {
     setLoading(true);
-    const { data, error } = await fetchAllRows(() => (supabase as any)
-      .from("automations").select("*").order("category").order("name"));
+    const since = new Date(Date.now() - 30 * 86400000).toISOString();
+    const [{ data, error }, { data: runData }] = await Promise.all([
+      fetchAllRows(() => (supabase as any).from("automations").select("*").order("category").order("name")),
+      fetchAllRows(() => (supabase as any).from("automation_runs").select("automation_key, status, started_at").gte("started_at", since)),
+    ]);
     if (error) toast.error(error.message);
     else setItems((data ?? []) as Automation[]);
+    setRuns((runData ?? []) as RunRow[]);
     setLoading(false);
   }
+
+  // Per-automation run metrics over the last 30 days (hits / success / errors / retries).
+  const statsByKey = useMemo(() => {
+    const m = new Map<string, KeyStats>();
+    for (const r of runs) {
+      const k = r.automation_key;
+      const s = m.get(k) ?? { runs: 0, success: 0, error: 0, retry: 0, hit: 0, lastRun: null };
+      s.runs++;
+      if (r.status === "success") s.success++;
+      else if (r.status === "error") s.error++;
+      else if (r.status === "retry") s.retry++;
+      else if (r.status === "hit") s.hit++;
+      if (!s.lastRun || r.started_at > s.lastRun) s.lastRun = r.started_at;
+      m.set(k, s);
+    }
+    return m;
+  }, [runs]);
 
   async function toggle(a: Automation) {
     setBusy(a.id);
@@ -88,12 +113,11 @@ export function AutomationsPage() {
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [filtered]);
 
-  const stats = useMemo(() => ({
-    total: items.length,
-    enabled: items.filter(a => a.enabled).length,
-    scheduled: items.filter(a => a.trigger_type === "schedule").length,
-    errors: items.filter(a => a.last_status === "error").length,
-  }), [items]);
+  const stats = useMemo(() => {
+    let runs = 0, errors = 0, retries = 0;
+    for (const s of statsByKey.values()) { runs += s.runs; errors += s.error; retries += s.retry; }
+    return { total: items.length, runs, errors, retries };
+  }, [items, statsByKey]);
 
   return (
     <div className="flex h-full flex-col">
@@ -114,10 +138,10 @@ export function AutomationsPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 px-6 py-3 border-b border-border/40 bg-muted/10">
         {[
-          { label: "Total", value: stats.total, color: "text-foreground" },
-          { label: "Enabled", value: stats.enabled, color: "text-emerald-400" },
-          { label: "Scheduled", value: stats.scheduled, color: "text-blue-400" },
-          { label: "Errors", value: stats.errors, color: stats.errors ? "text-red-400" : "text-muted-foreground" },
+          { label: "Automations", value: stats.total, color: "text-foreground" },
+          { label: "Runs (30d)", value: stats.runs, color: "text-blue-400" },
+          { label: "Errors (30d)", value: stats.errors, color: stats.errors ? "text-red-400" : "text-muted-foreground" },
+          { label: "Retries (30d)", value: stats.retries, color: stats.retries ? "text-amber-400" : "text-muted-foreground" },
         ].map(s => (
           <div key={s.label} className="rounded-lg border border-border bg-card/60 px-3 py-2">
             <div className={cn("text-lg font-bold", s.color)}>{s.value}</div>
@@ -148,6 +172,7 @@ export function AutomationsPage() {
               {autos.map(a => {
                 const t = TRIGGER_META[a.trigger_type] ?? TRIGGER_META.manual;
                 const TIcon = t.icon;
+                const rs = statsByKey.get(a.key);
                 return (
                   <div key={a.id} className={cn("rounded-xl border p-4 transition-colors", a.enabled ? "border-border/60 bg-card/60" : "border-border/40 bg-card/30 opacity-70")}>
                     <div className="flex items-start gap-3">
@@ -171,6 +196,16 @@ export function AutomationsPage() {
                           </span>
                           {a.endpoint && <a href={a.endpoint} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline"><ExternalLink className="h-3 w-3" /> {a.source === "n8n" ? "Open in n8n" : "Run URL"}</a>}
                         </div>
+                        {/* Run metrics — last 30 days */}
+                        {rs && rs.runs > 0 && (
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground" title="Total runs in the last 30 days">{rs.runs} run{rs.runs !== 1 ? "s" : ""}</span>
+                            {rs.success > 0 && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-500">{rs.success} ok</span>}
+                            {rs.error > 0 && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-500">{rs.error} error{rs.error !== 1 ? "s" : ""}</span>}
+                            {rs.retry > 0 && <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">{rs.retry} retr{rs.retry !== 1 ? "ies" : "y"}</span>}
+                            {rs.hit > 0 && <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-500">{rs.hit} hit{rs.hit !== 1 ? "s" : ""}</span>}
+                          </div>
+                        )}
                       </div>
                       {/* Enable toggle */}
                       <button

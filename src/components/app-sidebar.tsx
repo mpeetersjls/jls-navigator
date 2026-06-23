@@ -187,6 +187,7 @@ const NAV: NavItem[] = [
     devOnly: true,
     children: [
       { label: "Dev Settings",  to: "/dev-settings", icon: Rocket },
+      { label: "Automations",   to: "/automations",  icon: Zap },
       { label: "Error & Warning Log", to: "/error-log", icon: ScrollText },
       { label: "Integrations",  to: "/integrations", icon: Plug },
       { label: "Feedback & Requests", to: "/feedback", icon: Lightbulb },

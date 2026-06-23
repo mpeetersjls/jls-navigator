@@ -30,6 +30,7 @@ import { adminPermissionsHandler } from './routes/api.admin.permissions'
 import { adminAuditHandler } from './routes/api.admin.audit'
 import { adminAuditExportHandler } from './routes/api.admin.audit.export'
 import { adminStatsHandler } from './routes/api.admin.stats'
+import { automationEventHandler } from './routes/api.automations.event'
 import { movementsNotifyHandler } from './routes/api.movements.notify'
 import { movementReportsHandler, runWeeklyImmigrationReports } from './routes/api.movements.reports'
 import { runVisaExpiryFlagJob } from './lib/visa/visaExpiryFlags.server'
@@ -287,6 +288,9 @@ export default {
     }
     if (url.pathname === '/api/movements/notify' && request.method === 'POST') {
       return movementsNotifyHandler(request)
+    }
+    if (url.pathname === '/api/automations/event' && request.method === 'POST') {
+      return automationEventHandler(request)
     }
     if (url.pathname.startsWith('/api/reports/') && request.method === 'GET') {
       return movementReportsHandler(request)
