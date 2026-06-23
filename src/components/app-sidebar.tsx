@@ -110,10 +110,17 @@ const NAV: NavItem[] = [
         label: "IT Solutions",
         icon: Cpu,
         children: [
-          { label: "Service Desk",         to: "/it-tickets", icon: Headset },
-          { label: "IT Yachts",            to: "/it-yachts",  icon: Ship },
-          { label: "Licensing",            to: "/licensing",  icon: KeyRound },
-          { label: "Contracts & Services", to: "/yacht-it",   icon: FileText },
+          { label: "Service Desk",  to: "/it-tickets", icon: Headset },
+          { label: "IT Yachts",     to: "/it-yachts",  icon: Ship },
+          { label: "Licensing",     to: "/licensing",  icon: KeyRound },
+          {
+            label: "Services",
+            icon: Boxes,
+            children: [
+              { label: "Internal Services",               to: "/internal-services", icon: Boxes },
+              { label: "Client Services & Subscriptions", to: "/yacht-it",          icon: FileText },
+            ],
+          },
         ],
       },
       { label: "Agency Network",      to: "/agency",              icon: Globe },

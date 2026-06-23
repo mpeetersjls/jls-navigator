@@ -29,6 +29,7 @@ import { Route as AppMfaSetupRouteImport } from './routes/_app.mfa-setup'
 import { Route as AppLicensingRouteImport } from './routes/_app.licensing'
 import { Route as AppItYachtsRouteImport } from './routes/_app.it-yachts'
 import { Route as AppItTicketsRouteImport } from './routes/_app.it-tickets'
+import { Route as AppInternalServicesRouteImport } from './routes/_app.internal-services'
 import { Route as AppIntegrationsRouteImport } from './routes/_app.integrations'
 import { Route as AppGuidesRouteImport } from './routes/_app.guides'
 import { Route as AppFleetTrackingRouteImport } from './routes/_app.fleet-tracking'
@@ -219,6 +220,11 @@ const AppItYachtsRoute = AppItYachtsRouteImport.update({
 const AppItTicketsRoute = AppItTicketsRouteImport.update({
   id: '/it-tickets',
   path: '/it-tickets',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppInternalServicesRoute = AppInternalServicesRouteImport.update({
+  id: '/internal-services',
+  path: '/internal-services',
   getParentRoute: () => AppRoute,
 } as any)
 const AppIntegrationsRoute = AppIntegrationsRouteImport.update({
@@ -725,6 +731,7 @@ export interface FileRoutesByFullPath {
   '/fleet-tracking': typeof AppFleetTrackingRoute
   '/guides': typeof AppGuidesRouteWithChildren
   '/integrations': typeof AppIntegrationsRoute
+  '/internal-services': typeof AppInternalServicesRoute
   '/it-tickets': typeof AppItTicketsRouteWithChildren
   '/it-yachts': typeof AppItYachtsRoute
   '/licensing': typeof AppLicensingRoute
@@ -833,6 +840,7 @@ export interface FileRoutesByTo {
   '/finance': typeof AppFinanceRoute
   '/fleet-tracking': typeof AppFleetTrackingRoute
   '/integrations': typeof AppIntegrationsRoute
+  '/internal-services': typeof AppInternalServicesRoute
   '/it-yachts': typeof AppItYachtsRoute
   '/licensing': typeof AppLicensingRoute
   '/mfa-setup': typeof AppMfaSetupRoute
@@ -938,6 +946,7 @@ export interface FileRoutesById {
   '/_app/fleet-tracking': typeof AppFleetTrackingRoute
   '/_app/guides': typeof AppGuidesRouteWithChildren
   '/_app/integrations': typeof AppIntegrationsRoute
+  '/_app/internal-services': typeof AppInternalServicesRoute
   '/_app/it-tickets': typeof AppItTicketsRouteWithChildren
   '/_app/it-yachts': typeof AppItYachtsRoute
   '/_app/licensing': typeof AppLicensingRoute
@@ -1052,6 +1061,7 @@ export interface FileRouteTypes {
     | '/fleet-tracking'
     | '/guides'
     | '/integrations'
+    | '/internal-services'
     | '/it-tickets'
     | '/it-yachts'
     | '/licensing'
@@ -1160,6 +1170,7 @@ export interface FileRouteTypes {
     | '/finance'
     | '/fleet-tracking'
     | '/integrations'
+    | '/internal-services'
     | '/it-yachts'
     | '/licensing'
     | '/mfa-setup'
@@ -1264,6 +1275,7 @@ export interface FileRouteTypes {
     | '/_app/fleet-tracking'
     | '/_app/guides'
     | '/_app/integrations'
+    | '/_app/internal-services'
     | '/_app/it-tickets'
     | '/_app/it-yachts'
     | '/_app/licensing'
@@ -1500,6 +1512,13 @@ declare module '@tanstack/react-router' {
       path: '/it-tickets'
       fullPath: '/it-tickets'
       preLoaderRoute: typeof AppItTicketsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/internal-services': {
+      id: '/_app/internal-services'
+      path: '/internal-services'
+      fullPath: '/internal-services'
+      preLoaderRoute: typeof AppInternalServicesRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/integrations': {
@@ -2433,6 +2452,7 @@ interface AppRouteChildren {
   AppFleetTrackingRoute: typeof AppFleetTrackingRoute
   AppGuidesRoute: typeof AppGuidesRouteWithChildren
   AppIntegrationsRoute: typeof AppIntegrationsRoute
+  AppInternalServicesRoute: typeof AppInternalServicesRoute
   AppItTicketsRoute: typeof AppItTicketsRouteWithChildren
   AppItYachtsRoute: typeof AppItYachtsRoute
   AppLicensingRoute: typeof AppLicensingRoute
@@ -2491,6 +2511,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppFleetTrackingRoute: AppFleetTrackingRoute,
   AppGuidesRoute: AppGuidesRouteWithChildren,
   AppIntegrationsRoute: AppIntegrationsRoute,
+  AppInternalServicesRoute: AppInternalServicesRoute,
   AppItTicketsRoute: AppItTicketsRouteWithChildren,
   AppItYachtsRoute: AppItYachtsRoute,
   AppLicensingRoute: AppLicensingRoute,
