@@ -13,6 +13,8 @@
  */
 import { createClient } from '@supabase/supabase-js'
 import { logAutomationRun } from '@/lib/automations.server'
+import { orchestrate } from '@/lib/qb/orchestrator.server'
+import { qboConfigured } from '@/lib/qb/qbo.server'
 
 const N8N_URL = () => process.env.QB_N8N_WEBHOOK_URL
   ?? 'https://n8n.jlsyachts.com/webhook/841c1c3c-9326-4adf-9565-11c93a7ca72e'
@@ -63,6 +65,21 @@ export async function qbWebhookHandler(request: Request): Promise<Response> {
     return new Response('duplicate ignored', { status: 200 })
   }
   if (!existing) await sb.from('qb_webhook_events').insert({ id })
+
+  // 2b. Native orchestration (parse → classify → invoice fetch + doc-number heal)
+  //     when QBO is configured. Document generation (PDF/OneDrive) still runs in
+  //     n8n via the forward below until the per-entity handlers are ported.
+  if (qboConfigured()) {
+    try {
+      const items = await orchestrate(raw)
+      const summary = items.map(i =>
+        `${i.entity}${i.invoiceType ? '/' + i.invoiceType : ''}${i.heal ? ' heal:' + i.heal.action : ''}${i.error ? ' ERR:' + i.error : ''}`,
+      ).join('; ')
+      await logAutomationRun({ ...AUTO, status: 'success', detail: `orchestrated — ${summary || 'no events'}` })
+    } catch (e: any) {
+      await logAutomationRun({ ...AUTO, status: 'error', detail: `orchestrate failed: ${e?.message ?? e}` })
+    }
+  }
 
   // 3. Retry-forward the exact payload to n8n.
   const contentType = request.headers.get('content-type') ?? 'application/json'
