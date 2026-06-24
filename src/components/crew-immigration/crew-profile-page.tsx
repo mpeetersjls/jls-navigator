@@ -5,8 +5,9 @@ import { fetchAllRows } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Loader2, UserCircle2, BookUser, Stamp, FileText,
-  Plane, ShipWheel, Mail, Phone, ExternalLink, ShieldQuestion, Link2,
+  Plane, ShipWheel, Mail, Phone, ExternalLink, ShieldQuestion, Link2, Pencil,
 } from "lucide-react";
+import { CrewPersonalEditDialog } from "@/components/crew-immigration/CrewPersonalEditDialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SignedAnchor, SignedImage } from "@/components/ui/signed-file";
@@ -73,6 +74,7 @@ export function CrewProfilePage() {
   const [yachtName, setYachtName] = useState<string>("");
   const [yachtMap, setYachtMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => { void load(); }, [id]);
 
@@ -165,7 +167,12 @@ export function CrewProfilePage() {
             <h1 className="mt-0.5 font-display text-[1.25rem] font-semibold tracking-tight">{crew.full_name || `${crew.first_name} ${crew.last_name}`}</h1>
           </div>
         </div>
+        <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} className="h-8 gap-1.5">
+          <Pencil className="h-3.5 w-3.5" /> Edit
+        </Button>
       </header>
+
+      <CrewPersonalEditDialog crewId={crew.id} open={editOpen} onOpenChange={setEditOpen} onSaved={() => void load()} />
 
       <div className="flex-1 overflow-auto px-6 py-5">
         <div className="mx-auto grid max-w-6xl gap-5 lg:grid-cols-[320px_1fr]">

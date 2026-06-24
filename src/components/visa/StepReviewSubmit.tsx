@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { supabase } from '@/integrations/supabase/client'
 import { COLORS } from '@/lib/tokens'
+import { CrewPersonalEditDialog } from '@/components/crew-immigration/CrewPersonalEditDialog'
 import { toDMY } from '@/lib/utils'
 import type { CrewMember, CrewPassport } from '@/lib/visa/crewMatching'
 import type { CountryVisaConfig } from '@/lib/visa/countryConfig'
@@ -38,8 +39,8 @@ const extractBtn: React.CSSProperties = {
   borderRadius: 8, padding: '8px 14px', cursor: 'pointer', whiteSpace: 'nowrap',
 }
 
-const SectionCard: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-  <div style={{
+const SectionCard: React.FC<{ title: string; children: React.ReactNode; action?: React.ReactNode; innerRef?: React.Ref<HTMLDivElement> }> = ({ title, children, action, innerRef }) => (
+  <div ref={innerRef} style={{
     background: COLORS.abyss,
     border: `1px solid ${COLORS.deep}`,
     borderRadius: 10,
@@ -47,21 +48,23 @@ const SectionCard: React.FC<{ title: string; children: React.ReactNode }> = ({ t
     marginBottom: 16,
     ...font,
   }}>
-    <div style={{
-      color: COLORS.muted,
-      fontSize: 11,
-      fontWeight: 600,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      marginBottom: 12,
-    }}>
-      {title}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{
+        color: COLORS.muted,
+        fontSize: 11,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+      }}>
+        {title}
+      </div>
+      {action}
     </div>
     {children}
   </div>
 )
 
-const KV: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+const KV: React.FC<{ label: React.ReactNode; value: React.ReactNode }> = ({ label, value }) => (
   <div style={{ display: 'flex', gap: 12, marginBottom: 8, alignItems: 'flex-start' }}>
     <span style={{ color: COLORS.steel, fontSize: 13, minWidth: 140, flexShrink: 0 }}>{label}</span>
     <span style={{ color: COLORS.frost, fontSize: 13 }}>{value}</span>
@@ -71,6 +74,17 @@ const KV: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value 
 export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const personalRef = useRef<HTMLDivElement>(null)
+  const [shakeSubmit, setShakeSubmit] = useState(false)
+
+  // Personal details that must be present before the application can be submitted.
+  const REQUIRED_PERSONAL = new Set<string>([
+    'Full name', 'Date of birth', 'Place of birth', 'Country of birth', 'Gender',
+    'Nationality', 'Marital status', "Mother's maiden name", "Father's full name",
+    'Native language', 'Occupation / rank', 'Email', 'Phone',
+  ])
 
   // Crew Verification letter — allow generating it here if it wasn't produced earlier.
   const [vlBusy, setVlBusy] = useState(false)
@@ -136,7 +150,7 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
       }
     })()
     return () => { cancelled = true }
-  }, [state.crew?.id, state.passport?.id])
+  }, [state.crew?.id, state.passport?.id, refreshKey])
 
   // Build the full summary as labelled sections — drives both the display and the
   // Copy / CSV extract so what you see is exactly what gets exported.
@@ -203,9 +217,25 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
     toast.success('CSV downloaded')
   }
 
+  // Required personal details that are still blank (shown as "—").
+  const missingPersonal = useMemo(() => {
+    const section = summary.find(s => s.title === 'Personal Details')
+    if (!section) return [] as string[]
+    return section.rows.filter(r => REQUIRED_PERSONAL.has(r.label) && (r.value === '—' || !r.value)).map(r => r.label)
+  }, [summary])
+
   async function handleSubmit() {
     if (!state.crew || !state.passport) {
       toast.error('Missing crew or passport — cannot submit.')
+      return
+    }
+    // Block submission while required personal details are missing — shake the
+    // button and pan to the Personal Details section so the gap is obvious.
+    if (missingPersonal.length > 0) {
+      setShakeSubmit(true)
+      setTimeout(() => setShakeSubmit(false), 600)
+      personalRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      toast.error(`Missing required details: ${missingPersonal.join(', ')}. Use Edit to add them.`)
       return
     }
     setSubmitting(true)
@@ -349,17 +379,37 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
 
       {/* 2–4. Personal details, passport, vessel & application fields — complete
               record, identical to what Copy / CSV export. */}
-      {summary.filter(s => s.title !== 'Destination').map(section => (
-        <SectionCard key={section.title} title={section.title}>
-          {section.rows.map(r => (
-            <KV key={r.label} label={r.label} value={
-              r.label === 'Expiry date' && r.value !== '—' && isExpiringSoon(r.value)
-                ? <span style={{ color: COLORS.warn }}>{r.value}</span>
-                : r.value
-            } />
-          ))}
-        </SectionCard>
-      ))}
+      {summary.filter(s => s.title !== 'Destination').map(section => {
+        const isPersonal = section.title === 'Personal Details'
+        return (
+          <SectionCard
+            key={section.title}
+            title={section.title}
+            innerRef={isPersonal ? personalRef : undefined}
+            action={isPersonal && state.crew?.id ? (
+              <button type="button" onClick={() => setEditOpen(true)}
+                style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 12, fontWeight: 600, color: COLORS.signal, background: `${COLORS.signal}14`, border: `1px solid ${COLORS.signal}44`, borderRadius: 7, padding: '5px 12px', cursor: 'pointer' }}>
+                ✎ Edit
+              </button>
+            ) : undefined}
+          >
+            {section.rows.map(r => {
+              const isMissingRequired = isPersonal && REQUIRED_PERSONAL.has(r.label) && (r.value === '—' || !r.value)
+              return (
+                <KV key={r.label}
+                  label={isMissingRequired ? <span style={{ color: COLORS.warn }}>{r.label} *</span> : r.label}
+                  value={
+                    isMissingRequired
+                      ? <span style={{ color: COLORS.warn }}>Required — add via Edit</span>
+                      : r.label === 'Expiry date' && r.value !== '—' && isExpiringSoon(r.value)
+                        ? <span style={{ color: COLORS.warn }}>{r.value}</span>
+                        : r.value
+                  } />
+              )
+            })}
+          </SectionCard>
+        )
+      })}
 
       {/* 5. Documents */}
       <SectionCard title="Uploaded Documents">
@@ -475,8 +525,9 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
         <button
           onClick={handleSubmit}
           disabled={submitting}
+          title={missingPersonal.length ? `Missing: ${missingPersonal.join(', ')}` : undefined}
           style={{
-            background: submitting ? COLORS.ocean : COLORS.signal,
+            background: submitting ? COLORS.ocean : missingPersonal.length ? COLORS.warn : COLORS.signal,
             color: submitting ? COLORS.muted : COLORS.void,
             border: 'none',
             borderRadius: 8,
@@ -489,8 +540,10 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
             alignItems: 'center',
             gap: 8,
             transition: 'background 0.2s',
+            animation: shakeSubmit ? 'rv-shake 0.5s ease' : undefined,
           }}
         >
+          <style>{`@keyframes rv-shake{0%,100%{transform:translateX(0)}15%,55%{transform:translateX(-7px)}35%,75%{transform:translateX(7px)}}`}</style>
           {submitting ? (
             <>
               <Spinner />
@@ -501,6 +554,15 @@ export function StepReviewSubmit({ state, onUpdate, onNext, onBack }: Props) {
           )}
         </button>
       </div>
+
+      {state.crew?.id && (
+        <CrewPersonalEditDialog
+          crewId={state.crew.id}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSaved={() => setRefreshKey(k => k + 1)}
+        />
+      )}
     </div>
   )
 }
