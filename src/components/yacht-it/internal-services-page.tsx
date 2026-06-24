@@ -81,16 +81,18 @@ function effectiveStatus(s: InternalService): string {
   if (days !== null && days <= 30) return "expiring_soon";
   return "active";
 }
-/** Normalise a charge to a monthly figure for the cost roll-up. */
-function monthly(s: InternalService): number {
-  if (s.cost_amount == null) return 0;
-  switch (s.billing_cycle) {
-    case "annual": return s.cost_amount / 12;
-    case "quarterly": return s.cost_amount / 3;
+/** Normalise an amount to a monthly figure for the roll-ups (cost or sell). */
+function perMonth(amount: number | null, cycle: string): number {
+  if (amount == null) return 0;
+  switch (cycle) {
+    case "annual": return amount / 12;
+    case "quarterly": return amount / 3;
     case "one_off": return 0;
-    default: return s.cost_amount;
+    default: return amount;
   }
 }
+function monthly(s: InternalService): number { return perMonth(s.cost_amount, s.billing_cycle); }
+function monthlyRevenue(s: InternalService): number { return perMonth(s.sell_price, s.billing_cycle); }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -143,8 +145,12 @@ export function InternalServicesPage() {
   const stats = useMemo(() => {
     const active = rows.filter((r) => effectiveStatus(r) === "active").length;
     const renewing = rows.filter((r) => effectiveStatus(r) === "expiring_soon").length;
-    const monthlyCost = rows.filter((r) => r.status === "active").reduce((sum, r) => sum + monthly(r), 0);
-    return { total: rows.length, active, renewing, monthlyCost };
+    const activeRows = rows.filter((r) => r.status === "active");
+    const monthlyCost = activeRows.reduce((sum, r) => sum + monthly(r), 0);
+    const monthlyRev = activeRows.reduce((sum, r) => sum + monthlyRevenue(r), 0);
+    const monthlyMargin = monthlyRev - monthlyCost;
+    const marginPct = monthlyRev > 0 ? (monthlyMargin / monthlyRev) * 100 : null;
+    return { total: rows.length, active, renewing, monthlyCost, monthlyRev, monthlyMargin, marginPct };
   }, [rows]);
 
   // Services within the 90-day renewal-quotation window (active, not yet lapsed).
@@ -238,16 +244,25 @@ export function InternalServicesPage() {
         )}
 
         {/* Stats */}
-        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3">
           {[
             { label: "Total services", value: stats.total },
             { label: "Active", value: stats.active },
             { label: "Renewing ≤30d", value: stats.renewing },
-            { label: "Est. monthly cost", value: `AED ${fmtMoney(stats.monthlyCost)}` },
+            { label: "Est. monthly cost", value: `AED ${fmtMoney(stats.monthlyCost)}`, sub: "what we pay" },
+            { label: "Est. monthly revenue", value: `AED ${fmtMoney(stats.monthlyRev)}`, sub: "what we charge" },
+            {
+              label: "Est. monthly margin",
+              value: `AED ${fmtMoney(stats.monthlyMargin)}`,
+              sub: stats.marginPct == null ? "revenue − cost" : `${stats.marginPct.toFixed(0)}% margin`,
+              accent: stats.monthlyMargin > 0 ? "text-emerald-600 dark:text-emerald-400"
+                : stats.monthlyMargin < 0 ? "text-red-600 dark:text-red-400" : undefined,
+            },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-border bg-card p-4">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{s.label}</div>
-              <div className="mt-1 font-display text-2xl font-bold tabular-nums">{s.value}</div>
+              <div className={`mt-1 font-display text-2xl font-bold tabular-nums ${(s as any).accent ?? ""}`}>{s.value}</div>
+              {(s as any).sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{(s as any).sub}</div>}
             </div>
           ))}
         </div>
