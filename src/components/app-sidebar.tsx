@@ -10,7 +10,7 @@ import {
   Wallet, Receipt, TrendingUp, PiggyBank, FolderOpen, Award, Download,
   MessageSquare, Lightbulb, BotMessageSquare, PenLine, Fuel, Contact,
 } from "lucide-react";
-import { Rocket, Plug, Trash2 } from "lucide-react";
+import { Rocket, Plug, Trash2, History } from "lucide-react";
 import { AdminSidebarSection } from "@/components/admin/AdminSidebarSection";
 import { useState, useMemo } from "react";
 import { PolarisLogo } from "@/components/brand/PolarisLogo";
@@ -198,6 +198,7 @@ const NAV: NavItem[] = [
     devOnly: true,
     children: [
       { label: "Dev Settings",  to: "/dev-settings", icon: Rocket },
+      { label: "Changelog",     to: "/changelog",    icon: History },
       { label: "Automations",   to: "/automations",  icon: Zap },
       { label: "Error & Warning Log", to: "/error-log", icon: ScrollText },
       { label: "Integrations",  to: "/integrations", icon: Plug },
