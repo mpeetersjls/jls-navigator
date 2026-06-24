@@ -445,7 +445,7 @@ export function InternalServicesPage() {
               </tr></thead>
               <tbody>
                 {filtered.map((r) => (
-                  <tr key={r.id} className="group border-b border-border/40 hover:bg-accent/20">
+                  <tr key={r.id} onClick={() => openEdit(r)} className="group cursor-pointer border-b border-border/40 hover:bg-accent/20">
                     <td className="px-4 py-3 font-medium text-foreground">{r.service_name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{r.yacht_name ?? "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground">{r.vendor ?? "—"}</td>
@@ -471,7 +471,7 @@ export function InternalServicesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3"><StatusBadge status={effectiveStatus(r)} /></td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-0.5 opacity-0 transition group-hover:opacity-100">
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-primary" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground/60 hover:text-destructive" onClick={() => setDeleteTarget(r)}><Trash2 className="h-3.5 w-3.5" /></Button>
