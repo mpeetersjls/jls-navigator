@@ -778,6 +778,7 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
     { key: 'data',     label: 'Passport — 2 inside pages' },
     { key: 'seamans',  label: "Seaman's book", hint: noSeamans ? 'N/A' : undefined },
     { key: 'headshot', label: 'Headshot photo' },
+    { key: 'headshot_quality', label: 'Headshot meets photo guidelines', hint: 'neutral · plain light bg · no hat/tint · sharp' },
     { key: 'validity', label: 'Minimum 6 months validity' },
     { key: 'glare',    label: 'Clear — no reflections' },
     { key: 'colour',   label: 'Colour' },
@@ -965,6 +966,27 @@ function AddPassportForm({ crewId, onSaved, onCancel, showCancel, existingPasspo
                 <span style={{ fontFamily: FONTS.display, fontSize: 12.5, color: COLORS.frost, lineHeight: 1.5 }}>{headshotWarn}</span>
               </div>
             )}
+
+            {/* Headshot photo requirements — matches the GDRFA / immigration portal */}
+            <div style={{ marginTop: 12, padding: '12px 14px', background: COLORS.ocean, border: `1px solid ${COLORS.deep}`, borderRadius: 8 }}>
+              <div style={{ fontFamily: FONTS.display, fontSize: 12, fontWeight: 700, color: COLORS.frost, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                📷 Headshot photo requirements
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 16, display: 'grid', gap: 4 }}>
+                {([
+                  ['Face & pose', 'Look straight at the camera, head centred, face filling most of the frame.'],
+                  ['Expression', 'Neutral, mouth closed — no smile, no visible teeth.'],
+                  ['Eyes', 'Open and clearly visible, looking at the camera; nothing covering them.'],
+                  ['Headwear & glasses', 'No hats or caps; glasses only if lenses are clear (no glare or tint).'],
+                  ['Lighting', 'Even front lighting, no strong shadows on the face or background.'],
+                  ['Background & quality', 'Plain light background; sharp, in focus, no colour filters.'],
+                ] as const).map(([h, t]) => (
+                  <li key={h} style={{ fontFamily: FONTS.display, fontSize: 11.5, color: COLORS.steel, lineHeight: 1.5 }}>
+                    <span style={{ color: COLORS.frost, fontWeight: 600 }}>{h}:</span> {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </section>
 
           {/* Section 2: Passport Preview + Extracted Information */}
