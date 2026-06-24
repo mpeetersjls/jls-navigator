@@ -52,7 +52,18 @@ export interface CrewVerificationData {
   nationality: string;
   vesselName: string;
   officialNo: string;
+  /** "Captain" or "Seaman" — drives the Arabic designation in the letter. */
+  designation?: string;
   date?: Date;
+}
+
+/**
+ * Immigration designation rule: a Captain (or vessel Master) stays "Captain";
+ * every other position is "Seaman". Used for the Arabic wording in the letter.
+ */
+export function deriveDesignation(occupation?: string | null, rank?: string | null): "Captain" | "Seaman" {
+  const s = `${occupation ?? ""} ${rank ?? ""}`.toLowerCase();
+  return /\b(captain|master)\b|قبطان|ربان/.test(s) ? "Captain" : "Seaman";
 }
 
 /**
@@ -93,6 +104,14 @@ export function fillCrewVerificationDocx(data: CrewVerificationData): Uint8Array
     "{{PASSPORT_NO}}": xmlEscape(data.passportNumber || ""),
   };
   for (const [tok, val] of Object.entries(map)) doc = doc.split(tok).join(val);
+
+  // Designation: the template reads "… على اليخت {{YACHT_NAME}} تحت قسم [المطبخ]"
+  // ("under the [Kitchen] department" — a leftover Word combo box). Rephrase to
+  // "… بصفة [ربان/بحار]" ("in the capacity of [Captain/Seaman]") with the correct
+  // Arabic maritime term, since this letter is filed with the UAE GDRFA.
+  //   ربان  = master / captain   ·   بحّار = seaman
+  const arRole = /captain/i.test(data.designation ?? "") ? "ربان" : "بحّار";
+  doc = doc.split("تحت قسم").join("بصفة").split("المطبخ").join(arRole);
 
   // Hard gate: never produce a letter that doesn't fully match the inputs.
   const problems = validateFilledDoc(doc, data);
@@ -274,10 +293,17 @@ export async function crewVerificationHandler(request: Request): Promise<Respons
         .from("yachts").select("official_no").ilike("vessel_name", d.vesselName).maybeSingle();
       officialNo = y?.official_no ?? "";
     }
+    // Designation from the crew record (Captain → Captain, else Seaman).
+    let designation = d.designation as string | undefined;
+    if (!designation && d.crewId) {
+      const { data: cm } = await (supabaseAdmin as any)
+        .from("crew_members").select("occupation, rank").eq("id", d.crewId).maybeSingle();
+      designation = deriveDesignation(cm?.occupation, cm?.rank);
+    }
     const { pdfUrl, pdfWarning } = await generateCrewVerificationLetter({
       crewId: d.crewId, passportId: d.passportId,
       fullName: d.fullName ?? "", passportNumber: d.passportNumber ?? "", nationality: d.nationality ?? "",
-      vesselName: d.vesselName, officialNo,
+      vesselName: d.vesselName, officialNo, designation,
     });
     // If PDF conversion fell back to .docx, log the reason so it's diagnosable.
     if (pdfWarning) {
@@ -318,10 +344,16 @@ export const doGenerateCrewVerification = createServerFn({ method: "POST" })
           .from("yachts").select("official_no").ilike("vessel_name", d.vesselName).maybeSingle();
         officialNo = y?.official_no ?? "";
       }
+      let designation: string | undefined;
+      if (d.crewId) {
+        const { data: cm } = await (supabaseAdmin as any)
+          .from("crew_members").select("occupation, rank").eq("id", d.crewId).maybeSingle();
+        designation = deriveDesignation(cm?.occupation, cm?.rank);
+      }
       const { pdfUrl } = await generateCrewVerificationLetter({
         crewId: d.crewId, passportId: d.passportId,
         fullName: d.fullName, passportNumber: d.passportNumber, nationality: d.nationality,
-        vesselName: d.vesselName, officialNo,
+        vesselName: d.vesselName, officialNo, designation,
       });
       return { ok: true, pdfUrl };
     } catch (e: any) {
