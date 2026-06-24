@@ -16,6 +16,7 @@ import { itTicketsNotifyHandler } from './routes/api.it-tickets.notify'
 import { internalServicesRenewalCheckHandler } from './routes/api.internal-services.renewal-check'
 import { fxRateHandler } from './routes/api.fx-rate'
 import { shipsyncPwaHandler } from './lib/shipsync/pwa-assets'
+import { shipsyncApiHandler } from './routes/api.shipsync'
 import { feedbackNotifyHandler } from './routes/api.feedback.notify'
 import { vesselHandler } from './routes/api.vessels'
 import { phoneHandler } from './routes/api.phone'
@@ -231,6 +232,10 @@ export default {
     {
       const pwa = shipsyncPwaHandler(request)
       if (pwa) return pwa
+    }
+
+    if (url.pathname.startsWith('/api/shipsync/') && request.method === 'POST') {
+      return shipsyncApiHandler(request)
     }
 
     if (url.pathname === '/api/feedback/notify' && request.method === 'POST') {

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, MapPin, X } from "lucide-react";
+import { Loader2, Plus, MapPin, X, FileText, Mail } from "lucide-react";
 import { StatusBadge } from "@/components/shipsync/shared";
 import {
   createDeliveryNote, assignPackagesToNote, setNoteDriver, unassignPackage,
@@ -52,6 +52,38 @@ export function ShipSyncDispatch({ data, reload }: { data: ShipSyncData; reload:
     await (supabase as any).from("shipsync_delivery_notes").update({ status, ...(status === "delivered" ? { delivered_at: new Date().toISOString() } : {}) }).eq("id", sel.id);
     if (status === "delivered") await (supabase as any).from("shipsync_packages").update({ status: "delivered", delivered_at: new Date().toISOString() }).eq("delivery_note_id", sel.id);
     await reload();
+  }
+
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+  async function callApi(path: string, payload: Record<string, unknown>) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error ?? `Failed (${r.status})`);
+    return j;
+  }
+  async function genPdf(kind: "predelivery" | "delivery") {
+    if (!sel) return;
+    setPdfBusy(kind);
+    try {
+      const j = await callApi("/api/shipsync/note-pdf", { noteId: sel.id, kind });
+      toast.success(`${kind === "predelivery" ? "Pre-delivery" : "Delivery"} note generated`);
+      window.open(j.pdfUrl, "_blank", "noreferrer");
+      await reload();
+    } catch (e: any) { toast.error(e?.message ?? "PDF failed"); } finally { setPdfBusy(null); }
+  }
+  async function emailPod() {
+    if (!sel) return;
+    setPdfBusy("email");
+    try {
+      const j = await callApi("/api/shipsync/email-pod", { noteId: sel.id });
+      toast.success(`Proof of delivery emailed to ${j.to}`);
+      await reload();
+    } catch (e: any) { toast.error(e?.message ?? "Email failed"); } finally { setPdfBusy(null); }
   }
 
   return (
@@ -109,6 +141,20 @@ export function ShipSyncDispatch({ data, reload }: { data: ShipSyncData; reload:
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Documents & notifications */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => genPdf("predelivery")} disabled={!!pdfBusy}>
+                {pdfBusy === "predelivery" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Pre-delivery note
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => genPdf("delivery")} disabled={!!pdfBusy}>
+                {pdfBusy === "delivery" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Delivery note
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={emailPod} disabled={!!pdfBusy}>
+                {pdfBusy === "email" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />} Email POD
+              </Button>
+              {sel.delivery_pdf_url && <a href={sel.delivery_pdf_url} target="_blank" rel="noopener noreferrer" className="text-[12px] text-primary hover:underline">View delivery PDF</a>}
             </div>
 
             {/* Destination (for routing) */}
