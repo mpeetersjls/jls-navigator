@@ -1,0 +1,158 @@
+/**
+ * Polaris Redesign — design tokens (ticket #195).
+ * Scoped under .pds (Polaris Design System) so the new navy/gold maritime system
+ * never collides with the existing app theme variables. Apply `className="pds"`
+ * on the redesign shell root; all redesign components read these vars.
+ *
+ * Type scale is the RECONCILED scale (MD-approved): follows the redesign brief's
+ * hierarchy but holds a 12px floor (uppercase micro-labels only) and ≥14px for
+ * reading text, weights 500/600 — honouring CLAUDE.md §16 readability intent.
+ */
+
+.pds {
+  /* Core brand */
+  --pds-navy: #0d1f3c;
+  --pds-navy-deep: #0b1929;
+  --pds-navy-mid: #0f2137;
+  --pds-gold: #c9a84c;
+  --pds-gold-light: #f0d98a;
+  --pds-gold-muted: rgba(201, 168, 76, 0.15);
+
+  /* Traffic light system */
+  --pds-active: #1d9e75;
+  --pds-active-bg: #d1fae5;
+  --pds-active-text: #065f46;
+  --pds-expiring: #ef9f27;
+  --pds-expiring-bg: #fef3c7;
+  --pds-expiring-text: #92400e;
+  --pds-expired: #e24b4a;
+  --pds-expired-bg: #fee2e2;
+  --pds-expired-text: #991b1b;
+  --pds-neutral: #c9a84c;
+
+  /* Text on dark */
+  --pds-text: #f0f4f8;
+  --pds-text-secondary: #a8b8d0;
+  --pds-text-hint: rgba(168, 184, 208, 0.5);
+
+  /* Surfaces */
+  --pds-surface-1: #0d1f3c;
+  --pds-surface-2: rgba(255, 255, 255, 0.04);
+  --pds-surface-3: rgba(255, 255, 255, 0.08);
+
+  /* Borders */
+  --pds-border: rgba(255, 255, 255, 0.08);
+  --pds-border-soft: rgba(255, 255, 255, 0.06);
+  --pds-border-gold: rgba(201, 168, 76, 0.3);
+  --pds-border-gold-strong: rgba(201, 168, 76, 0.5);
+
+  /* Type scale (reconciled) */
+  --pds-fs-hero: 28px;
+  --pds-fs-metric: 24px;
+  --pds-fs-title: 20px;
+  --pds-fs-card-title: 15px;
+  --pds-fs-body: 14px;
+  --pds-fs-nav: 14px;
+  --pds-fs-label: 13px;
+  --pds-fs-badge: 13px;
+  --pds-fs-section: 12px; /* uppercase micro-label floor */
+  --pds-fw-regular: 400;
+  --pds-fw-medium: 500;
+  --pds-fw-semibold: 600;
+
+  /* Spacing */
+  --pds-space-1: 4px;
+  --pds-space-2: 8px;
+  --pds-space-3: 12px;
+  --pds-space-4: 16px;
+  --pds-space-5: 20px;
+  --pds-space-6: 24px;
+  --pds-space-8: 32px;
+
+  /* Radius */
+  --pds-radius-sm: 4px;
+  --pds-radius-md: 8px;
+  --pds-radius-lg: 12px;
+  --pds-radius-xl: 16px;
+  --pds-radius-full: 9999px;
+
+  /* Layout */
+  --pds-topbar-h: 48px;
+  --pds-nav-w: 200px;
+
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: var(--pds-text);
+}
+
+/* Skeleton shimmer */
+@keyframes pds-shimmer {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+.pds-skeleton {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: var(--pds-radius-sm);
+  animation: pds-shimmer 1.5s ease-in-out infinite;
+}
+
+/* Toast slide-in */
+@keyframes pds-toast-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Fade page transition */
+@keyframes pds-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.pds-fade {
+  animation: pds-fade-in 0.15s ease-out;
+}
+
+/* Grids */
+.pds-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.pds-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 768px) {
+  .pds-grid-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Focus visibility for accessibility (gold ring) */
+.pds button:focus-visible,
+.pds a:focus-visible,
+.pds [tabindex]:focus-visible {
+  outline: 2px solid var(--pds-gold);
+  outline-offset: 2px;
+}

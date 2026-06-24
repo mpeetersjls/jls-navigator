@@ -23,6 +23,7 @@ import { Route as AppSeaportRouteImport } from './routes/_app.seaport'
 import { Route as AppRecycleBinRouteImport } from './routes/_app.recycle-bin'
 import { Route as AppProvisioningRouteImport } from './routes/_app.provisioning'
 import { Route as AppProcurementRouteImport } from './routes/_app.procurement'
+import { Route as AppPolarisRedesignRouteImport } from './routes/_app.polaris-redesign'
 import { Route as AppPackagesRouteImport } from './routes/_app.packages'
 import { Route as AppOrbitRouteImport } from './routes/_app.orbit'
 import { Route as AppMyFleetRouteImport } from './routes/_app.my-fleet'
@@ -195,6 +196,11 @@ const AppProvisioningRoute = AppProvisioningRouteImport.update({
 const AppProcurementRoute = AppProcurementRouteImport.update({
   id: '/procurement',
   path: '/procurement',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPolarisRedesignRoute = AppPolarisRedesignRouteImport.update({
+  id: '/polaris-redesign',
+  path: '/polaris-redesign',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPackagesRoute = AppPackagesRouteImport.update({
@@ -770,6 +776,7 @@ export interface FileRoutesByFullPath {
   '/my-fleet': typeof AppMyFleetRoute
   '/orbit': typeof AppOrbitRouteWithChildren
   '/packages': typeof AppPackagesRouteWithChildren
+  '/polaris-redesign': typeof AppPolarisRedesignRoute
   '/procurement': typeof AppProcurementRoute
   '/provisioning': typeof AppProvisioningRoute
   '/recycle-bin': typeof AppRecycleBinRoute
@@ -881,6 +888,7 @@ export interface FileRoutesByTo {
   '/licensing': typeof AppLicensingRoute
   '/mfa-setup': typeof AppMfaSetupRoute
   '/my-fleet': typeof AppMyFleetRoute
+  '/polaris-redesign': typeof AppPolarisRedesignRoute
   '/procurement': typeof AppProcurementRoute
   '/provisioning': typeof AppProvisioningRoute
   '/recycle-bin': typeof AppRecycleBinRoute
@@ -994,6 +1002,7 @@ export interface FileRoutesById {
   '/_app/my-fleet': typeof AppMyFleetRoute
   '/_app/orbit': typeof AppOrbitRouteWithChildren
   '/_app/packages': typeof AppPackagesRouteWithChildren
+  '/_app/polaris-redesign': typeof AppPolarisRedesignRoute
   '/_app/procurement': typeof AppProcurementRoute
   '/_app/provisioning': typeof AppProvisioningRoute
   '/_app/recycle-bin': typeof AppRecycleBinRoute
@@ -1114,6 +1123,7 @@ export interface FileRouteTypes {
     | '/my-fleet'
     | '/orbit'
     | '/packages'
+    | '/polaris-redesign'
     | '/procurement'
     | '/provisioning'
     | '/recycle-bin'
@@ -1225,6 +1235,7 @@ export interface FileRouteTypes {
     | '/licensing'
     | '/mfa-setup'
     | '/my-fleet'
+    | '/polaris-redesign'
     | '/procurement'
     | '/provisioning'
     | '/recycle-bin'
@@ -1337,6 +1348,7 @@ export interface FileRouteTypes {
     | '/_app/my-fleet'
     | '/_app/orbit'
     | '/_app/packages'
+    | '/_app/polaris-redesign'
     | '/_app/procurement'
     | '/_app/provisioning'
     | '/_app/recycle-bin'
@@ -1529,6 +1541,13 @@ declare module '@tanstack/react-router' {
       path: '/procurement'
       fullPath: '/procurement'
       preLoaderRoute: typeof AppProcurementRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/polaris-redesign': {
+      id: '/_app/polaris-redesign'
+      path: '/polaris-redesign'
+      fullPath: '/polaris-redesign'
+      preLoaderRoute: typeof AppPolarisRedesignRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/packages': {
@@ -2572,6 +2591,7 @@ interface AppRouteChildren {
   AppMyFleetRoute: typeof AppMyFleetRoute
   AppOrbitRoute: typeof AppOrbitRouteWithChildren
   AppPackagesRoute: typeof AppPackagesRouteWithChildren
+  AppPolarisRedesignRoute: typeof AppPolarisRedesignRoute
   AppProcurementRoute: typeof AppProcurementRoute
   AppProvisioningRoute: typeof AppProvisioningRoute
   AppRecycleBinRoute: typeof AppRecycleBinRoute
@@ -2632,6 +2652,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMyFleetRoute: AppMyFleetRoute,
   AppOrbitRoute: AppOrbitRouteWithChildren,
   AppPackagesRoute: AppPackagesRouteWithChildren,
+  AppPolarisRedesignRoute: AppPolarisRedesignRoute,
   AppProcurementRoute: AppProcurementRoute,
   AppProvisioningRoute: AppProvisioningRoute,
   AppRecycleBinRoute: AppRecycleBinRoute,

@@ -41,6 +41,8 @@ export const Route = createRootRoute({
       // Brand logo typefaces — POLARIS_LOGO block (Captain Mike Fetton, MD sign-off).
       // Without these the wordmark falls back to Georgia serif.
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Montserrat:wght@400;500;600&display=swap" },
+      // Tabler Icons webfont — used by the Polaris redesign component library (#195).
+      { rel: "stylesheet", href: "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" },
     ],
   }),
   shellComponent: RootShell,
