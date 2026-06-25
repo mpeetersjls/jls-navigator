@@ -11,5 +11,5 @@ where not exists (select 1 from sharepoint_sync_configs where sync_target='ships
 
 insert into sharepoint_sync_configs (name, list_name, sync_target, site_path, enabled, field_mapping)
 select 'ShipSync Drivers', 'Drivers', 'shipsync_drivers', '/sites/JLS-DeliveriesApp', true,
-  '{"Title":"name","Email":"email","Phone":"phone","Vehicle":"vehicle"}'::jsonb
+  '{"Title":"name","EmailAddress":"email","MobileNumber":"phone"}'::jsonb
 where not exists (select 1 from sharepoint_sync_configs where sync_target='shipsync_drivers');
