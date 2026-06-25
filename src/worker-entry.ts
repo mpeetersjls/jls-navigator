@@ -388,13 +388,10 @@ export default {
           .then(async (r) => console.log('[renewal-cron]', JSON.stringify(await r.json().catch(() => ({})))))
           .catch((e) => console.error('[renewal-cron] error:', e))
       )
-      // Daily ShipSync → SharePoint push (no-op unless SHIPSYNC_SP_PUSH_ENABLED=true).
-      ctx.waitUntil(
-        import('./lib/shipsync/sharepoint.server')
-          .then((m) => m.pushShipSyncToSharePoint())
-          .then((r) => console.log('[shipsync-sp-push]', JSON.stringify(r)))
-          .catch((e) => console.error('[shipsync-sp-push] error:', e))
-      )
+      // ShipSync outbound push is intentionally NOT on the cron: SharePoint is the
+      // source of truth for ShipSync (Packages + Drivers are pulled IN via the
+      // rotating syncStalestList() like every other list). The "Push now" button
+      // on the Integrations page remains for a manual push when needed.
     }
 
     // ── Every 15 min: pull SharePoint changes IN, ONE list per tick ──

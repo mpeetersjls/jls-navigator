@@ -19,9 +19,13 @@ export interface SpSyncConfig {
   id: string
   name: string
   listName: string
-  syncTarget: 'yachts' | 'permits' | 'small_boats' | 'visa_applications' | 'crew_members'
+  syncTarget: 'yachts' | 'permits' | 'small_boats' | 'visa_applications' | 'crew_members' | 'shipsync_packages' | 'shipsync_drivers'
   fieldMapping: Record<string, string>
   enabled: boolean
+  /** Optional SharePoint site path override (e.g. "/sites/JLS-DeliveriesApp").
+   *  When null the sync uses the main configured site. Lets lists that live on a
+   *  different site (ShipSync) be synced through the same engine. */
+  sitePath: string | null
   deltaToken: string | null
   lastSyncedAt: string | null
   lastSyncSynced: number | null
@@ -84,6 +88,7 @@ export async function getSpSyncs(): Promise<SpSyncConfig[]> {
     syncTarget: r.sync_target as SpSyncConfig['syncTarget'],
     fieldMapping: (r.field_mapping ?? {}) as Record<string, string>,
     enabled: r.enabled,
+    sitePath: r.site_path ?? null,
     deltaToken: r.delta_token ?? null,
     lastSyncedAt: r.last_synced_at ?? null,
     lastSyncSynced: r.last_sync_synced ?? null,
@@ -117,7 +122,7 @@ export async function saveSpSync(
   return {
     id: row.id, name: row.name, listName: row.list_name,
     syncTarget: row.sync_target, fieldMapping: row.field_mapping ?? {},
-    enabled: row.enabled, deltaToken: row.delta_token ?? null,
+    enabled: row.enabled, sitePath: row.site_path ?? null, deltaToken: row.delta_token ?? null,
     lastSyncedAt: row.last_synced_at ?? null,
     lastSyncSynced: row.last_sync_synced ?? null,
     lastSyncErrors: row.last_sync_errors ?? null,
@@ -651,6 +656,9 @@ export async function syncFromSharePoint(): Promise<{ synced: number; errors: nu
 async function _syncWithConfig(cfg: SpConfig, sync: SpSyncConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const merged: SpConfig = {
     ...cfg,
+    // Per-sync site override: lists on another SharePoint site (ShipSync) resolve
+    // their own site, everything else uses the main configured site.
+    siteUrl: sync.sitePath ?? cfg.siteUrl,
     listName: sync.listName,
     fieldMapping: sync.fieldMapping,
     syncTarget: sync.syncTarget,
@@ -664,6 +672,10 @@ async function _syncWithConfig(cfg: SpConfig, sync: SpSyncConfig): Promise<{ syn
     result = await _syncVisas(merged)
   } else if (sync.syncTarget === 'crew_members') {
     result = await _syncCrew(merged)
+  } else if (sync.syncTarget === 'shipsync_packages') {
+    result = await _syncShipSyncPackages(merged)
+  } else if (sync.syncTarget === 'shipsync_drivers') {
+    result = await _syncShipSyncDrivers(merged)
   } else {
     result = await _syncYachts(merged, sync.id, sync.deltaToken)
   }
@@ -935,6 +947,128 @@ async function _syncSmallBoats(cfg: SpConfig): Promise<{ synced: number; errors:
   }
 
   return bulkPersist('small_boats', updateById, insertByKey)
+}
+
+// ShipSync Packages sync: SharePoint "Packages" list (on the JLS-DeliveriesApp
+// site) → shipsync_packages. SharePoint is the source of truth while this is
+// enabled. Matches existing rows by the stored SharePoint item id (extra.sp_item_id)
+// then by barcode; the legacy "Status" choice text is reverse-mapped to our enum.
+const SP_STATUS_REV: Record<string, string> = {
+  'In Office': 'in_office', 'In Storage': 'in_storage', 'Assigned': 'assigned',
+  'Out for Delivery': 'out_for_delivery', 'Delivered': 'delivered',
+  'Client to Collect': 'to_collect', 'Client Collected': 'collected', 'Client Refused': 'refused',
+}
+async function _syncShipSyncPackages(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
+  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+
+  let allItems: any[] = []
+  let nextUrl: string | null =
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items?$expand=fields&$top=200`
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const page = await res.json() as Record<string, any>
+    if (!page.value) break
+    allItems = allItems.concat(page.value as any[])
+    nextUrl = page['@odata.nextLink'] ?? null
+  }
+
+  const { data: existing } = await fetchAllRows(() => (supabaseAdmin as any)
+    .from('shipsync_packages').select('id, barcode, extra').order('id'))
+  const byBarcode = new Map<string, string>()
+  const bySpId = new Map<string, string>()
+  const extraById = new Map<string, Record<string, any>>()
+  for (const p of (existing ?? []) as Record<string, any>[]) {
+    if (p.barcode) byBarcode.set(String(p.barcode).toLowerCase().trim(), String(p.id))
+    const sp = p.extra?.sp_item_id
+    if (sp) bySpId.set(String(sp), String(p.id))
+    extraById.set(String(p.id), (p.extra ?? {}) as Record<string, any>)
+  }
+
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
+
+  for (const item of allItems) {
+    if (item['@removed']) continue
+    const fields = item.fields ?? {}
+    const record: Record<string, any> = { sp_synced_at: new Date().toISOString() }
+
+    for (const [spField, dbField] of Object.entries(cfg.fieldMapping)) {
+      if (!dbField || !(spField in fields)) continue
+      const raw = fields[spField]
+      if (dbField === 'status') { record.status = SP_STATUS_REV[String(raw)] ?? 'in_office'; continue }
+      if (dbField === 'num_packages') { record.num_packages = coerceNumeric(raw) ?? 1; continue }
+      record[dbField] = raw !== '' && raw !== null && raw !== undefined ? raw : null
+    }
+
+    const existingId =
+      bySpId.get(String(item.id)) ??
+      (record.barcode ? byBarcode.get(String(record.barcode).toLowerCase().trim()) : undefined)
+
+    if (existingId) {
+      // Preserve any other keys already in extra (note links, photos, etc.).
+      record.extra = { ...(extraById.get(existingId) ?? {}), sp_item_id: item.id }
+      updateById.set(existingId, { ...record, id: existingId })
+    } else {
+      record.extra = { sp_item_id: item.id, imported_at: new Date().toISOString() }
+      insertByKey.set(String(item.id), { ...record, status: record.status ?? 'in_office' })
+    }
+  }
+
+  return bulkPersist('shipsync_packages', updateById, insertByKey)
+}
+
+// ShipSync Drivers sync: SharePoint "Drivers" list → shipsync_drivers. The drivers
+// table has no SharePoint-link column, so rows are matched by email then name
+// (drivers are few and stable). Field-mapping keys are the SP column internal
+// names; an unmatched mapping simply leaves that field blank (never an error).
+async function _syncShipSyncDrivers(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
+  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+
+  let allItems: any[] = []
+  let nextUrl: string | null =
+    `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${cfg.listName}/items?$expand=fields&$top=200`
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { headers: { Authorization: `Bearer ${token}` } })
+    const page = await res.json() as Record<string, any>
+    if (!page.value) break
+    allItems = allItems.concat(page.value as any[])
+    nextUrl = page['@odata.nextLink'] ?? null
+  }
+
+  const { data: existing } = await fetchAllRows(() => (supabaseAdmin as any)
+    .from('shipsync_drivers').select('id, name, email').order('id'))
+  const byEmail = new Map<string, string>()
+  const byName = new Map<string, string>()
+  for (const d of (existing ?? []) as Record<string, any>[]) {
+    if (d.email) byEmail.set(String(d.email).toLowerCase().trim(), String(d.id))
+    if (d.name) byName.set(String(d.name).toLowerCase().trim(), String(d.id))
+  }
+
+  const updateById = new Map<string, Record<string, any>>()
+  const insertByKey = new Map<string, Record<string, any>>()
+
+  for (const item of allItems) {
+    if (item['@removed']) continue
+    const fields = item.fields ?? {}
+    const record: Record<string, any> = {}
+    for (const [spField, dbField] of Object.entries(cfg.fieldMapping)) {
+      if (!dbField || !(spField in fields)) continue
+      const raw = fields[spField]
+      record[dbField] = raw !== '' && raw !== null && raw !== undefined ? raw : null
+    }
+    if (!record.name) continue // name is required (NOT NULL) for inserts
+
+    const existingId =
+      (record.email ? byEmail.get(String(record.email).toLowerCase().trim()) : undefined) ??
+      byName.get(String(record.name).toLowerCase().trim())
+
+    if (existingId) updateById.set(existingId, { ...record, id: existingId })
+    else insertByKey.set(String(item.id), { ...record, active: record.active ?? true })
+  }
+
+  return bulkPersist('shipsync_drivers', updateById, insertByKey)
 }
 
 // Visa applications sync: SharePoint Visa list → visa_applications.
