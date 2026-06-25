@@ -135,7 +135,7 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
   // no secrets) so syncs can be created with correct field mappings.
   if (url.searchParams.get('discover') === '1') {
     try {
-      const d = await discoverSharePoint()
+      const d = await discoverSharePoint(url.searchParams.get('site') || undefined)
       return new Response(JSON.stringify(d), { status: 200, headers: { 'Content-Type': 'application/json' } })
     } catch (e) {
       return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {

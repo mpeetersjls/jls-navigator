@@ -236,12 +236,14 @@ export async function getSpListId(token: string, siteId: string, listName: strin
 
 // ─── Discovery: enumerate lists + their columns (for auto-creating syncs) ──────
 
-export async function discoverSharePoint(): Promise<{
+export async function discoverSharePoint(sitePathOverride?: string): Promise<{
   lists: Array<{ name: string; displayName: string; itemCount?: number; columns: Array<{ name: string; displayName: string }> }>
 }> {
   const cfg = await getSpConfig()
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
-  const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
+  // Optional site override (e.g. /sites/JLS-DeliveriesApp) so columns of lists on
+  // another site can be discovered for cross-site sync field mappings.
+  const siteId = await resolveSpSite(token, cfg.tenantUrl, sitePathOverride || cfg.siteUrl)
 
   const listsRes = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${siteId}/lists?$select=name,displayName,list&$top=100`,
