@@ -960,6 +960,9 @@ const SP_STATUS_REV: Record<string, string> = {
   'Out for Delivery': 'out_for_delivery', 'Delivered': 'delivered',
   'Client to Collect': 'to_collect', 'Client Collected': 'collected', 'Client Refused': 'refused',
 }
+// `date`-typed package columns: truncate any SharePoint datetime to YYYY-MM-DD
+// (timestamptz columns like delivered_at/received_at keep the full value).
+const PKG_DATE_FIELDS = new Set(['planned_delivery_date'])
 async function _syncShipSyncPackages(cfg: SpConfig): Promise<{ synced: number; errors: number; samples?: string[] }> {
   const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
   const siteId = await resolveSpSite(token, cfg.tenantUrl, cfg.siteUrl)
@@ -1000,7 +1003,9 @@ async function _syncShipSyncPackages(cfg: SpConfig): Promise<{ synced: number; e
       const raw = fields[spField]
       if (dbField === 'status') { record.status = SP_STATUS_REV[String(raw)] ?? 'in_office'; continue }
       if (dbField === 'num_packages') { record.num_packages = coerceNumeric(raw) ?? 1; continue }
-      record[dbField] = raw !== '' && raw !== null && raw !== undefined ? raw : null
+      let val: any = raw !== '' && raw !== null && raw !== undefined ? raw : null
+      if (val != null && PKG_DATE_FIELDS.has(dbField)) val = String(val).slice(0, 10)
+      record[dbField] = val
     }
 
     // NOT NULL columns must be set on EVERY row: PostgREST bulk-inserts the batch
