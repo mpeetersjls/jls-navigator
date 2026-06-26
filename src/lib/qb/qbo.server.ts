@@ -17,7 +17,10 @@ export function qboRealm(): string {
   return process.env.QBO_REALM_ID ?? '9341454112300561'
 }
 export function qboConfigured(): boolean {
-  return !!(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET && process.env.QBO_REFRESH_TOKEN)
+  // App credentials are enough to be "configured": the refresh token can come
+  // either from the QBO_REFRESH_TOKEN seed env var OR the in-app Connect flow
+  // (stored in qbo_tokens). refreshAccessToken() throws a clear error if neither exists.
+  return !!(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET)
 }
 function admin() {
   return createClient(process.env.SUPABASE_URL ?? '', process.env.SUPABASE_SERVICE_ROLE_KEY ?? '', { auth: { persistSession: false } })

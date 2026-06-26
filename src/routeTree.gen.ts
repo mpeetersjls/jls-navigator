@@ -13,6 +13,10 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignTokenRouteImport } from './routes/sign.$token'
+import { Route as LegalQuickbooksDisconnectedRouteImport } from './routes/legal.quickbooks-disconnected'
+import { Route as LegalQuickbooksConnectedRouteImport } from './routes/legal.quickbooks-connected'
+import { Route as LegalPrivacyRouteImport } from './routes/legal.privacy'
+import { Route as LegalEulaRouteImport } from './routes/legal.eula'
 import { Route as AppYachtItRouteImport } from './routes/_app.yacht-it'
 import { Route as AppWaypointRouteImport } from './routes/_app.waypoint'
 import { Route as AppTrainingRouteImport } from './routes/_app.training'
@@ -148,6 +152,28 @@ const IndexRoute = IndexRouteImport.update({
 const SignTokenRoute = SignTokenRouteImport.update({
   id: '/sign/$token',
   path: '/sign/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalQuickbooksDisconnectedRoute =
+  LegalQuickbooksDisconnectedRouteImport.update({
+    id: '/legal/quickbooks-disconnected',
+    path: '/legal/quickbooks-disconnected',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LegalQuickbooksConnectedRoute =
+  LegalQuickbooksConnectedRouteImport.update({
+    id: '/legal/quickbooks-connected',
+    path: '/legal/quickbooks-connected',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const LegalPrivacyRoute = LegalPrivacyRouteImport.update({
+  id: '/legal/privacy',
+  path: '/legal/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LegalEulaRoute = LegalEulaRouteImport.update({
+  id: '/legal/eula',
+  path: '/legal/eula',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppYachtItRoute = AppYachtItRouteImport.update({
@@ -807,6 +833,10 @@ export interface FileRoutesByFullPath {
   '/training': typeof AppTrainingRouteWithChildren
   '/waypoint': typeof AppWaypointRouteWithChildren
   '/yacht-it': typeof AppYachtItRoute
+  '/legal/eula': typeof LegalEulaRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/quickbooks-connected': typeof LegalQuickbooksConnectedRoute
+  '/legal/quickbooks-disconnected': typeof LegalQuickbooksDisconnectedRoute
   '/sign/$token': typeof SignTokenRoute
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/organisations': typeof AppAdminOrganisationsRoute
@@ -919,6 +949,10 @@ export interface FileRoutesByTo {
   '/shipsync': typeof AppShipsyncRouteWithChildren
   '/small-boat-registration': typeof AppSmallBoatRegistrationRoute
   '/yacht-it': typeof AppYachtItRoute
+  '/legal/eula': typeof LegalEulaRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/quickbooks-connected': typeof LegalQuickbooksConnectedRoute
+  '/legal/quickbooks-disconnected': typeof LegalQuickbooksDisconnectedRoute
   '/sign/$token': typeof SignTokenRoute
   '/admin/audit': typeof AppAdminAuditRoute
   '/admin/organisations': typeof AppAdminOrganisationsRoute
@@ -1039,6 +1073,10 @@ export interface FileRoutesById {
   '/_app/training': typeof AppTrainingRouteWithChildren
   '/_app/waypoint': typeof AppWaypointRouteWithChildren
   '/_app/yacht-it': typeof AppYachtItRoute
+  '/legal/eula': typeof LegalEulaRoute
+  '/legal/privacy': typeof LegalPrivacyRoute
+  '/legal/quickbooks-connected': typeof LegalQuickbooksConnectedRoute
+  '/legal/quickbooks-disconnected': typeof LegalQuickbooksDisconnectedRoute
   '/sign/$token': typeof SignTokenRoute
   '/_app/admin/audit': typeof AppAdminAuditRoute
   '/_app/admin/organisations': typeof AppAdminOrganisationsRoute
@@ -1163,6 +1201,10 @@ export interface FileRouteTypes {
     | '/training'
     | '/waypoint'
     | '/yacht-it'
+    | '/legal/eula'
+    | '/legal/privacy'
+    | '/legal/quickbooks-connected'
+    | '/legal/quickbooks-disconnected'
     | '/sign/$token'
     | '/admin/audit'
     | '/admin/organisations'
@@ -1275,6 +1317,10 @@ export interface FileRouteTypes {
     | '/shipsync'
     | '/small-boat-registration'
     | '/yacht-it'
+    | '/legal/eula'
+    | '/legal/privacy'
+    | '/legal/quickbooks-connected'
+    | '/legal/quickbooks-disconnected'
     | '/sign/$token'
     | '/admin/audit'
     | '/admin/organisations'
@@ -1394,6 +1440,10 @@ export interface FileRouteTypes {
     | '/_app/training'
     | '/_app/waypoint'
     | '/_app/yacht-it'
+    | '/legal/eula'
+    | '/legal/privacy'
+    | '/legal/quickbooks-connected'
+    | '/legal/quickbooks-disconnected'
     | '/sign/$token'
     | '/_app/admin/audit'
     | '/_app/admin/organisations'
@@ -1476,6 +1526,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  LegalEulaRoute: typeof LegalEulaRoute
+  LegalPrivacyRoute: typeof LegalPrivacyRoute
+  LegalQuickbooksConnectedRoute: typeof LegalQuickbooksConnectedRoute
+  LegalQuickbooksDisconnectedRoute: typeof LegalQuickbooksDisconnectedRoute
   SignTokenRoute: typeof SignTokenRoute
 }
 
@@ -1507,6 +1561,34 @@ declare module '@tanstack/react-router' {
       path: '/sign/$token'
       fullPath: '/sign/$token'
       preLoaderRoute: typeof SignTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/quickbooks-disconnected': {
+      id: '/legal/quickbooks-disconnected'
+      path: '/legal/quickbooks-disconnected'
+      fullPath: '/legal/quickbooks-disconnected'
+      preLoaderRoute: typeof LegalQuickbooksDisconnectedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/quickbooks-connected': {
+      id: '/legal/quickbooks-connected'
+      path: '/legal/quickbooks-connected'
+      fullPath: '/legal/quickbooks-connected'
+      preLoaderRoute: typeof LegalQuickbooksConnectedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/privacy': {
+      id: '/legal/privacy'
+      path: '/legal/privacy'
+      fullPath: '/legal/privacy'
+      preLoaderRoute: typeof LegalPrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/legal/eula': {
+      id: '/legal/eula'
+      path: '/legal/eula'
+      fullPath: '/legal/eula'
+      preLoaderRoute: typeof LegalEulaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/yacht-it': {
@@ -2762,6 +2844,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  LegalEulaRoute: LegalEulaRoute,
+  LegalPrivacyRoute: LegalPrivacyRoute,
+  LegalQuickbooksConnectedRoute: LegalQuickbooksConnectedRoute,
+  LegalQuickbooksDisconnectedRoute: LegalQuickbooksDisconnectedRoute,
   SignTokenRoute: SignTokenRoute,
 }
 export const routeTree = rootRouteImport
