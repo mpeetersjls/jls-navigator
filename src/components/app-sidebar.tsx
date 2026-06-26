@@ -163,7 +163,7 @@ const NAV: NavItem[] = [
       { label: "Vessel Documents",  to: "/esign",                        icon: Ship },
       { label: "Crew Documents",    to: "/crew-immigration/documents",   icon: Users },
       { label: "Signed Agreements", to: "/esign",                        icon: FileSignature },
-      { label: "e-Sign Documents",  to: "/esign",                        icon: PenLine },
+      { label: "Anchor",            to: "/esign",                        icon: PenLine },
       { label: "Certificates",      to: "/training/certifications",      icon: Award },
       { label: "Downloads",         to: "/guides",                       icon: Download },
     ],

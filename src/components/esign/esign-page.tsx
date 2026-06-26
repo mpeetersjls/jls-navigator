@@ -105,7 +105,7 @@ export function EsignPage() {
         <div>
           <div className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">Documents</div>
           <h1 className="mt-0.5 flex items-center gap-2 font-display text-[1.25rem] font-semibold tracking-tight">
-            <FileSignature className="h-4 w-4 text-primary/80" /> Documents &amp; e-Sign
+            <FileSignature className="h-4 w-4 text-primary/80" /> Anchor
           </h1>
         </div>
         <div className="flex items-center gap-2.5">

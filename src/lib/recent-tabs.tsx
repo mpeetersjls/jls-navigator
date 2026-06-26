@@ -37,7 +37,7 @@ const LABELS: { test: RegExp; label: string }[] = [
   { test: /^\/training/, label: 'Training' },
   { test: /^\/agency/, label: 'Agency' },
   { test: /^\/crew-placement/, label: 'Crew Placement' },
-  { test: /^\/esign/, label: 'e-Sign' },
+  { test: /^\/esign/, label: 'Anchor' },
   { test: /^\/it-tickets/, label: 'Service Desk' },
   { test: /^\/licensing/, label: 'Licensing' },
   { test: /^\/yacht-it/, label: 'Yacht IT' },
