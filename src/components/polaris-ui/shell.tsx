@@ -117,6 +117,7 @@ export function PolarisTopBar({
   onBellClick,
   onMenuClick,
   showMenu,
+  onExitBeta,
 }: {
   vesselName: string;
   userInitials: string;
@@ -125,6 +126,7 @@ export function PolarisTopBar({
   onBellClick?: () => void;
   onMenuClick?: () => void;
   showMenu?: boolean;
+  onExitBeta?: () => void;
 }) {
   return (
     <header
@@ -187,6 +189,29 @@ export function PolarisTopBar({
         </button>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {onExitBeta && (
+          <button
+            onClick={onExitBeta}
+            title="Return to the original Polaris"
+            style={{
+              background: "var(--pds-surface-3)",
+              border: "1px solid var(--pds-border)",
+              color: "var(--pds-text-secondary)",
+              fontSize: "var(--pds-fs-label)",
+              fontWeight: 600,
+              padding: "5px 12px",
+              minHeight: 32,
+              borderRadius: "var(--pds-radius-full)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+            }}
+          >
+            <TIcon name="arrow-back-up" size={14} />
+            Original
+          </button>
+        )}
         <button
           onClick={onBellClick}
           aria-label="Notifications"
@@ -306,6 +331,7 @@ export function PolarisShell({
   userInitials,
   userName,
   onVesselClick,
+  onExitBeta,
   children,
 }: {
   role: PolarisRole;
@@ -315,6 +341,7 @@ export function PolarisShell({
   userInitials: string;
   userName: string;
   onVesselClick?: () => void;
+  onExitBeta?: () => void;
   children: ReactNode;
 }) {
   const isMobile = useIsMobile();
@@ -349,6 +376,7 @@ export function PolarisShell({
         showMenu={isMobile}
         onMenuClick={() => setOverlay(true)}
         onVesselClick={onVesselClick}
+        onExitBeta={onExitBeta}
       />
 
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>

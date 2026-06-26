@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import {
-  Search, LogOut, Settings, UserCircle2, Ship, Loader2, ChevronDown, X, Sun, Moon, Users, Eye, Check, ShieldCheck,
+  Search, LogOut, Settings, UserCircle2, Ship, Loader2, ChevronDown, X, Sun, Moon, Users, Eye, Check, ShieldCheck, Sparkles,
 } from "lucide-react";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -325,6 +325,16 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-1.5">
+        {/* Beta View — switch to the new Polaris design preview */}
+        <Link
+          to="/polaris-redesign"
+          title="Switch to the new Polaris design (Beta)"
+          className="flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-semibold text-amber-500 ring-1 ring-amber-500/30 hover:bg-amber-500/10 transition"
+        >
+          <Sparkles className="h-[16px] w-[16px]" />
+          <span className="hidden sm:inline">Beta View</span>
+        </Link>
+
         {/* View-as / client preview (admin only) */}
         <ViewAsSwitcher />
 

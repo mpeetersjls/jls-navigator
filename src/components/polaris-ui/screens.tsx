@@ -12,6 +12,7 @@ import {
   PolarisCard,
   CrewRow,
   TrafficLight,
+  ComplianceBar,
   type StatVariant,
 } from "./cards";
 import {
@@ -932,6 +933,162 @@ export function PolarisCrew({
           })
         )}
       </PolarisCard>
+    </>
+  );
+}
+
+// ── Compliance screen ─────────────────────────────────────────────────────────
+export function PolarisCompliance({
+  yacht,
+  onSwitchVessel,
+}: {
+  yacht: YachtOption | null;
+  onSwitchVessel: () => void;
+}) {
+  const { loading, rows, counts } = useVesselVisaData(yacht?.id ?? null);
+  const pct = counts.total ? Math.round((counts.active / counts.total) * 100) : 0;
+  const scoreColour =
+    pct >= 70
+      ? "var(--pds-active)"
+      : pct >= 40
+        ? "var(--pds-expiring)"
+        : "var(--pds-expired)";
+  const breaches = rows.filter((r) => r.status === "expired");
+  const atRisk = rows.filter((r) => r.status === "expiring_soon");
+
+  const list = (arr: CrewVisaRow[], detail: (c: CrewVisaRow) => string) =>
+    arr.map((c) => {
+      const b = STATUS_BADGE[c.status];
+      return (
+        <CrewRow
+          key={c.crewId}
+          name={c.name}
+          detail={detail(c)}
+          badge={<StatusBadge variant={b.variant} label={b.label} />}
+        />
+      );
+    });
+
+  return (
+    <>
+      <PageHeader
+        title="Compliance"
+        actions={
+          <PolarisButton
+            variant="ghost"
+            icon="arrows-exchange"
+            label="Switch vessel"
+            onClick={onSwitchVessel}
+          />
+        }
+      />
+
+      <SectionLabel>Visa compliance — {yacht?.vessel_name ?? "—"}</SectionLabel>
+
+      <div style={{ marginBottom: 16 }}>
+        <PolarisCard title="Compliance score" icon="shield-check">
+          {loading ? (
+            <Skeleton height={60} />
+          ) : (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 10,
+                  marginBottom: 10,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "var(--pds-font-display)",
+                    fontSize: "var(--pds-fs-hero)",
+                    fontWeight: 600,
+                    color: scoreColour,
+                    lineHeight: 1,
+                  }}
+                >
+                  {pct}%
+                </span>
+                <span
+                  style={{
+                    fontSize: "var(--pds-fs-label)",
+                    color: "var(--pds-text-secondary)",
+                  }}
+                >
+                  {counts.active} of {counts.total} crew hold a valid visa
+                </span>
+              </div>
+              <ComplianceBar pct={pct} />
+            </div>
+          )}
+        </PolarisCard>
+      </div>
+
+      <div className="pds-stats-grid" style={{ marginBottom: 16 }}>
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <Skeleton key={i} height={88} radius={12} />
+          ))
+        ) : (
+          <>
+            <StatCard label="Compliant" value={counts.active} variant="active" />
+            <StatCard
+              label="At risk"
+              value={counts.expiring}
+              variant="expiring"
+              sub="expiring ≤ 30 days"
+            />
+            <StatCard label="Breach" value={counts.expired} variant="expired" />
+            <StatCard label="No visa" value={counts.noVisa} variant="neutral" />
+          </>
+        )}
+      </div>
+
+      <div className="pds-grid-2">
+        <PolarisCard
+          title="Breaches — expired"
+          icon="alert-circle"
+          badge={
+            breaches.length ? (
+              <StatusBadge variant="expired" label={`${breaches.length}`} />
+            ) : undefined
+          }
+        >
+          {loading ? (
+            <Skeleton height={60} />
+          ) : breaches.length === 0 ? (
+            <EmptyState icon="circle-check" message="No compliance breaches." />
+          ) : (
+            list(
+              breaches,
+              (c) => `${c.visaType ?? "Visa"} · ${c.daysOverdue}d overdue`,
+            )
+          )}
+        </PolarisCard>
+
+        <PolarisCard
+          title="At risk — expiring soon"
+          icon="clock"
+          badge={
+            atRisk.length ? (
+              <StatusBadge variant="expiring" label={`${atRisk.length}`} />
+            ) : undefined
+          }
+        >
+          {loading ? (
+            <Skeleton height={60} />
+          ) : atRisk.length === 0 ? (
+            <EmptyState icon="circle-check" message="Nothing expiring soon." />
+          ) : (
+            list(
+              atRisk,
+              (c) =>
+                `${c.visaType ?? "Visa"} · expires ${formatDateDMY(c.expiry)}`,
+            )
+          )}
+        </PolarisCard>
+      </div>
     </>
   );
 }

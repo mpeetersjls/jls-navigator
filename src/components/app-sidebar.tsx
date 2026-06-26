@@ -49,13 +49,8 @@ const NAV: NavItem[] = [
     flagKey: "dashboard",
   },
 
-  // Redesign preview (#195) — dev-only until promoted to the live dashboard.
-  {
-    label: "Redesign Preview",
-    to: "/polaris-redesign",
-    icon: Sparkles,
-    devOnly: true,
-  },
+  // Redesign preview (#195) is now reached via the "Beta View" button in the top
+  // bar (top-bar.tsx), not a sidebar item — toggles to /polaris-redesign.
 
   // 2 ─── MY VESSEL  (mixed — per-item flags)
   {

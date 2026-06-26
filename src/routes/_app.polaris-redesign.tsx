@@ -4,7 +4,7 @@
  * /polaris-redesign so it's deployable and reviewable WITHOUT touching the live
  * dashboard or restyling existing modules. Promote to the real dashboard when signed off.
  */
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import "@/components/polaris-ui/tokens.css";
@@ -19,6 +19,7 @@ import {
   PolarisDashboard,
   PolarisVisaReports,
   PolarisCrew,
+  PolarisCompliance,
 } from "@/components/polaris-ui/screens";
 import { useYachts, type YachtOption } from "@/components/polaris-ui/data";
 
@@ -31,6 +32,7 @@ const LAST_VESSEL = "polaris.redesign.lastVessel";
 
 function PolarisRedesignApp() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { yachts, loading } = useYachts();
   const [screen, setScreen] = useState("dashboard");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,6 +75,7 @@ function PolarisRedesignApp() {
         userInitials={initials}
         userName={user?.email ?? "User"}
         onVesselClick={() => setSwitcher(true)}
+        onExitBeta={() => navigate({ to: "/dashboard" })}
       >
         {screen === "visa-reports" ? (
           <PolarisVisaReports
@@ -88,6 +91,11 @@ function PolarisRedesignApp() {
           />
         ) : screen === "crew" ? (
           <PolarisCrew yacht={yacht} onSwitchVessel={() => setSwitcher(true)} />
+        ) : screen === "compliance" ? (
+          <PolarisCompliance
+            yacht={yacht}
+            onSwitchVessel={() => setSwitcher(true)}
+          />
         ) : (
           <EmptyState
             icon="layout-dashboard"
