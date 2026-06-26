@@ -19,7 +19,7 @@ export async function qbInvoiceHandler(request: Request): Promise<Response> {
 
   if (request.method === 'GET') {
     const { data: catalog } = await db()
-      .from('qbo_item_map').select('qbo_item_name, unit_price, tax_code, sort_order')
+      .from('qbo_item_map').select('qbo_item_name, unit_price, tax_code, description_label, sort_order')
       .eq('scope', 'visa').eq('active', true).order('sort_order', { ascending: true })
     return json({ ok: true, configured: qboConfigured(), catalog: catalog ?? [] })
   }

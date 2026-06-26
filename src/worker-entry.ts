@@ -20,6 +20,7 @@ import { shipsyncApiHandler } from './routes/api.shipsync'
 import { anchorFormsHandler } from './routes/api.anchor-forms'
 import { qbInvoiceHandler } from './routes/api.qb.invoice'
 import { qbConnectHandler, qbCallbackHandler } from './routes/api.qb.connect'
+import { qbCustomersHandler } from './routes/api.qb.customers'
 import { feedbackNotifyHandler } from './routes/api.feedback.notify'
 import { vesselHandler } from './routes/api.vessels'
 import { phoneHandler } from './routes/api.phone'
@@ -374,6 +375,9 @@ export default {
     }
     if (url.pathname === '/api/qb/invoice' && (request.method === 'GET' || request.method === 'POST')) {
       return qbInvoiceHandler(request)
+    }
+    if (url.pathname === '/api/qb/customers' && request.method === 'GET') {
+      return qbCustomersHandler(request)
     }
     if (url.pathname === '/api/qb/connect' && request.method === 'GET') {
       return qbConnectHandler(request)

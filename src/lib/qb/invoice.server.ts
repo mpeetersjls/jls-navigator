@@ -109,8 +109,25 @@ export async function createQboInvoice(opts: {
 export type VisaInvoiceRequest = {
   yachtId: string
   /** Each line: a QBO service item + the visa-application ids it covers. */
-  lines: Array<{ itemName: string; visaIds: string[]; unitPrice?: number; taxCode?: string }>
+  lines: Array<{
+    itemName: string
+    visaIds: string[]
+    unitPrice?: number
+    taxCode?: string
+    /** Printed heading shown above the crew list (defaults to the catalog label / item name). */
+    descriptionLabel?: string
+    /** Append each crew member's visa issuance date as "(DD-MM-YY)". */
+    includeDate?: boolean
+  }>
   placeOfSupply?: string
+}
+
+/** Format a date as DD-MM-YY to match the printed invoice (e.g. "02-06-26"). */
+function ddmmyy(d: string | null | undefined): string | null {
+  if (!d) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d))
+  if (!m) return null
+  return `${m[3]}-${m[2]}-${m[1].slice(2)}`
 }
 
 /**
@@ -128,7 +145,7 @@ export async function generateVisaInvoice(req: VisaInvoiceRequest, userId: strin
   // Load the selected applications + their vessel + the QBO customer link.
   const { data: apps, error } = await sb
     .from('visa_applications')
-    .select('id, given_name, surname, yacht_id, yacht:yachts(vessel_name, qbo_customer_id)')
+    .select('id, given_name, surname, visa_issuance_date, yacht_id, yacht:yachts(vessel_name, qbo_customer_id)')
     .in('id', allIds)
   if (error) throw new InvoiceError('db', error.message)
   if (!apps?.length) throw new InvoiceError('empty', 'Selected visa applications not found.')
@@ -154,10 +171,10 @@ export async function generateVisaInvoice(req: VisaInvoiceRequest, userId: strin
   const nameOf = (a: any) => `${a.given_name ?? ''} ${a.surname ?? ''}`.trim() || a.id
   const appById = new Map(apps.map((a: any) => [a.id, a]))
 
-  // Load catalog defaults (unit price / tax code) for the requested items.
+  // Load catalog defaults (unit price / tax code / printed label) for the requested items.
   const itemNames = Array.from(new Set(req.lines.map((l) => l.itemName)))
   const { data: catalog } = await sb
-    .from('qbo_item_map').select('qbo_item_name, unit_price, tax_code').eq('scope', 'visa').in('qbo_item_name', itemNames)
+    .from('qbo_item_map').select('qbo_item_name, unit_price, tax_code, description_label').eq('scope', 'visa').in('qbo_item_name', itemNames)
   const catBy = new Map((catalog ?? []).map((c: any) => [c.qbo_item_name, c]))
 
   // Resolve each line to a real QBO Item; refuse if any is missing.
@@ -175,8 +192,16 @@ export async function generateVisaInvoice(req: VisaInvoiceRequest, userId: strin
     const unitPrice = line.unitPrice ?? cat?.unit_price ?? item.UnitPrice
     if (unitPrice == null) { throw new InvoiceError('no_price', `No unit price for "${line.itemName}".`) }
     const taxCode = line.taxCode ?? cat?.tax_code ?? DEFAULT_VAT_TAXCODE()
-    const crewNames = ids.map((id) => nameOf(appById.get(id)))
-    const description = [line.itemName, ...crewNames.map((n, i) => `${i + 1}. ${n}`)].join('\n')
+    // Printed heading + numbered crew (matching the existing tax-invoice format),
+    // with each crew member's visa issuance date as "(DD-MM-YY)" when requested.
+    const heading = line.descriptionLabel?.trim() || cat?.description_label || line.itemName
+    const withDate = line.includeDate !== false
+    const crewLines = ids.map((id, i) => {
+      const a = appById.get(id)
+      const date = withDate ? ddmmyy((a as any)?.visa_issuance_date) : null
+      return `${i + 1}. ${nameOf(a)}${date ? ` (${date})` : ''}`
+    })
+    const description = [heading, ...crewLines].join('\n')
     resolved.push({ itemId: item.Id, itemName: item.Name, qty: ids.length, unitPrice: Number(unitPrice), description, taxCode })
     for (const id of ids) allocated.set(id, (allocated.get(id) ?? 0) + Number(unitPrice))
   }

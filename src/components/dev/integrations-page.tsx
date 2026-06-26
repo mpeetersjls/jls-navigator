@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { QboCustomersPanel } from "@/components/dev/qbo-customers-panel";
 
 const REQUIRED_PERMS: { perm: string; purpose: string; have?: boolean }[] = [
   { perm: "Sites.Read.All / Files.Read.All", purpose: "Read SharePoint lists & download files (vessel images)", have: true },
@@ -143,6 +144,9 @@ export function IntegrationsPage() {
 
               {/* ShipSync → SharePoint (outbound push) */}
               <ShipSyncSyncStatus />
+
+              {/* QuickBooks vessel ↔ customer links */}
+              <QboCustomersPanel />
             </>
           ) : null}
         </div>

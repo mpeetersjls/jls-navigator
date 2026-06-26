@@ -104,6 +104,7 @@ type TrackerVisa = {
   nationality: string | null;
   visa_type: string | null;
   visa_number: string | null;
+  visa_issuance_date: string | null;
   country_code: string | null;
   status: string;
   submitted_at: string | null;
@@ -1150,8 +1151,15 @@ async function authToken() {
   return session?.access_token ?? "";
 }
 
-type CatalogItem = { qbo_item_name: string; unit_price: number | null; tax_code: string | null };
-type DialogLine = { itemName: string; unitPrice: string; crewIds: string[] };
+/** DD-MM-YY to match the printed tax invoice (e.g. "02-06-26"). */
+function ddmmyy(d: string | null): string | null {
+  if (!d) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
+  return m ? `${m[3]}-${m[2]}-${m[1].slice(2)}` : null;
+}
+
+type CatalogItem = { qbo_item_name: string; unit_price: number | null; tax_code: string | null; description_label: string | null };
+type DialogLine = { itemName: string; label: string; unitPrice: string; crewIds: string[]; includeDate: boolean };
 
 // ─── Generate Invoice (QuickBooks) dialog ─────────────────────────────────────
 // Builds QBO invoice lines from the selected visa applications — each line is a
@@ -1167,7 +1175,7 @@ function GenerateInvoiceDialog({
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [configured, setConfigured] = useState(true);
   const [lines, setLines] = useState<DialogLine[]>([
-    { itemName: "", unitPrice: "", crewIds: apps.map(a => a.id) },
+    { itemName: "", label: "", unitPrice: "", crewIds: apps.map(a => a.id), includeDate: true },
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1191,7 +1199,12 @@ function GenerateInvoiceDialog({
   }
   function pickService(i: number, name: string) {
     const cat = catalog.find(c => c.qbo_item_name === name);
-    setLine(i, { itemName: name, unitPrice: cat?.unit_price != null ? String(cat.unit_price) : lines[i].unitPrice });
+    setLine(i, {
+      itemName: name,
+      unitPrice: cat?.unit_price != null ? String(cat.unit_price) : lines[i].unitPrice,
+      // Auto-fill the printed heading from the catalog label (editable).
+      label: cat?.description_label || (lines[i].label || name),
+    });
   }
   function toggleCrew(i: number, id: string) {
     setLines(prev => prev.map((l, idx) => {
@@ -1214,7 +1227,13 @@ function GenerateInvoiceDialog({
         body: JSON.stringify({
           source: "visa",
           yachtId,
-          lines: lines.map(l => ({ itemName: l.itemName.trim(), visaIds: l.crewIds, unitPrice: parseFloat(l.unitPrice) })),
+          lines: lines.map(l => ({
+            itemName: l.itemName.trim(),
+            descriptionLabel: l.label.trim(),
+            includeDate: l.includeDate,
+            visaIds: l.crewIds,
+            unitPrice: parseFloat(l.unitPrice),
+          })),
         }),
       });
       const j = await res.json();
@@ -1288,6 +1307,15 @@ function GenerateInvoiceDialog({
                   )}
                 </div>
                 <div>
+                  <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Description heading (prints above the crew names)</label>
+                  <input
+                    value={line.label}
+                    onChange={e => setLine(i, { label: e.target.value })}
+                    placeholder="e.g. UAE 6 Months Cabin Crew Visa per pax"
+                    className="mt-0.5 w-full h-8 rounded border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+                <div>
                   <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Crew on this line ({qty})</label>
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {apps.map(a => {
@@ -1295,11 +1323,26 @@ function GenerateInvoiceDialog({
                       return (
                         <button key={a.id} onClick={() => toggleCrew(i, a.id)}
                           className={`rounded-full border px-2 py-0.5 text-[11px] transition ${on ? "border-primary bg-primary/15 text-foreground" : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"}`}>
-                          {visaName(a)}
+                          {visaName(a)}{line.includeDate && ddmmyy(a.visa_issuance_date) ? ` (${ddmmyy(a.visa_issuance_date)})` : ""}
                         </button>
                       );
                     })}
                   </div>
+                </div>
+                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <input type="checkbox" checked={line.includeDate} onChange={e => setLine(i, { includeDate: e.target.checked })} />
+                  Append each crew member’s visa issue date <span className="text-muted-foreground/60">(DD-MM-YY)</span>
+                </label>
+                {/* Live preview of how this line's Description will read on the invoice */}
+                <div className="rounded border border-border/60 bg-muted/20 px-2.5 py-1.5">
+                  <div className="text-[9px] uppercase tracking-wide text-muted-foreground/60">Invoice description preview</div>
+                  <pre className="mt-0.5 whitespace-pre-wrap font-sans text-[11px] leading-snug text-foreground/90">
+{[(line.label || line.itemName || "—"), ...line.crewIds.map((id, n) => {
+  const a = apps.find(x => x.id === id);
+  const dt = line.includeDate ? ddmmyy(a?.visa_issuance_date ?? null) : null;
+  return `${n + 1}. ${a ? visaName(a) : ""}${dt ? ` (${dt})` : ""}`;
+}).filter(Boolean)].join("\n")}
+                  </pre>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">Qty {qty} × {line.unitPrice || 0} = <span className="font-semibold text-foreground">AED {amt.toLocaleString("en-AE", { minimumFractionDigits: 2 })}</span></div>
               </div>
@@ -1310,7 +1353,7 @@ function GenerateInvoiceDialog({
           </datalist>
 
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1"
-            onClick={() => setLines(prev => [...prev, { itemName: "", unitPrice: "", crewIds: apps.map(a => a.id) }])}>
+            onClick={() => setLines(prev => [...prev, { itemName: "", label: "", unitPrice: "", crewIds: apps.map(a => a.id), includeDate: true }])}>
             + Add line
           </Button>
 
@@ -1352,7 +1395,7 @@ function VisaTracker() {
     setLoading(true);
     const { data, error } = await (supabase as any)
       .from("visa_applications")
-      .select("id, yacht_id, given_name, surname, nationality, visa_type, visa_number, country_code, status, submitted_at, created_at, billing_status, invoice_ref, invoice_amount, yacht:yachts(vessel_name)")
+      .select("id, yacht_id, given_name, surname, nationality, visa_type, visa_number, visa_issuance_date, country_code, status, submitted_at, created_at, billing_status, invoice_ref, invoice_amount, yacht:yachts(vessel_name)")
       .order("created_at", { ascending: false })
       .limit(2000);
     if (error) toast.error(error.message);
