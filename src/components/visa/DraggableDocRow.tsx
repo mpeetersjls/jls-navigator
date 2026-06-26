@@ -38,6 +38,7 @@ export function DraggableDocRow({ label, stored, expiryDate, icon = '📄' }: Pr
   const fileRef = useRef<File | null>(null)
   const urlRef = useRef<string | null>(null)
   const mimeRef = useRef<string>('application/octet-stream')
+  const dataUrlRef = useRef<string | null>(null) // base64 data URI for image docs (inline-embed on body drop)
   const [hover, setHover] = useState(false)
   const [busy, setBusy] = useState(false)
   const badge = expiryBadge(expiryDate)
@@ -49,7 +50,17 @@ export function DraggableDocRow({ label, stored, expiryDate, icon = '📄' }: Pr
   // the filename text. That was why Outlook pasted the name instead of the file.
   function prefetch() {
     if (!fileRef.current) {
-      void fetchDocumentFile(doc).then((f) => { fileRef.current = f; if (f.type) mimeRef.current = f.type }).catch(() => { /* fall back to DownloadURL */ })
+      void fetchDocumentFile(doc).then((f) => {
+        fileRef.current = f
+        if (f.type) mimeRef.current = f.type
+        // For images, also cache a base64 data URI so a drop into an email BODY can
+        // embed the actual picture inline (openable) rather than just its filename.
+        if (f.type.startsWith('image/') && !dataUrlRef.current) {
+          const reader = new FileReader()
+          reader.onload = () => { dataUrlRef.current = typeof reader.result === 'string' ? reader.result : null }
+          reader.readAsDataURL(f)
+        }
+      }).catch(() => { /* fall back to DownloadURL */ })
     }
     if (!urlRef.current) {
       void resolveSignedUrl(stored).then((u) => { urlRef.current = u }).catch(() => { /* ignore */ })
@@ -70,21 +81,28 @@ export function DraggableDocRow({ label, stored, expiryDate, icon = '📄' }: Pr
     const mime = file?.type || mimeRef.current
 
     const hasUrl = !!url && /^https?:\/\//i.test(url)
+    const isImage = mime.startsWith('image/')
+    const dataUrl = dataUrlRef.current
 
+    // 1. Real file → web upload fields + the Outlook ATTACHMENT area (a proper,
+    //    openable attachment). Outlook ignores DownloadURL, so the File is what counts.
     if (file) {
-      // Real file → web upload fields AND a real attachment in the native Outlook
-      // desktop app (which accepts dataTransfer files but ignores DownloadURL).
       try { e.dataTransfer.items.add(file) } catch { /* older browsers */ }
-      // DownloadURL still helps OS targets (Explorer); but DON'T set
-      // text/uri-list / text/plain here — when a URL is present Outlook prefers it
-      // and drops a ".url" shortcut instead of attaching the actual file.
-      if (hasUrl) e.dataTransfer.setData('DownloadURL', `${mime}:${name}:${url}`)
+    }
+
+    // 2. text/html → what an email BODY drop uses. Embed the image inline (openable
+    //    picture) for image docs; otherwise a clickable link to open the document.
+    if (isImage && dataUrl) {
+      e.dataTransfer.setData('text/html', `<img src="${dataUrl}" alt="${name}" style="max-width:100%" />`)
     } else if (hasUrl) {
-      // No file bytes available (fetch failed / not ready) — fall back to the URL
-      // so the drop still yields something usable rather than nothing.
+      e.dataTransfer.setData('text/html', `<a href="${url}">${name}</a>`)
+    }
+
+    // 3. OS targets (Explorer) + plain-text fallback. We deliberately do NOT set
+    //    text/uri-list — that format is what made Outlook drop a ".url" shortcut.
+    if (hasUrl) {
       e.dataTransfer.setData('DownloadURL', `${mime}:${name}:${url}`)
-      e.dataTransfer.setData('text/uri-list', url)
-      e.dataTransfer.setData('text/plain', url)
+      e.dataTransfer.setData('text/plain', url) // a usable link, never the bare filename
     }
   }
 
