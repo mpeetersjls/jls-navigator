@@ -52,6 +52,13 @@ export function AppLayout() {
   }
   if (!user) return null;
 
+  // Beta (redesign) view takes over the whole screen — it ships its own shell
+  // (top bar + side nav), so we drop the standard app chrome behind it. The
+  // "Original" button inside the redesign navigates back to /dashboard.
+  if (location.pathname.startsWith("/polaris-redesign")) {
+    return <Outlet />;
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <AppSidebar />

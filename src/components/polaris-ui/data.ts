@@ -60,6 +60,83 @@ export function useYachts(): { yachts: YachtOption[]; loading: boolean } {
 
 const EXCLUDED = new Set(["cancelled", "sign off", "signed off"]);
 
+export interface MovementRow {
+  id: string;
+  crewName: string;
+  eventType: string; // 'sign_on' | 'sign_off'
+  eventDate: string | null;
+  port: string | null;
+  flightNumber: string | null;
+  status: string | null;
+}
+
+export interface VesselMovements {
+  loading: boolean;
+  rows: MovementRow[];
+  counts: { onboard: number; signOns: number; signOffs: number; upcoming: number };
+}
+
+/** Crew sign-on/off movements for a vessel (most recent first), with crew names. */
+export function useVesselMovements(yachtId: string | null): VesselMovements {
+  const [state, setState] = useState<VesselMovements>({
+    loading: true,
+    rows: [],
+    counts: { onboard: 0, signOns: 0, signOffs: 0, upcoming: 0 },
+  });
+
+  useEffect(() => {
+    if (!yachtId) return;
+    void (async () => {
+      setState((s) => ({ ...s, loading: true }));
+      const { data: events } = await (supabase as any)
+        .from("crew_signon_events")
+        .select("id, crew_member_id, event_type, event_date, port, flight_number, status")
+        .eq("yacht_id", yachtId)
+        .order("event_date", { ascending: false })
+        .limit(200);
+      const evs = (events ?? []) as any[];
+
+      const ids = Array.from(new Set(evs.map((e) => e.crew_member_id).filter(Boolean)));
+      const nameById = new Map<string, string>();
+      if (ids.length) {
+        const { data: crew } = await (supabase as any)
+          .from("crew_members").select("id, full_name").in("id", ids);
+        for (const c of (crew ?? []) as any[]) nameById.set(c.id, c.full_name ?? "—");
+      }
+
+      const rows: MovementRow[] = evs.map((e) => ({
+        id: e.id,
+        crewName: nameById.get(e.crew_member_id) ?? "—",
+        eventType: e.event_type ?? "",
+        eventDate: e.event_date ?? null,
+        port: e.port ?? null,
+        flightNumber: e.flight_number ?? null,
+        status: e.status ?? null,
+      }));
+
+      // Currently onboard = crew whose most recent movement is a sign-on.
+      const latestByCrew = new Map<string, any>();
+      for (const e of evs) if (!latestByCrew.has(e.crew_member_id)) latestByCrew.set(e.crew_member_id, e);
+      let onboard = 0;
+      for (const e of latestByCrew.values()) if (String(e.event_type).includes("on")) onboard++;
+
+      const today = new Date().toISOString().slice(0, 10);
+      const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+      const inWeek = (d: string | null) => !!d && d >= weekAgo && d <= today;
+      const counts = {
+        onboard,
+        signOns: evs.filter((e) => String(e.event_type).includes("on") && inWeek(e.event_date)).length,
+        signOffs: evs.filter((e) => String(e.event_type).includes("off") && inWeek(e.event_date)).length,
+        upcoming: evs.filter((e) => (e.event_date ?? "") > today).length,
+      };
+
+      setState({ loading: false, rows, counts });
+    })();
+  }, [yachtId]);
+
+  return state;
+}
+
 export function useVesselVisaData(
   yachtId: string | null,
 ): VesselVisaData & { reload: () => void } {

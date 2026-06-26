@@ -25,7 +25,12 @@ import {
   type BadgeVariant,
 } from "./primitives";
 import { ConfirmModal, useToast } from "./feedback";
-import { useVesselVisaData, type YachtOption, type CrewVisaRow } from "./data";
+import {
+  useVesselVisaData,
+  useVesselMovements,
+  type YachtOption,
+  type CrewVisaRow,
+} from "./data";
 
 const STATUS_BADGE: Record<
   CrewVisaRow["status"],
@@ -1089,6 +1094,195 @@ export function PolarisCompliance({
           )}
         </PolarisCard>
       </div>
+    </>
+  );
+}
+
+// ── Vessels (fleet) screen ────────────────────────────────────────────────────
+export function PolarisVessels({
+  yachts,
+  selectedId,
+  onSelect,
+}: {
+  yachts: YachtOption[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const term = q.trim().toLowerCase();
+  const list = yachts.filter(
+    (y) => !term || (y.vessel_name ?? "").toLowerCase().includes(term),
+  );
+
+  return (
+    <>
+      <PageHeader title="Vessels" actions={null} />
+      <SectionLabel>Fleet — {yachts.length} vessels</SectionLabel>
+
+      <div style={{ position: "relative", marginBottom: 16 }}>
+        <span
+          style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", display: "flex" }}
+        >
+          <TIcon name="search" size={16} color="var(--pds-text-secondary)" />
+        </span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search vessels…"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: "var(--pds-surface-2)",
+            border: "1px solid var(--pds-border)",
+            borderRadius: "var(--pds-radius-md)",
+            color: "var(--pds-text)",
+            fontSize: "var(--pds-fs-body)",
+            padding: "10px 12px 10px 36px",
+            minHeight: 44,
+            outline: "none",
+          }}
+        />
+      </div>
+
+      {list.length === 0 ? (
+        <EmptyState icon="ship" message="No vessels match your search." />
+      ) : (
+        <div className="pds-grid-2">
+          {list.map((y) => {
+            const on = y.id === selectedId;
+            const reports = !!y.send_visa_reports && !!y.visa_report_email;
+            return (
+              <button
+                key={y.id}
+                onClick={() => onSelect(y.id)}
+                style={{
+                  textAlign: "left",
+                  background: "var(--pds-surface-2)",
+                  border: `1px solid ${on ? "var(--pds-border-gold-strong)" : "var(--pds-border)"}`,
+                  borderRadius: "var(--pds-radius-lg)",
+                  padding: 16,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  minHeight: 64,
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    background: "var(--pds-gold-muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <TIcon name="ship" size={20} color="var(--pds-gold)" />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      fontSize: "var(--pds-fs-body)",
+                      fontWeight: 600,
+                      color: on ? "var(--pds-gold-light)" : "var(--pds-text)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {y.vessel_name ?? "Unnamed vessel"}
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <StatusBadge
+                      variant={reports ? "active" : "grey"}
+                      label={reports ? "Reports on" : "Reports off"}
+                    />
+                  </div>
+                </div>
+                {on && <TIcon name="check" size={18} color="var(--pds-gold)" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Sign On / Off screen ──────────────────────────────────────────────────────
+export function PolarisSignOnOff({
+  yacht,
+  onSwitchVessel,
+}: {
+  yacht: YachtOption | null;
+  onSwitchVessel: () => void;
+}) {
+  const { loading, rows, counts } = useVesselMovements(yacht?.id ?? null);
+  const isOn = (t: string) => t.includes("on");
+
+  return (
+    <>
+      <PageHeader
+        title="Sign On / Off"
+        actions={
+          <PolarisButton
+            variant="ghost"
+            icon="arrows-exchange"
+            label="Switch vessel"
+            onClick={onSwitchVessel}
+          />
+        }
+      />
+
+      <SectionLabel>Crew movements — {yacht?.vessel_name ?? "—"}</SectionLabel>
+      <div className="pds-stats-grid" style={{ marginBottom: 16 }}>
+        {loading ? (
+          [...Array(4)].map((_, i) => (
+            <Skeleton key={i} height={88} radius={12} />
+          ))
+        ) : (
+          <>
+            <StatCard label="Onboard now" value={counts.onboard} variant="active" />
+            <StatCard label="Sign-ons (7d)" value={counts.signOns} variant="neutral" />
+            <StatCard label="Sign-offs (7d)" value={counts.signOffs} variant="neutral" />
+            <StatCard
+              label="Upcoming"
+              value={counts.upcoming}
+              variant="expiring"
+              sub="scheduled ahead"
+            />
+          </>
+        )}
+      </div>
+
+      <PolarisCard title="Recent movements" icon="login">
+        {loading ? (
+          <Skeleton height={120} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon="login"
+            message="No sign-on/off records for this vessel."
+            action={{ label: "Switch vessel", onClick: onSwitchVessel }}
+          />
+        ) : (
+          rows.slice(0, 40).map((m) => (
+            <CrewRow
+              key={m.id}
+              name={m.crewName}
+              detail={`${isOn(m.eventType) ? "Sign-on" : "Sign-off"} · ${m.eventDate ? formatDateDMY(m.eventDate) : "—"}${m.port ? ` · ${m.port}` : ""}${m.flightNumber ? ` · ${m.flightNumber}` : ""}`}
+              badge={
+                <StatusBadge
+                  variant={isOn(m.eventType) ? "active" : "grey"}
+                  label={isOn(m.eventType) ? "On" : "Off"}
+                />
+              }
+            />
+          ))
+        )}
+      </PolarisCard>
     </>
   );
 }
