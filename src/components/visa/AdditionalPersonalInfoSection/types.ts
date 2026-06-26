@@ -74,7 +74,7 @@ export interface OcrApiResponse {
   ocrFields:      string[]
 }
 
-export const TOTAL_FIELDS = 10
+export const TOTAL_FIELDS = 14
 
 export function computeProgress(f: AdditionalInfoFields): number {
   let filled = 0
@@ -88,5 +88,10 @@ export function computeProgress(f: AdditionalInfoFields): number {
   if (f.mothersMaidenName.value)                                              filled++
   if (f.fathersFullName.value)                                                filled++
   if (f.religion.value)                                                       filled++
+  // Mandatory residence address / contact (Address line 2 stays optional).
+  if (f.residenceAddressLine1.value)                                          filled++
+  if (f.residenceCity.value)                                                  filled++
+  if (f.residenceCountry.value)                                               filled++
+  if (f.residencePhone.value)                                                 filled++
   return Math.round((filled / TOTAL_FIELDS) * 100)
 }

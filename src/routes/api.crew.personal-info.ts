@@ -103,6 +103,10 @@ const REQUIRED_FIELDS = [
   'nativeLanguage',
   'mothersMaidenName',
   'fathersFullName',
+  'residenceAddressLine1',
+  'residenceCity',
+  'residenceCountry',
+  'residencePhone',
 ] as const
 
 async function handlePatch(crewId: string, request: Request): Promise<Response> {

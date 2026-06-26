@@ -326,6 +326,10 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
       { key: 'nativeLanguage',    label: 'Native language' },
       { key: 'mothersMaidenName', label: "Mother's maiden name" },
       { key: 'fathersFullName',   label: "Father's full name" },
+      { key: 'residenceAddressLine1', label: 'Address line 1 (residence)' },
+      { key: 'residenceCity',         label: 'City (residence)' },
+      { key: 'residenceCountry',      label: 'Country (residence)' },
+      { key: 'residencePhone',        label: 'Telephone No. (residence)' },
     ]
     for (const { key, label } of required) {
       if (!fields[key].value.trim()) return `${label} is required.`
@@ -746,13 +750,13 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
       <div style={{ marginBottom: 24 }}>
         <p style={{ fontFamily: FONTS.display, fontSize: 10, fontWeight: 700, color: COLORS.muted,
                     textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 14px' }}>
-          Country of residence address / contact <span style={{ fontWeight: 400, fontSize: 9 }}>(optional)</span>
+          Country of residence address / contact
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 20px' }}>
 
           {/* Address line 1 */}
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Address line 1</label>
+            <label style={labelStyle}>Address line 1 <span style={{ color: COLORS.warn }}>*</span></label>
             <input
               style={sectionInputStyle}
               type="text"
@@ -776,7 +780,7 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
 
           {/* City */}
           <div>
-            <label style={labelStyle}>City</label>
+            <label style={labelStyle}>City <span style={{ color: COLORS.warn }}>*</span></label>
             <input
               style={sectionInputStyle}
               type="text"
@@ -788,7 +792,7 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
 
           {/* Country */}
           <div>
-            <label style={labelStyle}>Country</label>
+            <label style={labelStyle}>Country <span style={{ color: COLORS.warn }}>*</span></label>
             <input
               style={sectionInputStyle}
               type="text"
@@ -800,7 +804,7 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
 
           {/* Telephone No. */}
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={labelStyle}>Telephone No.</label>
+            <label style={labelStyle}>Telephone No. <span style={{ color: COLORS.warn }}>*</span></label>
             <input
               style={sectionInputStyle}
               type="tel"
