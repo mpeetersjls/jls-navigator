@@ -20,7 +20,6 @@ import {
   PolarisVisaReports,
   PolarisCompliance,
   PolarisSignOnOff,
-  PolarisLogistics,
   PolarisTraining,
   PolarisCrewDocuments,
   PolarisSosoReports,
@@ -32,6 +31,7 @@ import { ImmigrationHub } from "@/components/crew-immigration/immigration-hub";
 import { VesselsHub } from "@/components/vessels/vessels-hub";
 import { CrewListPage } from "@/components/crew-immigration/crew-list-page";
 import { EsignPage } from "@/components/esign/esign-page";
+import { ShipSyncPage } from "@/components/shipsync-page";
 
 export const Route = createFileRoute("/_app/polaris-redesign")({
   component: PolarisRedesignApp,
@@ -126,7 +126,9 @@ function PolarisRedesignApp() {
             <ImmigrationHub />
           </div>
         ) : screen === "logistics" ? (
-          <PolarisLogistics yacht={yacht} onSwitchVessel={() => setSwitcher(true)} />
+          <div style={{ height: "100%" }}>
+            <ShipSyncPage />
+          </div>
         ) : screen === "training" ? (
           <PolarisTraining yacht={yacht} onSwitchVessel={() => setSwitcher(true)} />
         ) : screen === "documents" ? (
