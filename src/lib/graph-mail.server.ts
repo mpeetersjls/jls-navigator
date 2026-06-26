@@ -12,6 +12,21 @@ import { getSpConfig, getGraphToken } from '@/lib/sharepoint-sync.server'
 export const TICKET_MAIL_SENDER = process.env.TICKET_MAIL_SENDER ?? 'itsupport@jlsyachts.com'
 const SENDER_NAME = process.env.TICKET_MAIL_SENDER_NAME ?? 'JLS Yachts IT Support'
 
+// Dedicated "Polaris" Graph app for email (separate from the SharePoint-sync app).
+// Client ID + tenant are not secrets (safe as defaults); only the client secret
+// must be set as the MAIL_GRAPH_CLIENT_SECRET Cloudflare secret.
+const MAIL_CLIENT_ID = process.env.MAIL_GRAPH_CLIENT_ID ?? '4f37ca1a-ddbe-4c80-b409-d8e42ac986fa'
+const MAIL_TENANT_ID = process.env.MAIL_GRAPH_TENANT_ID ?? '428f2dd0-7a0b-431d-9470-7162111882dd'
+
+/** Acquire a Graph token for sending mail. Uses the dedicated mail app when its
+ *  secret is configured; otherwise falls back to the SharePoint integration app. */
+async function getMailGraphToken(): Promise<string> {
+  const secret = process.env.MAIL_GRAPH_CLIENT_SECRET
+  if (secret) return getGraphToken(MAIL_TENANT_ID, MAIL_CLIENT_ID, secret)
+  const cfg = await getSpConfig() // fallback (lacks Mail.Send → will 403 until the mail secret is set)
+  return getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+}
+
 export async function sendTicketEmail(opts: {
   to: string
   subject: string
@@ -19,8 +34,7 @@ export async function sendTicketEmail(opts: {
   cc?: string | null
   replyTo?: string | null
 }): Promise<void> {
-  const cfg = await getSpConfig() // throws if Graph app not configured
-  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const token = await getMailGraphToken()
 
   const message: any = {
     subject: opts.subject,
@@ -53,8 +67,7 @@ export async function sendGraphEmail(opts: {
   text?: string
   from?: string
 }): Promise<void> {
-  const cfg = await getSpConfig()
-  const token = await getGraphToken(cfg.tenantId, cfg.clientId, cfg.clientSecret)
+  const token = await getMailGraphToken()
   // General platform mail (user invites, visa reports, permits, ShipSync POD, etc.)
   // sends from polaris@jlsyachts.com unless the caller picks a sender — e.g. Anchor
   // passes anchor@jlsyachts.com. Service Desk keeps its own itsupport@ identity.
