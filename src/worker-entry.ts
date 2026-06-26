@@ -115,33 +115,6 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
     })
   }
 
-  // Invite diagnostic: `?invite-debug=<addr>` runs the exact invite steps
-  // (generateLink → Graph send) and reports which one fails. Domain-restricted.
-  const inviteDebug = url.searchParams.get('invite-debug')
-  if (inviteDebug) {
-    if (!/@(jlsyachts\.com|newhorizon-it\.co\.uk)$/i.test(inviteDebug)) {
-      return new Response(JSON.stringify({ ok: false, error: 'recipient domain not allowed' }), { status: 400, headers: { 'Content-Type': 'application/json' } })
-    }
-    const out: Record<string, unknown> = {}
-    try {
-      const { createClient } = await import('@supabase/supabase-js')
-      const sb = createClient(process.env.SUPABASE_URL ?? '', process.env.SUPABASE_SERVICE_ROLE_KEY ?? '', { auth: { persistSession: false } })
-      const base = (process.env.VITE_APP_URL as string | undefined) ?? new URL(request.url).origin
-      const gl = await (sb as any).auth.admin.generateLink({ type: 'recovery', email: inviteDebug, options: { redirectTo: `${base}/auth` } })
-      out.generateLinkError = gl.error?.message ?? null
-      const link = gl.data?.properties?.action_link as string | undefined
-      out.hasLink = !!link
-      if (link) {
-        try {
-          const { sendGraphEmail } = await import('./lib/graph-mail.server')
-          await sendGraphEmail({ from: 'polaris@jlsyachts.com', to: [inviteDebug], subject: 'Polaris invite (debug)', html: `<p>Debug invite link:</p><p><a href="${link}">Set up your account</a></p>`, text: `Debug invite link: ${link}` })
-          out.emailSent = true
-        } catch (e) { out.emailSent = false; out.emailError = e instanceof Error ? e.message : String(e) }
-      }
-    } catch (e) { out.fatal = e instanceof Error ? e.message : String(e) }
-    return new Response(JSON.stringify({ ok: true, ...out }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-  }
-
   // One-time setup: `?setup=signon-list` creates the "Crew Sign On Off" SharePoint
   // list and registers its outbound sync config. Safe to call repeatedly.
   if (url.searchParams.get('setup') === 'signon-list') {
