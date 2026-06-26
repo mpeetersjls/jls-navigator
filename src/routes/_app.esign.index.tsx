@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EsignPage } from "@/components/esign/esign-page";
+import { AnchorPage } from "@/components/anchor/anchor-page";
 
 export const Route = createFileRoute("/_app/esign/")({
-  component: EsignPage,
+  component: AnchorPage,
   head: () => ({ meta: [{ title: "Anchor — Aquila One" }] }),
 });

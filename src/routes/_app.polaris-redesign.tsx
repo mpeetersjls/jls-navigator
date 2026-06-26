@@ -30,7 +30,7 @@ import { YachtItSolutionsPage } from "@/components/yacht-it/yacht-it-solutions-p
 import { ImmigrationHub } from "@/components/crew-immigration/immigration-hub";
 import { VesselsHub } from "@/components/vessels/vessels-hub";
 import { CrewListPage } from "@/components/crew-immigration/crew-list-page";
-import { EsignPage } from "@/components/esign/esign-page";
+import { AnchorPage } from "@/components/anchor/anchor-page";
 import { ShipSyncPage } from "@/components/shipsync-page";
 
 export const Route = createFileRoute("/_app/polaris-redesign")({
@@ -144,7 +144,7 @@ function PolarisRedesignApp() {
           </div>
         ) : screen === "anchor" ? (
           <div style={{ height: "100%" }}>
-            <EsignPage />
+            <AnchorPage />
           </div>
         ) : (
           <EmptyState

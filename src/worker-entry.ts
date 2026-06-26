@@ -17,6 +17,7 @@ import { internalServicesRenewalCheckHandler } from './routes/api.internal-servi
 import { fxRateHandler } from './routes/api.fx-rate'
 import { shipsyncPwaHandler } from './lib/shipsync/pwa-assets'
 import { shipsyncApiHandler } from './routes/api.shipsync'
+import { anchorFormsHandler } from './routes/api.anchor-forms'
 import { feedbackNotifyHandler } from './routes/api.feedback.notify'
 import { vesselHandler } from './routes/api.vessels'
 import { phoneHandler } from './routes/api.phone'
@@ -268,6 +269,10 @@ export default {
 
     if (url.pathname.startsWith('/api/shipsync/') && request.method === 'POST') {
       return shipsyncApiHandler(request)
+    }
+
+    if (url.pathname === '/api/anchor-forms' && request.method === 'POST') {
+      return anchorFormsHandler(request)
     }
 
     if (url.pathname === '/api/feedback/notify' && request.method === 'POST') {
