@@ -375,7 +375,6 @@ export function PolarisDashboard({
             <EmptyState
               icon="users"
               message="No crew on this vessel yet."
-              action={{ label: "Switch vessel", onClick: onSwitchVessel }}
             />
           ) : (
             rows.slice(0, 6).map((c) => {
@@ -810,14 +809,7 @@ export function PolarisCrew({
     <>
       <PageHeader
         title="Crew"
-        actions={
-          <PolarisButton
-            variant="ghost"
-            icon="arrows-exchange"
-            label="Switch vessel"
-            onClick={onSwitchVessel}
-          />
-        }
+        actions={null}
       />
 
       <SectionLabel>Crew — {yacht?.vessel_name ?? "—"}</SectionLabel>
@@ -930,8 +922,7 @@ export function PolarisCrew({
           <EmptyState
             icon="users"
             message="No crew on this vessel yet."
-            action={{ label: "Switch vessel", onClick: onSwitchVessel }}
-          />
+                     />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon="search"
@@ -991,14 +982,7 @@ export function PolarisCompliance({
     <>
       <PageHeader
         title="Compliance"
-        actions={
-          <PolarisButton
-            variant="ghost"
-            icon="arrows-exchange"
-            label="Switch vessel"
-            onClick={onSwitchVessel}
-          />
-        }
+        actions={null}
       />
 
       <SectionLabel>Visa compliance — {yacht?.vessel_name ?? "—"}</SectionLabel>
@@ -1240,14 +1224,7 @@ export function PolarisSignOnOff({
     <>
       <PageHeader
         title="Sign On / Off"
-        actions={
-          <PolarisButton
-            variant="ghost"
-            icon="arrows-exchange"
-            label="Switch vessel"
-            onClick={onSwitchVessel}
-          />
-        }
+        actions={null}
       />
 
       <SectionLabel>Crew movements — {yacht?.vessel_name ?? "—"}</SectionLabel>
@@ -1278,8 +1255,7 @@ export function PolarisSignOnOff({
           <EmptyState
             icon="login"
             message="No sign-on/off records for this vessel."
-            action={{ label: "Switch vessel", onClick: onSwitchVessel }}
-          />
+                     />
         ) : (
           rows.slice(0, 40).map((m) => (
             <CrewRow
@@ -1300,10 +1276,10 @@ export function PolarisSignOnOff({
   );
 }
 
-function SwitchVesselAction({ onSwitchVessel }: { onSwitchVessel: () => void }) {
-  return (
-    <PolarisButton variant="ghost" icon={SWITCH_ICON} label="Switch vessel" onClick={onSwitchVessel} />
-  );
+// Vessel switching is disabled in the Beta for now (the vessel context will move
+// to Agent/Crew views). Kept as a no-op so screen signatures are unchanged.
+function SwitchVesselAction(_: { onSwitchVessel: () => void }) {
+  return null;
 }
 
 // ── Immigration screen ────────────────────────────────────────────────────────
@@ -1335,7 +1311,7 @@ export function PolarisImmigration({
       </div>
       <PolarisCard title="Recent applications" icon="id-badge">
         {loading ? <Skeleton height={120} /> : rows.length === 0 ? (
-          <EmptyState icon="id-badge" message="No visa applications for this vessel." action={{ label: "Switch vessel", onClick: onSwitchVessel }} />
+          <EmptyState icon="id-badge" message="No visa applications for this vessel."  />
         ) : rows.slice(0, 40).map((a) => {
           const b = badgeFor(a.status);
           return (
@@ -1377,7 +1353,7 @@ export function PolarisLogistics({
       </div>
       <PolarisCard title="Recent packages" icon="truck">
         {loading ? <Skeleton height={120} /> : rows.length === 0 ? (
-          <EmptyState icon="truck" message="No packages for this vessel." action={{ label: "Switch vessel", onClick: onSwitchVessel }} />
+          <EmptyState icon="truck" message="No packages for this vessel."  />
         ) : rows.slice(0, 40).map((p) => {
           const b = badgeFor(p.status);
           return (
@@ -1412,7 +1388,7 @@ export function PolarisTraining({
       </div>
       <PolarisCard title="Certifications" icon="certificate">
         {loading ? <Skeleton height={120} /> : rows.length === 0 ? (
-          <EmptyState icon="certificate" message="No certifications for this vessel's crew." action={{ label: "Switch vessel", onClick: onSwitchVessel }} />
+          <EmptyState icon="certificate" message="No certifications for this vessel's crew."  />
         ) : rows.slice(0, 50).map((c) => {
           const b = EXP_BADGE[c.state];
           return (
@@ -1447,7 +1423,7 @@ export function PolarisCrewDocuments({
       </div>
       <PolarisCard title="Crew documents" icon="files">
         {loading ? <Skeleton height={120} /> : rows.length === 0 ? (
-          <EmptyState icon="files" message="No documents for this vessel's crew." action={{ label: "Switch vessel", onClick: onSwitchVessel }} />
+          <EmptyState icon="files" message="No documents for this vessel's crew."  />
         ) : rows.slice(0, 50).map((d) => {
           const b = EXP_BADGE[d.state];
           return (

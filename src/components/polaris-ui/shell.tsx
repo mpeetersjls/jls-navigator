@@ -168,26 +168,8 @@ export function PolarisTopBar({
         >
           POLARIS
         </span>
-        <button
-          onClick={onVesselClick}
-          style={{
-            background: "var(--pds-gold-muted)",
-            border: "1px solid var(--pds-border-gold)",
-            color: "var(--pds-gold-light)",
-            fontSize: "var(--pds-fs-label)",
-            padding: "5px 12px",
-            minHeight: 32,
-            borderRadius: "var(--pds-radius-full)",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            cursor: "pointer",
-          }}
-        >
-          <TIcon name="ship" size={14} />
-          {vesselName}
-          <TIcon name="chevron-down" size={12} />
-        </button>
+        {/* Vessel switcher removed for now — vessel context will move to
+            Agent/Crew views. */}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         {onExitBeta && (
