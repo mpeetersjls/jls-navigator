@@ -12,7 +12,7 @@
  *  - Use size="lg" or size="xl" for all dashboard and auth screens.
  *  - Use theme="dark" on any navy, dark, or coloured background.
  *  - Minimum body text platform-wide: 16px. Minimum headings: 22px.
- *  - Brand colours: #1B2A4A (navy) | #5BB8B0 (teal) | #D4845A (amber)
+ *  - Brand colours (official): #07435E Teal Blue | #4590BA Dodger Blue | #96CBC7 Jamaica Bay
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -66,14 +66,20 @@ const SIZE_MAP: Record<LogoSize, { width: number; height: number }> = {
   xl: { width: 420, height: 100 },
 };
 
-/** Brand colours — never modify without MD sign-off */
+/**
+ * Brand colours — OFFICIAL Polaris palette (Brand Guidelines v1.0): Teal Blue /
+ * Dodger Blue / Jamaica Bay. (var names retained: navy = Teal Blue wordmark,
+ * teal = Dodger Blue, amber = Teal Blue accent, muted = Jamaica Bay.) The star-mark
+ * SHAPE is unchanged — the guidelines describe a helm/lighthouse mark, which is a
+ * separate asset change pending MD sign-off. CLAUDE.md §16 colour table is now stale.
+ */
 const BRAND = {
-  navy: "#1B2A4A",
+  navy: "#07435E", // Teal Blue — wordmark on light backgrounds
   white: "#FFFFFF",
-  teal: "#5BB8B0",
-  tealMuted: "#8ECFCC",
-  amber: "#D4845A",
-  amberMuted: "#E0AA88",
+  teal: "#4590BA", // Dodger Blue
+  tealMuted: "#96CBC7", // Jamaica Bay
+  amber: "#07435E", // Teal Blue
+  amberMuted: "#96CBC7", // Jamaica Bay
 } as const;
 
 // ─── Sub-component: Star Mark ─────────────────────────────────────────────────

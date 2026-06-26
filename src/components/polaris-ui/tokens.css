@@ -1,24 +1,36 @@
 /**
  * Polaris Redesign — design tokens (ticket #195).
- * Scoped under .pds (Polaris Design System) so the new navy/gold maritime system
- * never collides with the existing app theme variables. Apply `className="pds"`
- * on the redesign shell root; all redesign components read these vars.
+ * OFFICIAL BRAND palette (Polaris Brand Guidelines v1.0): teal-to-deep-blue —
+ * Jamaica Bay #96CBC7 · Dodger Blue #4590BA · Teal Blue #07435E. No navy/gold.
+ * Scoped under .pds so it never collides with the existing app theme variables.
  *
- * Type scale is the RECONCILED scale (MD-approved): follows the redesign brief's
- * hierarchy but holds a 12px floor (uppercase micro-labels only) and ≥14px for
- * reading text, weights 500/600 — honouring CLAUDE.md §16 readability intent.
+ * Note: the --pds-navy / --pds-gold var NAMES are retained (to avoid churning
+ * every component) but now hold official brand values — navy* = Teal Blue family,
+ * gold = Dodger Blue (interactive), gold-light = Jamaica Bay (headings/active).
+ *
+ * Type scale is the RECONCILED scale: 12px floor (uppercase micro-labels), ≥14px
+ * reading text, weights 500/600 (§16). Fonts are SANS only (no serif): Halis GR /
+ * DINPro when self-hosted .woff2 are added, falling back to Barlow today.
  */
 
 .pds {
-  /* Core brand */
-  --pds-navy: #0d1f3c;
-  --pds-navy-deep: #0b1929;
-  --pds-navy-mid: #0f2137;
-  --pds-gold: #c9a84c;
-  --pds-gold-light: #f0d98a;
-  --pds-gold-muted: rgba(201, 168, 76, 0.15);
+  /* Core brand — official (Teal Blue family + Dodger Blue + Jamaica Bay) */
+  --pds-navy: #07435e; /* Teal Blue — primary dark surface (topbar/nav) */
+  --pds-navy-deep: #061e2b; /* deepest teal-black — page background */
+  --pds-navy-mid: #0a2e40; /* content-area background */
+  --pds-gold: #4590ba; /* Dodger Blue — primary interactive/CTA accent */
+  --pds-gold-light: #96cbc7; /* Jamaica Bay — headings / active text on dark */
+  --pds-gold-muted: rgba(69, 144, 186, 0.15); /* Dodger Blue tint */
 
-  /* Traffic light system */
+  /* Brand gradient (light → dark, 135deg) — hero/login/email header only */
+  --pds-gradient: linear-gradient(
+    135deg,
+    #96cbc7 0%,
+    #4590ba 50%,
+    #07435e 100%
+  );
+
+  /* Traffic light system (immutable — never rebrand) */
   --pds-active: #1d9e75;
   --pds-active-bg: #d1fae5;
   --pds-active-text: #065f46;
@@ -28,23 +40,23 @@
   --pds-expired: #e24b4a;
   --pds-expired-bg: #fee2e2;
   --pds-expired-text: #991b1b;
-  --pds-neutral: #c9a84c;
+  --pds-neutral: #96cbc7; /* Jamaica Bay — neutral/no-record */
 
   /* Text on dark */
   --pds-text: #f0f4f8;
-  --pds-text-secondary: #a8b8d0;
-  --pds-text-hint: rgba(168, 184, 208, 0.5);
+  --pds-text-secondary: #a8c4ce; /* light teal-grey */
+  --pds-text-hint: rgba(150, 203, 199, 0.5); /* Jamaica Bay 50% */
 
   /* Surfaces */
-  --pds-surface-1: #0d1f3c;
+  --pds-surface-1: #07435e;
   --pds-surface-2: rgba(255, 255, 255, 0.04);
   --pds-surface-3: rgba(255, 255, 255, 0.08);
 
-  /* Borders */
-  --pds-border: rgba(255, 255, 255, 0.08);
-  --pds-border-soft: rgba(255, 255, 255, 0.06);
-  --pds-border-gold: rgba(201, 168, 76, 0.3);
-  --pds-border-gold-strong: rgba(201, 168, 76, 0.5);
+  /* Borders (Jamaica Bay tints) */
+  --pds-border: rgba(150, 203, 199, 0.16);
+  --pds-border-soft: rgba(150, 203, 199, 0.1);
+  --pds-border-gold: rgba(150, 203, 199, 0.3);
+  --pds-border-gold-strong: rgba(150, 203, 199, 0.5);
 
   /* Type scale (reconciled) */
   --pds-fs-hero: 28px;
@@ -80,12 +92,16 @@
   --pds-topbar-h: 48px;
   --pds-nav-w: 200px;
 
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
+  /* Fonts — SANS only (no serif, §16). Halis GR / DINPro when self-hosted .woff2
+     are added; Barlow is the sans fallback today (NOT Georgia/Crimson serif). */
+  --pds-font-display:
+    "Halis GR", "Barlow", -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  --pds-font-body:
+    "DINPro", "Barlow", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+
+  font-family: var(--pds-font-body);
   color: var(--pds-text);
 }
 

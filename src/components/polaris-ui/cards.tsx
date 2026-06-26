@@ -64,6 +64,7 @@ export function StatCard({
       </div>
       <div
         style={{
+          fontFamily: "var(--pds-font-display)",
           fontSize: "var(--pds-fs-hero)",
           fontWeight: 600,
           color: colour,
@@ -130,6 +131,7 @@ export function PolarisCard({
             display: "flex",
             alignItems: "center",
             gap: 7,
+            fontFamily: "var(--pds-font-display)",
             fontSize: "var(--pds-fs-card-title)",
             fontWeight: 600,
             color: "var(--pds-gold-light)",

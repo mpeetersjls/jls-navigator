@@ -157,6 +157,7 @@ function PageHeader({
         <h1
           style={{
             margin: 0,
+            fontFamily: "var(--pds-font-display)",
             fontSize: "var(--pds-fs-title)",
             fontWeight: 600,
             color: "var(--pds-text)",

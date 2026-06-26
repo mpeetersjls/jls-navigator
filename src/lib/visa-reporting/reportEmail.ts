@@ -31,19 +31,23 @@ export interface VisaReportEmailProps {
   preferencesUrl: string;
 }
 
-// ── Brand tokens (spec) ─────────────────────────────────────────────────────
+// ── Brand tokens — OFFICIAL Polaris palette (Brand Guidelines v1.0) ──────────
+// Teal Blue / Dodger Blue / Jamaica Bay. (var names navy/gold retained to limit
+// churn: navy = Teal Blue, gold = Dodger Blue, goldLight = Jamaica Bay.)
 const C = {
-  navy: "#0D1F3C",
-  gold: "#C9A84C",
-  goldLight: "#F0D98A",
-  mutedBlue: "#A8B8D0",
+  navy: "#07435E", // Teal Blue — header rule, footer, dark text
+  gradient: "linear-gradient(135deg, #96CBC7 0%, #4590BA 50%, #07435E 100%)",
+  dodger: "#4590BA", // Dodger Blue — section headings, accents
+  gold: "#4590BA", // (retained name) Dodger Blue
+  goldLight: "#96CBC7", // Jamaica Bay — footer tagline / light accents
+  mutedBlue: "rgba(255,255,255,0.75)", // muted text on gradient/dark
   body: "#374151",
   muted: "#6B7280",
   green: "#1D9E75",
   amber: "#BA7517",
   red: "#E24B4A",
-  attnBg: "#FEF3C7",
-  attnText: "#78350F",
+  attnBg: "rgba(150,203,199,0.12)", // Jamaica Bay tint
+  attnText: "#07435E",
   tblAmber: "#FEF3C7",
   tblRed: "#FEE2E2",
 };
@@ -107,7 +111,7 @@ function crewTable(
     extra > 0
       ? `<tr><td colspan="4" style="padding:9px 12px;font-size:14px;color:${C.muted};border-top:1px solid #E5E7EB;font-style:italic;">+${extra} additional crew — see the full report in Polaris.</td></tr>`
       : "";
-  return `<h3 style="font-size:16px;font-weight:600;color:${C.navy};margin:26px 0 8px;">${esc(title)}</h3>
+  return `<h3 style="font-size:16px;font-weight:600;color:${C.dodger};margin:26px 0 8px;">${esc(title)}</h3>
   <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #E5E7EB;border-radius:8px;border-collapse:separate;border-spacing:0;overflow:hidden;">
     <tr style="background:${headerBg};">
       ${cols
@@ -147,7 +151,7 @@ export function buildVisaReportEmail(props: VisaReportEmailProps): {
 <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
 
   <!-- Header -->
-  <tr><td style="background:${C.navy};padding:22px 28px;">
+  <tr><td style="background:${C.gradient};padding:22px 28px;">
     <table width="100%" cellpadding="0" cellspacing="0"><tr>
       <td>
         <div style="font-size:24px;font-weight:700;color:#FFFFFF;letter-spacing:2px;">POLARIS</div>
@@ -159,7 +163,7 @@ export function buildVisaReportEmail(props: VisaReportEmailProps): {
       </td>
     </tr></table>
   </td></tr>
-  <tr><td style="height:3px;background:${C.gold};line-height:3px;font-size:3px;">&nbsp;</td></tr>
+  <tr><td style="height:3px;background:${C.navy};line-height:3px;font-size:3px;">&nbsp;</td></tr>
 
   <!-- Body -->
   <tr><td style="padding:28px 32px;">
@@ -167,7 +171,7 @@ export function buildVisaReportEmail(props: VisaReportEmailProps): {
     <p style="font-size:16px;line-height:1.6;margin:0 0 14px;">Please find attached your weekly Visa Status and Crew Movement Report, generated through the JLS Polaris Operations Platform.</p>
     <p style="font-size:16px;line-height:1.6;margin:0 0 20px;">As part of our continued investment in improving yacht operations, compliance monitoring, and reporting, Polaris is now being used to consolidate visa administration, crew movements, and operational records into a single platform. During the initial rollout phase, we will provide these reports on a regular basis to ensure complete visibility of crew immigration status and onboard personnel movements.</p>
 
-    <h3 style="font-size:16px;font-weight:600;color:${C.navy};margin:0 0 8px;">Visa Status</h3>
+    <h3 style="font-size:16px;font-weight:600;color:${C.dodger};margin:0 0 8px;">Visa Status</h3>
     <table width="100%" cellpadding="0" cellspacing="6">
       <tr>
         ${statBox("Total", props.totalCrew, C.navy)}
@@ -177,7 +181,7 @@ export function buildVisaReportEmail(props: VisaReportEmailProps): {
       </tr>
     </table>
 
-    <h3 style="font-size:16px;font-weight:600;color:${C.navy};margin:26px 0 8px;">Crew Movements</h3>
+    <h3 style="font-size:16px;font-weight:600;color:${C.dodger};margin:26px 0 8px;">Crew Movements</h3>
     ${movementBoxes}
 
     ${crewTable("Visas expiring within 30 days", C.tblAmber, ["Name", "Visa type", "Expiry date"], props.expiringSoonCrew, "Days left")}

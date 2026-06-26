@@ -43,6 +43,9 @@ export const Route = createRootRoute({
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Montserrat:wght@400;500;600&display=swap" },
       // Tabler Icons webfont — used by the Polaris redesign component library (#195).
       { rel: "stylesheet", href: "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" },
+      // Barlow — sans fallback for the official brand fonts (Halis GR / DINPro) in
+      // the redesign system until the licensed .woff2 files are self-hosted. No serif.
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap" },
     ],
   }),
   shellComponent: RootShell,
