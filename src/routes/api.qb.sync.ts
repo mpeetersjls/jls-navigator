@@ -49,7 +49,7 @@ export async function qbDocPdfHandler(request: Request): Promise<Response> {
   const id = new URL(request.url).searchParams.get('id')
   if (!id) return json({ ok: false, error: 'id required' }, 400)
   const sb = db()
-  const { data: doc } = await sb.from('qbo_invoices').select('id, qbo_id, doc_type, pdf_path').eq('id', id).maybeSingle()
+  const { data: doc } = await sb.from('qbo_invoices').select('id, qbo_id, doc_type, doc_number, pdf_path').eq('id', id).maybeSingle()
   if (!doc) return json({ ok: false, error: 'Document not found' }, 404)
 
   let path = doc.pdf_path as string | null
@@ -66,6 +66,8 @@ export async function qbDocPdfHandler(request: Request): Promise<Response> {
       return json({ ok: false, error: `Could not fetch PDF: ${String(e?.message ?? e)}` }, 502)
     }
   }
-  const { data: signed } = await sb.storage.from('esign-documents').createSignedUrl(path, 60 * 60)
+  // Download with the invoice number as the filename (matches the JLS format).
+  const fileName = `${doc.doc_number ?? doc.qbo_id}.pdf`
+  const { data: signed } = await sb.storage.from('esign-documents').createSignedUrl(path, 60 * 60, { download: fileName })
   return json({ ok: true, url: signed?.signedUrl ?? null })
 }

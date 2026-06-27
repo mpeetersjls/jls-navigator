@@ -39,11 +39,13 @@ import { AutomationsPage } from "@/components/automations/automations-page";
 import { ErrorLogPage } from "@/components/dev/error-log-page";
 import { IntegrationsPage } from "@/components/dev/integrations-page";
 import { FeedbackPage } from "@/components/feedback/feedback-page";
+import { CrewPlacementPage } from "@/components/crew-placement/crew-placement-page";
 
 /** Beta screens that simply embed an existing full app page (Beta styling is inherited
  *  from the shell's pds-embed content area). */
 const EMBED_SCREENS: Record<string, React.ComponentType> = {
   finance: FinancePage,
+  "crew-placement": CrewPlacementPage,
   "admin-dev": DevSettingsPage,
   "admin-changelog": ChangelogPage,
   "admin-automations": AutomationsPage,

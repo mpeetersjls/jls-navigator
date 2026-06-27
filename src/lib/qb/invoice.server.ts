@@ -56,6 +56,19 @@ export type LineSpec = {
 
 type ResolvedItem = { Id: string; Name: string; UnitPrice?: number }
 
+/** Next JLS invoice number, e.g. "JLS26-23824" — continues the existing QBO sequence
+ *  (prefix JLS+2-digit-year). Reads the current max from QBO so it never collides with
+ *  invoices raised directly in QuickBooks. */
+export async function nextInvoiceNumber(): Promise<string> {
+  const prefix = `JLS${String(new Date().getFullYear()).slice(2)}-`
+  const res = await qboQuery(`select DocNumber from Invoice where DocNumber like '${prefix}%' orderby DocNumber desc maxresults 20`)
+  const nums = (res?.QueryResponse?.Invoice ?? [])
+    .map((i: any) => parseInt(String(i.DocNumber ?? '').slice(prefix.length), 10))
+    .filter((n: number) => !isNaN(n))
+  const max = nums.length ? Math.max(...nums) : 0
+  return `${prefix}${max + 1}`
+}
+
 /** Resolve a QBO Item by exact name. Returns null if not found. */
 export async function findQboItem(name: string): Promise<ResolvedItem | null> {
   const res = await qboQuery(`SELECT Id, Name, UnitPrice, Type FROM Item WHERE Name = '${ql(name)}'`)
@@ -76,6 +89,7 @@ export async function createQboInvoice(opts: {
   lines: Array<{ itemId: string; itemName: string; qty: number; unitPrice: number; description: string; taxCode: string }>
   placeOfSupply?: string
   privateNote?: string
+  docNumber?: string
 }): Promise<{ invoiceId: string; docNumber: string; total: number }> {
   const Line = opts.lines.map((l) => ({
     DetailType: 'SalesItemLineDetail',
@@ -89,9 +103,12 @@ export async function createQboInvoice(opts: {
     },
   }))
 
+  // Assign the next JLS-format invoice number (matches invoices raised in QBO directly).
+  const docNumber = opts.docNumber ?? await nextInvoiceNumber()
   const body: any = {
     CustomerRef: { value: opts.customerId },
     Line,
+    DocNumber: docNumber,
     GlobalTaxCalculation: 'TaxExcluded',
   }
   if (opts.privateNote) body.PrivateNote = opts.privateNote

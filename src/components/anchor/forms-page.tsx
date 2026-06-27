@@ -6,10 +6,20 @@ import {
 } from "lucide-react";
 import { ANCHOR_FORMS, type FormDef, type FormField } from "@/lib/anchor-forms/definitions";
 
-// yachts column → form field key (auto-populate vessel data).
+// yachts column → form field key (auto-populate vessel data). Anything we don't hold
+// on the yacht record (voyage-specific fields like ETA, persons onboard) is left blank.
 const VESSEL_MAP: Record<string, string> = {
   vessel_name: "vessel_name", flag: "vessel_flag", imo_no: "imo",
-  length_overall_m: "loa", mmsi: "mmsi",
+  length_overall_m: "loa", mmsi: "mmsi", berth: "berth",
+  location: "marina_arrival", port_of_registry: "marina_departure",
+};
+const VESSEL_COLS = "id, vessel_name, flag, imo_no, length_overall_m, mmsi, berth, location, port_of_registry";
+
+// JLS is the Approved Maritime Agent — pre-fill the agent block on every DMA form.
+const AGENT_DEFAULTS: Record<string, string> = {
+  agent_details: "JLS Yachts LLC, Office 58-2 Leader Sport Compound, Plot 598-1000, DIP 1, P.O. Box 341766, Dubai, United Arab Emirates",
+  contact_number: "+971 (0)4 331 3555",
+  email: "info@jlsyachts.com",
 };
 
 type Result = { submissionId: string; pdfUrl: string; emailTo: string | null; title: string };
@@ -72,11 +82,22 @@ function FillForm({ def, onBack }: { def: FormDef; onBack: () => void }) {
   useEffect(() => {
     if (!hasVessel) return;
     void (async () => {
-      const { data } = await (supabase as any).from("yachts")
-        .select("id, vessel_name, flag, imo_no, length_overall_m, mmsi").order("vessel_name");
+      const { data } = await (supabase as any).from("yachts").select(VESSEL_COLS).order("vessel_name");
       setVessels(data ?? []);
     })();
   }, [hasVessel]);
+
+  // Pre-fill the Maritime Agent block (JLS) once, for any form that has those fields.
+  useEffect(() => {
+    setValues((p) => {
+      const next = { ...p };
+      for (const [key, val] of Object.entries(AGENT_DEFAULTS)) {
+        if (fieldKeys.has(key) && !next[key]) next[key] = val;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [def.key]);
   function pickVessel(id: string) {
     const y = vessels.find((v) => v.id === id);
     if (!y) return;
