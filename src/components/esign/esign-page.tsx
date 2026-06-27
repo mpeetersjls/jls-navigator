@@ -32,6 +32,8 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [sigPage, setSigPage] = useState("1");
+  const [sigPos, setSigPos] = useState("bottom-right");
 
   useEffect(() => { void load(); }, []);
 
@@ -64,6 +66,7 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
         file_path: path,
         file_name: file.name,
         status: "draft",
+        signature_fields: [{ page: Number(sigPage) || 1, pos: sigPos }],
         created_by: user?.id ?? null,
       }]).select("id").single();
       if (error) throw error;
@@ -74,7 +77,7 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
       } else {
         toast.success("Draft saved");
       }
-      setOpen(false); setForm(EMPTY); setFile(null);
+      setOpen(false); setForm(EMPTY); setFile(null); setSigPage("1"); setSigPos("bottom-right");
       void load();
     } catch (e: any) { toast.error(e.message ?? "Failed to create document"); }
     finally { setBusy(false); }
@@ -207,6 +210,21 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
                 <span className="text-sm text-muted-foreground">{file ? file.name : "Choose a PDF to send for signing"}</span>
                 <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={e => setFile(e.target.files?.[0] ?? null)} />
               </label>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Signature placement</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Page</span>
+                  <Input type="number" min={1} value={sigPage} onChange={e => setSigPage(e.target.value)} className="h-8 w-16" />
+                </div>
+                <select value={sigPos} onChange={e => setSigPos(e.target.value)} className="h-8 flex-1 rounded-md border border-border bg-background px-2 text-sm">
+                  {["bottom-right", "bottom-left", "bottom-center", "top-right", "top-left", "middle-center"].map(p => (
+                    <option key={p} value={p}>{p.replace("-", " ")}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[11px] text-muted-foreground/70">The signer's signature is stamped here, plus a signature certificate page is always appended.</p>
             </div>
           </div>
           <DialogFooter>

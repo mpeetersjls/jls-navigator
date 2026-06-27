@@ -224,6 +224,28 @@ export const doSubmitSignature = createServerFn({ method: "POST" })
       x: 56, y: 48, size: 9, font, color: rgb(0.5, 0.55, 0.6),
     });
 
+    // Stamp the signature in-place at the sender-chosen field position(s).
+    try {
+      const fields: { page?: number; pos?: string }[] = Array.isArray(doc.signature_fields) ? doc.signature_fields : [];
+      if (fields.length) {
+        const b64 = signatureDataUrl.includes(",") ? signatureDataUrl.split(",")[1] : signatureDataUrl;
+        const sig = await pdf.embedPng(b64);
+        const sw = 130; const sh = (sig.height / sig.width) * sw;
+        const pages = pdf.getPages();
+        for (const f of fields) {
+          const p = pages[Math.max(0, (f.page ?? 1) - 1)];
+          if (!p) continue;
+          const { width, height } = p.getSize();
+          const pad = 40;
+          const pos = f.pos ?? "bottom-right";
+          const x = pos.includes("left") ? pad : pos.includes("center") ? (width - sw) / 2 : width - sw - pad;
+          const y = pos.includes("top") ? height - pad - sh : pos.includes("middle") ? (height - sh) / 2 : pad + 12;
+          p.drawImage(sig, { x, y, width: sw, height: sh });
+          p.drawText(`${doc.signer_name} · ${signedAt.toISOString().slice(0, 10)}`, { x, y: y - 9, size: 6.5, font, color: rgb(0.45, 0.5, 0.55) });
+        }
+      }
+    } catch { /* in-place stamp is best-effort; certificate page still carries the signature */ }
+
     const outBytes = await pdf.save();
     const signedPath = `signed/${doc.id}.pdf`;
     const { error: upErr } = await (supabaseAdmin as any).storage.from(BUCKET)
