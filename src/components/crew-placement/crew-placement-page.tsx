@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import {
   Users, BadgeCheck, FileText, Wallet, FolderOpen, LayoutTemplate, Plus, Search,
-  Ship, XCircle, Pencil, Anchor as AnchorIcon, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Loader2, Megaphone,
+  Ship, XCircle, Pencil, Anchor as AnchorIcon, AlertTriangle, ChevronLeft, ChevronRight, ChevronDown, Loader2, Megaphone, Download,
 } from "lucide-react";
 
 type Tab = "roster" | "vacancies" | "certs" | "contracts" | "payroll" | "documents" | "templates";
@@ -635,10 +635,9 @@ function Documents({ docs, crew, reload }: { docs: any[]; crew: any[]; reload: (
   function toggle(v: string) {
     setCollapsed((p) => { const n = new Set(p); n.has(v) ? n.delete(v) : n.add(v); return n; });
   }
-  async function save(f: any) {
-    const { error } = await db().from("crew_placement_documents").insert({ placed_crew_id: sel?.crewId, doc_type: f.doc_type || null, title: f.title || null });
-    if (error) return toast.error(error.message);
-    toast.success("Document added"); setAdd(false); await reload();
+  async function viewDoc(path: string) {
+    const { data } = await db().storage.from("crew-docs").createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank"); else toast.error("Could not open file");
   }
 
   const vessels = Array.from(tree.entries()).sort((a, b) => a[0].localeCompare(b[0]));
@@ -698,14 +697,17 @@ function Documents({ docs, crew, reload }: { docs: any[]; crew: any[]; reload: (
             </div>
             <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full text-sm">
-                <thead><tr className="bg-muted/40 border-b border-border">{["Type", "Title", "Added"].map((h) => <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>)}</tr></thead>
+                <thead><tr className="bg-muted/40 border-b border-border">{["Type", "Title", "Added", ""].map((h) => <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-border/50">
-                  {selDocs.length === 0 ? <tr><td colSpan={3} className="px-3 py-8 text-center text-sm text-muted-foreground">No documents.</td></tr> :
+                  {selDocs.length === 0 ? <tr><td colSpan={4} className="px-3 py-8 text-center text-sm text-muted-foreground">No documents.</td></tr> :
                     selDocs.map((d) => (
                       <tr key={d.id} className="hover:bg-muted/10">
                         <td className="px-3 py-2"><span className="inline-flex items-center gap-1.5 text-xs"><FileText className="h-3.5 w-3.5 text-muted-foreground" /><span className="capitalize">{d.doc_type}</span></span></td>
                         <td className="px-3 py-2 text-xs">{d.title}</td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">{fmtDate(d.created_at)}</td>
+                        <td className="px-3 py-2 text-right">{d.file_path
+                          ? <button onClick={() => viewDoc(d.file_path)} className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] text-primary hover:bg-primary/10"><Download className="h-3 w-3" /> View</button>
+                          : <span className="text-[10px] text-muted-foreground/60">no file</span>}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -715,13 +717,63 @@ function Documents({ docs, crew, reload }: { docs: any[]; crew: any[]; reload: (
         )}
       </div>
 
-      {add && sel && <SimpleAdd title={`Add Document — ${sel.name}`} onClose={() => setAdd(false)} onSave={save}
-        init={{ doc_type: "cv", title: "" }} fields={[{ k: "doc_type", label: "Type" }, { k: "title", label: "Title" }]}
-        crew={[]} required={["title"]} />}
+      {add && sel && <DocUploadDialog crewId={sel.crewId} name={sel.name} onClose={() => setAdd(false)} onDone={() => { setAdd(false); void reload(); }} />}
     </div>
   );
 }
 function Empty({ msg }: { msg: string }) { return <div className="rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted-foreground">{msg}</div>; }
+
+const DOC_TYPES = ["passport", "visa", "cv", "contract", "certificate", "seamans_book", "medical", "driving_licence", "reference", "other"];
+function DocUploadDialog({ crewId, name, onClose, onDone }: { crewId: string; name: string; onClose: () => void; onDone: () => void }) {
+  const [docType, setDocType] = useState("cv");
+  const [title, setTitle] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  function pick(f: File | null) {
+    setFile(f);
+    if (f && !title.trim()) setTitle(f.name.replace(/\.[^.]+$/, ""));
+  }
+  async function submit() {
+    if (!title.trim() && !file) { toast.error("Add a title or a file"); return; }
+    setBusy(true);
+    try {
+      let file_path: string | null = null;
+      if (file) {
+        if (file.size > 20 * 1024 * 1024) { toast.error("Max file size 20 MB"); setBusy(false); return; }
+        const safe = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        const path = `${crewId}/${Date.now()}-${safe}`;
+        const { error: upErr } = await db().storage.from("crew-docs").upload(path, file, { upsert: false });
+        if (upErr) { toast.error(`Upload failed: ${upErr.message}`); setBusy(false); return; }
+        file_path = path;
+      }
+      const { error } = await db().from("crew_placement_documents").insert({
+        placed_crew_id: crewId, doc_type: docType, title: title.trim() || file?.name || "Document", file_path,
+      });
+      if (error) { toast.error(error.message); setBusy(false); return; }
+      toast.success("Document added");
+      onDone();
+    } catch (e: any) { toast.error(String(e?.message ?? e)); setBusy(false); }
+  }
+
+  return (
+    <Modal title={`Add Document — ${name}`} onClose={onClose}
+      footer={<><Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button size="sm" onClick={submit} disabled={busy} className="gap-1.5">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Save</Button></>}>
+      <div className="grid grid-cols-2 gap-3">
+        <Labeled label="Document type"><select className={fieldCls} value={docType} onChange={(e) => setDocType(e.target.value)}>{DOC_TYPES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}</select></Labeled>
+        <Labeled label="Title"><input className={fieldCls} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Passport" /></Labeled>
+      </div>
+      <Labeled label="File (optional)">
+        <label className="mt-0.5 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background px-3 py-4 text-xs text-muted-foreground hover:border-primary/40">
+          <Download className="h-4 w-4 rotate-180" />
+          {file ? <span className="text-foreground">{file.name}</span> : <span>Click to upload · PDF, JPG, PNG · max 20 MB</span>}
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" className="hidden" onChange={(e) => pick(e.target.files?.[0] ?? null)} />
+        </label>
+      </Labeled>
+    </Modal>
+  );
+}
 
 // ── Templates ────────────────────────────────────────────────────────────────
 function Templates({ templates, reload }: { templates: any[]; reload: () => Promise<void> }) {
