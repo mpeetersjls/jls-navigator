@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import {
   Users, BadgeCheck, FileText, Wallet, FolderOpen, LayoutTemplate, Plus, Search,
-  Ship, XCircle, Pencil, Anchor as AnchorIcon, AlertTriangle,
+  Ship, XCircle, Pencil, Anchor as AnchorIcon, AlertTriangle, ChevronLeft, Loader2,
 } from "lucide-react";
 
 type Tab = "roster" | "certs" | "contracts" | "payroll" | "documents" | "templates";
@@ -28,6 +28,7 @@ const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: s
   { key: "templates", label: "Templates", icon: LayoutTemplate },
 ];
 
+const DEPARTMENTS = ["Bridge", "Deck", "Engineering", "Interior", "Galley", "Other"];
 const PLACEMENT_TYPES = ["managed", "placed", "pool"];
 const STATUSES = ["active", "available", "onboard", "on_leave", "inactive"];
 const CURRENCIES = ["USD", "EUR", "GBP", "AED"];
@@ -62,6 +63,7 @@ const fieldCls = "w-full h-8 rounded border border-border bg-background px-2 tex
 
 export function CrewPlacementPage() {
   const [tab, setTab] = useState<Tab>("roster");
+  const [openCrewId, setOpenCrewId] = useState<string | null>(null);
   const [crew, setCrew] = useState<any[]>([]);
   const [yachts, setYachts] = useState<any[]>([]);
   const [certs, setCerts] = useState<any[]>([]);
@@ -99,47 +101,55 @@ export function CrewPlacementPage() {
         <h1 className="font-display text-xl font-semibold tracking-tight">Crew Placement & Payroll</h1>
       </header>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 py-3">
-        {[
-          { label: "Managed Crew", value: kpis.managed, icon: Users, accent: "text-primary" },
-          { label: "Onboard", value: kpis.onboard, icon: Ship, accent: "text-blue-400" },
-          { label: "Certs Expiring (60d)", value: kpis.expiringCerts, icon: AlertTriangle, accent: "text-amber-400" },
-          { label: "Active Contracts", value: kpis.activeContracts, icon: FileText, accent: "text-emerald-400" },
-        ].map((k) => (
-          <div key={k.label} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
-            <div><div className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.label}</div><div className={`font-display text-2xl font-bold tabular-nums ${k.accent}`}>{k.value}</div></div>
-            <k.icon className={`h-6 w-6 ${k.accent} opacity-60`} />
+      {openCrewId ? (
+        <CrewProfile crewId={openCrewId} yachts={yachts} templates={templates}
+          onBack={() => { setOpenCrewId(null); void loadAll(); }} />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 py-3">
+            {[
+              { label: "Managed Crew", value: kpis.managed, icon: Users, accent: "text-primary" },
+              { label: "Onboard", value: kpis.onboard, icon: Ship, accent: "text-blue-400" },
+              { label: "Certs Expiring (60d)", value: kpis.expiringCerts, icon: AlertTriangle, accent: "text-amber-400" },
+              { label: "Active Contracts", value: kpis.activeContracts, icon: FileText, accent: "text-emerald-400" },
+            ].map((k) => (
+              <div key={k.label} className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3">
+                <div><div className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.label}</div><div className={`font-display text-2xl font-bold tabular-nums ${k.accent}`}>{k.value}</div></div>
+                <k.icon className={`h-6 w-6 ${k.accent} opacity-60`} />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="flex items-center gap-1 border-b border-border px-6">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition ${tab === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            <t.icon className="h-3.5 w-3.5" /> {t.label}
-          </button>
-        ))}
-      </div>
+          <div className="flex items-center gap-1 border-b border-border px-6">
+            {TABS.map((t) => (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium transition ${tab === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+                <t.icon className="h-3.5 w-3.5" /> {t.label}
+              </button>
+            ))}
+          </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        {tab === "roster" && <Roster crew={crew} yachts={yachts} reload={loadAll} />}
-        {tab === "certs" && <Certs certs={certs} crew={crew} reload={loadAll} />}
-        {tab === "contracts" && <Contracts contracts={contracts} crew={crew} yachts={yachts} templates={templates} reload={loadAll} />}
-        {tab === "payroll" && <Payroll payslips={payslips} crew={crew} templates={templates} reload={loadAll} />}
-        {tab === "documents" && <Documents docs={docs} crew={crew} reload={loadAll} />}
-        {tab === "templates" && <Templates templates={templates} reload={loadAll} />}
-      </div>
+          <div className="flex-1 overflow-auto p-6">
+            {tab === "roster" && <Roster crew={crew} yachts={yachts} reload={loadAll} onOpen={setOpenCrewId} />}
+            {tab === "certs" && <Certs certs={certs} crew={crew} reload={loadAll} />}
+            {tab === "contracts" && <Contracts contracts={contracts} crew={crew} yachts={yachts} templates={templates} reload={loadAll} />}
+            {tab === "payroll" && <Payroll payslips={payslips} crew={crew} templates={templates} reload={loadAll} />}
+            {tab === "documents" && <Documents docs={docs} crew={crew} reload={loadAll} />}
+            {tab === "templates" && <Templates templates={templates} reload={loadAll} />}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ── Roster ────────────────────────────────────────────────────────────────────
-function Roster({ crew, yachts, reload }: { crew: any[]; yachts: any[]; reload: () => Promise<void> }) {
+function Roster({ crew, yachts, reload, onOpen }: { crew: any[]; yachts: any[]; reload: () => Promise<void>; onOpen: (id: string) => void }) {
   const [q, setQ] = useState("");
+  const [view, setView] = useState<"list" | "ship">("ship");
   const [edit, setEdit] = useState<any | null>(null);
-  const blank = { full_name: "", email: "", phone: "", nationality: "", rank: "", placement_type: "managed", status: "active", yacht_id: "", rotation: "", salary: "", currency: "USD", start_date: "" };
-  const filtered = crew.filter((c) => !q.trim() || [c.full_name, c.rank, c.nationality, c.yacht?.vessel_name].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase()));
+  const blank = { full_name: "", email: "", phone: "", nationality: "", rank: "", department: "", placement_type: "managed", status: "active", yacht_id: "", rotation: "", salary: "", currency: "USD", start_date: "" };
+  const filtered = crew.filter((c) => !q.trim() || [c.full_name, c.rank, c.nationality, c.yacht?.vessel_name, c.department].filter(Boolean).join(" ").toLowerCase().includes(q.toLowerCase()));
 
   async function save(form: any) {
     const row = { ...form, salary: form.salary ? Number(form.salary) : null, yacht_id: form.yacht_id || null, updated_at: new Date().toISOString() };
@@ -149,33 +159,86 @@ function Roster({ crew, yachts, reload }: { crew: any[]; yachts: any[]; reload: 
     toast.success(edit?.id ? "Updated" : "Crew added"); setEdit(null); await reload();
   }
 
+  // Ship view: group by vessel → department.
+  const byVessel = useMemo(() => {
+    const m = new Map<string, Map<string, any[]>>();
+    for (const c of filtered) {
+      const v = c.yacht?.vessel_name ?? "Unassigned / Pool";
+      const d = c.department ?? "Other";
+      if (!m.has(v)) m.set(v, new Map());
+      const dm = m.get(v)!;
+      if (!dm.has(d)) dm.set(d, []);
+      dm.get(d)!.push(c);
+    }
+    return m;
+  }, [filtered]);
+
+  const rowActions = (c: any) => (
+    <button onClick={(e) => { e.stopPropagation(); setEdit({ ...blank, ...c, yacht_id: c.yacht_id ?? "", salary: c.salary ?? "", start_date: c.start_date ?? "" }); }}
+      className="rounded p-1 text-muted-foreground/60 hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button>
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <div className="relative flex-1 max-w-sm"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search crew…" className="pl-8 h-8 text-sm" /></div>
-        <Button size="sm" className="h-8 gap-1.5 ml-auto" onClick={() => setEdit(blank)}><Plus className="h-3.5 w-3.5" /> Add Crew</Button>
+        <div className="flex h-8 rounded-md border border-border bg-card p-0.5">
+          <button onClick={() => setView("ship")} className={`flex items-center gap-1 rounded px-2.5 text-xs ${view === "ship" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}><Ship className="h-3.5 w-3.5" /> Ship View</button>
+          <button onClick={() => setView("list")} className={`flex items-center gap-1 rounded px-2.5 text-xs ${view === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground"}`}><Users className="h-3.5 w-3.5" /> List</button>
+        </div>
+        <Button size="sm" className="h-8 gap-1.5" onClick={() => setEdit(blank)}><Plus className="h-3.5 w-3.5" /> Add Crew</Button>
       </div>
-      <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm min-w-[820px]">
-          <thead><tr className="bg-muted/40 border-b border-border">{["Name", "Rank", "Nationality", "Type", "Vessel", "Rotation", "Salary", "Status", ""].map((h) => <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-border/50">
-            {filtered.length === 0 ? <tr><td colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">No crew yet. Add your first placed/managed crew member.</td></tr> :
-              filtered.map((c) => (
-                <tr key={c.id} className="hover:bg-muted/10">
-                  <td className="px-3 py-2 text-xs font-medium">{c.full_name}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{c.rank ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{c.nationality ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs capitalize">{c.placement_type}</td>
-                  <td className="px-3 py-2 text-xs">{c.yacht?.vessel_name ?? <span className="text-muted-foreground">—</span>}</td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">{c.rotation ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs tabular-nums">{c.salary != null ? `${Number(c.salary).toLocaleString()} ${c.currency ?? ""}` : "—"}</td>
-                  <td className="px-3 py-2"><span className={`inline-flex rounded-full px-1.5 py-0 text-[10px] font-semibold uppercase ${STATUS_COLOR[c.status] ?? "bg-muted/60 text-muted-foreground"}`}>{(c.status ?? "").replace(/_/g, " ")}</span></td>
-                  <td className="px-3 py-2 text-right"><button onClick={() => setEdit({ ...blank, ...c, yacht_id: c.yacht_id ?? "", salary: c.salary ?? "", start_date: c.start_date ?? "" })} className="rounded p-1 text-muted-foreground/60 hover:text-primary"><Pencil className="h-3.5 w-3.5" /></button></td>
-                </tr>
+
+      {view === "list" ? (
+        <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+          <table className="w-full text-sm min-w-[860px]">
+            <thead><tr className="bg-muted/40 border-b border-border">{["Name", "Rank", "Dept", "Nationality", "Type", "Vessel", "Rotation", "Salary", "Status", ""].map((h) => <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>)}</tr></thead>
+            <tbody className="divide-y divide-border/50">
+              {filtered.length === 0 ? <tr><td colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">No crew yet.</td></tr> :
+                filtered.map((c) => (
+                  <tr key={c.id} className="hover:bg-muted/10 cursor-pointer" onClick={() => onOpen(c.id)}>
+                    <td className="px-3 py-2 text-xs font-medium">{c.full_name}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.rank ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.department ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.nationality ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs capitalize">{c.placement_type}</td>
+                    <td className="px-3 py-2 text-xs">{c.yacht?.vessel_name ?? <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{c.rotation ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs tabular-nums">{c.salary != null ? `${Number(c.salary).toLocaleString()} ${c.currency ?? ""}` : "—"}</td>
+                    <td className="px-3 py-2"><span className={`inline-flex rounded-full px-1.5 py-0 text-[10px] font-semibold uppercase ${STATUS_COLOR[c.status] ?? "bg-muted/60 text-muted-foreground"}`}>{(c.status ?? "").replace(/_/g, " ")}</span></td>
+                    <td className="px-3 py-2 text-right">{rowActions(c)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {byVessel.size === 0 && <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">No crew yet. Add your first placed/managed crew member.</div>}
+          {Array.from(byVessel.entries()).map(([vessel, depts]) => (
+            <div key={vessel} className="rounded-lg border border-border overflow-hidden">
+              <div className="flex items-center gap-2 bg-card/60 px-4 py-2.5 border-b border-border">
+                <Ship className="h-4 w-4 text-primary" /><span className="font-semibold text-sm">{vessel}</span>
+                <span className="text-[11px] text-muted-foreground">{Array.from(depts.values()).reduce((s, a) => s + a.length, 0)} crew</span>
+              </div>
+              {DEPARTMENTS.filter((d) => depts.has(d)).concat(Array.from(depts.keys()).filter((d) => !DEPARTMENTS.includes(d))).map((dept) => (
+                <div key={dept}>
+                  <div className="px-4 pt-2.5 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground/70">{dept} <span className="opacity-60">· {depts.get(dept)!.length}</span></div>
+                  {depts.get(dept)!.map((c) => (
+                    <button key={c.id} onClick={() => onOpen(c.id)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted/10 transition border-t border-border/40">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">{c.full_name?.slice(0, 2).toUpperCase()}</div>
+                      <div className="flex-1 min-w-0"><div className="text-xs font-medium truncate">{c.full_name}</div><div className="text-[11px] text-muted-foreground truncate">{c.rank ?? "—"} · {c.email ?? "—"}</div></div>
+                      <span className="text-[11px] text-muted-foreground hidden sm:block">{c.rotation ?? ""}</span>
+                      <span className={`inline-flex rounded-full px-1.5 py-0 text-[10px] font-semibold uppercase ${STATUS_COLOR[c.status] ?? "bg-muted/60 text-muted-foreground"}`}>{(c.status ?? "").replace(/_/g, " ")}</span>
+                      {rowActions(c)}
+                    </button>
+                  ))}
+                </div>
               ))}
-          </tbody>
-        </table>
-      </div>
+            </div>
+          ))}
+        </div>
+      )}
       {edit && <CrewModal init={edit} yachts={yachts} onClose={() => setEdit(null)} onSave={save} />}
     </div>
   );
@@ -193,6 +256,7 @@ function CrewModal({ init, yachts, onClose, onSave }: { init: any; yachts: any[]
         <Labeled label="Phone"><input className={fieldCls} value={f.phone} onChange={(e) => set("phone", e.target.value)} /></Labeled>
         <Labeled label="Nationality"><input className={fieldCls} value={f.nationality} onChange={(e) => set("nationality", e.target.value)} /></Labeled>
         <Labeled label="Start date"><input type="date" className={fieldCls} value={f.start_date} onChange={(e) => set("start_date", e.target.value)} /></Labeled>
+        <Labeled label="Department"><select className={fieldCls} value={f.department ?? ""} onChange={(e) => set("department", e.target.value)}><option value="">—</option>{DEPARTMENTS.map((t) => <option key={t} value={t}>{t}</option>)}</select></Labeled>
         <Labeled label="Type"><select className={fieldCls} value={f.placement_type} onChange={(e) => set("placement_type", e.target.value)}>{PLACEMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}</select></Labeled>
         <Labeled label="Status"><select className={fieldCls} value={f.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map((t) => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}</select></Labeled>
         <Labeled label="Vessel association"><select className={fieldCls} value={f.yacht_id} onChange={(e) => set("yacht_id", e.target.value)}><option value="">— none —</option>{yachts.map((y) => <option key={y.id} value={y.id}>{y.vessel_name}</option>)}</select></Labeled>
@@ -201,6 +265,124 @@ function CrewModal({ init, yachts, onClose, onSave }: { init: any; yachts: any[]
         <Labeled label="Currency"><select className={fieldCls} value={f.currency} onChange={(e) => set("currency", e.target.value)}>{CURRENCIES.map((t) => <option key={t} value={t}>{t}</option>)}</select></Labeled>
       </div>
     </Modal>
+  );
+}
+
+// ── Crew profile (per-crew drill-down) ────────────────────────────────────────
+type ProfileTab = "personal" | "documents" | "certs" | "contracts" | "finance" | "payroll";
+const PROFILE_TABS: { key: ProfileTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "personal", label: "Personal", icon: Users },
+  { key: "documents", label: "Documents", icon: FolderOpen },
+  { key: "certs", label: "Certifications", icon: BadgeCheck },
+  { key: "contracts", label: "Contracts", icon: FileText },
+  { key: "finance", label: "Finance", icon: Wallet },
+  { key: "payroll", label: "Payroll", icon: Wallet },
+];
+
+function CrewProfile({ crewId, yachts, templates, onBack }: { crewId: string; yachts: any[]; templates: any[]; onBack: () => void }) {
+  const [tab, setTab] = useState<ProfileTab>("personal");
+  const [c, setC] = useState<any | null>(null);
+  const [data, setData] = useState<{ certs: any[]; docs: any[]; contracts: any[]; payslips: any[]; bank: any[] }>({ certs: [], docs: [], contracts: [], payslips: [], bank: [] });
+  const [add, setAdd] = useState<string | null>(null);
+
+  useEffect(() => { void load(); }, [crewId]);
+  async function load() {
+    const [cr, ce, dc, co, pa, bk] = await Promise.all([
+      db().from("placed_crew").select("*, yacht:yachts(vessel_name)").eq("id", crewId).maybeSingle(),
+      db().from("crew_placement_certs").select("*").eq("placed_crew_id", crewId).order("expiry_date"),
+      db().from("crew_placement_documents").select("*").eq("placed_crew_id", crewId).order("created_at", { ascending: false }),
+      db().from("crew_contracts").select("*, yacht:yachts(vessel_name)").eq("placed_crew_id", crewId).order("created_at", { ascending: false }),
+      db().from("crew_payslips").select("*").eq("placed_crew_id", crewId).order("period_month", { ascending: false }),
+      db().from("placed_crew_bank").select("*").eq("placed_crew_id", crewId).order("created_at"),
+    ]);
+    setC(cr.data); setData({ certs: ce.data ?? [], docs: dc.data ?? [], contracts: co.data ?? [], payslips: pa.data ?? [], bank: bk.data ?? [] });
+  }
+  async function insert(table: string, row: any) {
+    const clean = { ...row, placed_crew_id: crewId }; Object.keys(clean).forEach((k) => clean[k] === "" && (clean[k] = null));
+    const { error } = await db().from(table).insert(clean);
+    if (error) return toast.error(error.message);
+    toast.success("Added"); setAdd(null); await load();
+  }
+  if (!c) return <div className="py-16 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></div>;
+
+  const expiryBadge = (d: string | null) => {
+    const days = daysUntil(d); if (days == null) return <span className="text-muted-foreground">—</span>;
+    const cls = days < 0 ? "bg-red-500/15 text-red-400" : days <= 60 ? "bg-amber-500/15 text-amber-400" : "bg-emerald-500/15 text-emerald-400";
+    return <span className={`inline-flex rounded-full px-1.5 py-0 text-[10px] font-semibold ${cls}`}>{fmtDate(d)}</span>;
+  };
+
+  return (
+    <div className="flex-1 overflow-auto p-6">
+      <button onClick={onBack} className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><ChevronLeftIcon /> Back to roster</button>
+      <div className="flex items-center gap-4 mb-5">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/15 text-lg font-bold text-primary">{c.full_name?.slice(0, 2).toUpperCase()}</div>
+        <div>
+          <h2 className="font-display text-xl font-semibold">{c.full_name}</h2>
+          <p className="text-sm text-muted-foreground">{[c.department, c.rank].filter(Boolean).join(" : ")}{c.yacht?.vessel_name ? ` · ${c.yacht.vessel_name}` : ""}</p>
+        </div>
+        <span className={`ml-auto inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${STATUS_COLOR[c.status] ?? "bg-muted/60 text-muted-foreground"}`}>{(c.status ?? "").replace(/_/g, " ")}</span>
+      </div>
+
+      <div className="flex items-center gap-1 border-b border-border mb-4">
+        {PROFILE_TABS.map((t) => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition ${tab === t.key ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <t.icon className="h-3.5 w-3.5" /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "personal" && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
+          {[["Email", c.email], ["Phone", c.phone], ["Nationality", c.nationality], ["Date of birth", c.date_of_birth], ["Rank", c.rank], ["Department", c.department], ["Type", c.placement_type], ["Vessel", c.yacht?.vessel_name], ["Rotation", c.rotation], ["Salary", c.salary != null ? `${Number(c.salary).toLocaleString()} ${c.currency ?? ""}` : null], ["Start date", c.start_date]].map(([l, v]) => (
+            <div key={l as string} className="rounded-lg border border-border bg-card px-3 py-2"><div className="text-[10px] uppercase tracking-wide text-muted-foreground">{l}</div><div className="text-sm">{(v as any) || "—"}</div></div>
+          ))}
+        </div>
+      )}
+
+      {tab === "documents" && (
+        <ProfileList title="Documents" onAdd={() => setAdd("doc")} cols={["Type", "Title", "Added"]}
+          rows={data.docs.map((d) => [<span className="capitalize">{d.doc_type}</span>, d.title, fmtDate(d.created_at)])} empty="No documents yet." />
+      )}
+      {tab === "certs" && (
+        <ProfileList title="Certifications" onAdd={() => setAdd("cert")} cols={["Certificate", "Number", "Authority", "Expiry"]}
+          rows={data.certs.map((d) => [d.cert_type, d.cert_number ?? "—", d.issuing_authority ?? "—", expiryBadge(d.expiry_date)])} empty="No certificates yet." />
+      )}
+      {tab === "contracts" && (
+        <ProfileList title="Contracts" onAdd={() => setAdd("contract")} cols={["Vessel", "Type", "Start", "End", "Salary", "Status"]}
+          rows={data.contracts.map((d) => [d.yacht?.vessel_name ?? "—", d.contract_type ?? "—", fmtDate(d.start_date), fmtDate(d.end_date), d.salary != null ? `${Number(d.salary).toLocaleString()} ${d.currency ?? ""}` : "—", d.status])} empty="No contracts yet." />
+      )}
+      {tab === "payroll" && (
+        <ProfileList title="Payslips" onAdd={() => setAdd("payslip")} cols={["Period", "Gross", "Net", "Currency", "Status"]}
+          rows={data.payslips.map((d) => [d.period_month ? new Date(d.period_month).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "—", d.gross != null ? Number(d.gross).toLocaleString() : "—", d.net != null ? Number(d.net).toLocaleString() : "—", d.currency, d.status])} empty="No payslips yet." />
+      )}
+      {tab === "finance" && (
+        <ProfileList title="Bank Accounts" onAdd={() => setAdd("bank")} cols={["Currency", "Bank", "IBAN", "BIC", "Country"]}
+          rows={data.bank.map((d) => [d.account_currency, d.bank_name ?? "—", d.iban ?? "—", d.bic ?? "—", d.account_country ?? "—"])} empty="No bank accounts yet." />
+      )}
+
+      {add === "doc" && <SimpleAdd title="Add Document" onClose={() => setAdd(null)} onSave={(f: any) => insert("crew_placement_documents", f)} init={{ doc_type: "cv", title: "" }} fields={[{ k: "doc_type", label: "Type" }, { k: "title", label: "Title" }]} crew={[]} required={["title"]} />}
+      {add === "cert" && <SimpleAdd title="Add Certificate" onClose={() => setAdd(null)} onSave={(f: any) => insert("crew_placement_certs", f)} init={{ cert_type: "", cert_number: "", issuing_authority: "", issued_date: "", expiry_date: "" }} fields={[{ k: "cert_type", label: "Certificate type" }, { k: "cert_number", label: "Number" }, { k: "issuing_authority", label: "Authority" }, { k: "issued_date", label: "Issued", type: "date" }, { k: "expiry_date", label: "Expiry", type: "date" }]} crew={[]} required={["cert_type"]} />}
+      {add === "contract" && <SimpleAdd title="New Contract" onClose={() => setAdd(null)} onSave={(f: any) => insert("crew_contracts", { ...f, salary: f.salary ? Number(f.salary) : null })} init={{ yacht_id: c.yacht_id ?? "", template_id: "", contract_type: "SEA", start_date: "", end_date: "", salary: c.salary ?? "", currency: c.currency ?? "USD", rotation: c.rotation ?? "", status: "draft" }} fields={[{ k: "yacht_id", label: "Vessel", type: "yacht" }, { k: "template_id", label: "Template", type: "template", templateKind: "contract" }, { k: "contract_type", label: "Type" }, { k: "start_date", label: "Start", type: "date" }, { k: "end_date", label: "End", type: "date" }, { k: "salary", label: "Salary", type: "number" }, { k: "currency", label: "Currency", type: "currency" }, { k: "rotation", label: "Rotation" }, { k: "status", label: "Status" }]} crew={[]} yachts={yachts} templates={templates} required={[]} />}
+      {add === "payslip" && <SimpleAdd title="New Payslip" onClose={() => setAdd(null)} onSave={(f: any) => insert("crew_payslips", { ...f, gross: f.gross ? Number(f.gross) : null, net: f.net ? Number(f.net) : null })} init={{ period_month: "", gross: "", net: "", currency: c.currency ?? "USD", status: "draft" }} fields={[{ k: "period_month", label: "Pay month", type: "date" }, { k: "gross", label: "Gross", type: "number" }, { k: "net", label: "Net", type: "number" }, { k: "currency", label: "Currency", type: "currency" }, { k: "status", label: "Status" }]} crew={[]} required={["period_month"]} />}
+      {add === "bank" && <SimpleAdd title="Add Bank Account" onClose={() => setAdd(null)} onSave={(f: any) => insert("placed_crew_bank", f)} init={{ account_holder: c.full_name, account_currency: "EUR", account_country: "", iban: "", bic: "", bank_name: "", bank_country: "" }} fields={[{ k: "account_holder", label: "Account holder" }, { k: "account_currency", label: "Currency", type: "currency" }, { k: "account_country", label: "Account country" }, { k: "iban", label: "IBAN" }, { k: "bic", label: "BIC" }, { k: "bank_name", label: "Bank name" }, { k: "bank_country", label: "Bank country" }]} crew={[]} required={[]} />}
+    </div>
+  );
+}
+function ChevronLeftIcon() { return <ChevronLeft className="h-3.5 w-3.5" />; }
+function ProfileList({ title, onAdd, cols, rows, empty }: { title: string; onAdd: () => void; cols: string[]; rows: any[][]; empty: string }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between"><h3 className="text-sm font-semibold">{title}</h3><Button size="sm" className="h-8 gap-1.5" onClick={onAdd}><Plus className="h-3.5 w-3.5" /> Add</Button></div>
+      <div className="rounded-lg border border-border overflow-hidden overflow-x-auto">
+        <table className="w-full text-sm min-w-[560px]">
+          <thead><tr className="bg-muted/40 border-b border-border">{cols.map((h) => <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-border/50">
+            {rows.length === 0 ? <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-sm text-muted-foreground">{empty}</td></tr> :
+              rows.map((r, i) => <tr key={i} className="hover:bg-muted/10">{r.map((cell, j) => <td key={j} className="px-3 py-2 text-xs">{cell}</td>)}</tr>)}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
