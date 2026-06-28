@@ -140,7 +140,7 @@ async function ensureFolder(siteId: string, token: string, parentRef: string, na
 }
 
 /** Upload bytes to drive-root/{segments}/{fileName}, creating folders. Returns the item id. */
-async function uploadToFolders(
+export async function uploadToFolders(
   siteId: string, token: string, segments: string[], fileName: string, contentType: string, bytes: Uint8Array,
 ): Promise<{ id: string; webUrl: string }> {
   let pathSoFar = "";
@@ -168,7 +168,7 @@ async function uploadToFolders(
  * WITHOUT the Authorization header (re-sending it makes the storage host reject
  * with HTTP 406/401). So we intercept the redirect and fetch the location clean.
  */
-async function convertItemToPdf(siteId: string, token: string, itemId: string): Promise<Uint8Array> {
+export async function convertItemToPdf(siteId: string, token: string, itemId: string): Promise<Uint8Array> {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const url = `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${itemId}/content?format=pdf`;
   let lastErr = "";

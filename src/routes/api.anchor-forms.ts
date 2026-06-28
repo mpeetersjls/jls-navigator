@@ -7,6 +7,7 @@
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildFormPdf } from "@/lib/anchor-forms/pdf.server";
+import { generateDmaPdf } from "@/lib/anchor-forms/dma-docx.server";
 import { getFormDef } from "@/lib/anchor-forms/definitions";
 import { sendEmail } from "@/lib/ses.server";
 import { PDFDocument } from "pdf-lib";
@@ -68,14 +69,23 @@ export async function anchorFormsHandler(request: Request): Promise<Response> {
       }).select("id").single();
       if (error) return json({ ok: false, error: error.message }, 500);
 
-      const pdfBytes = await buildFormPdf(def, values);
+      // DMA notices render the authority-exact bilingual (EN/AR) PDF via Graph;
+      // everything else uses the in-house pdf-lib renderer. Fall back to pdf-lib
+      // if the Graph conversion fails so a document is always produced.
+      let pdfBytes: Uint8Array; let pdfWarning: string | null = null;
+      if (def.key.startsWith("dma-")) {
+        try { pdfBytes = await generateDmaPdf(def.key, values, def.title); }
+        catch (e: any) { pdfWarning = `Bilingual PDF failed (${e?.message ?? e}); served the English version`; pdfBytes = await buildFormPdf(def, values); }
+      } else {
+        pdfBytes = await buildFormPdf(def, values);
+      }
       const path = `forms/${sub.id}.pdf`;
       const { error: upErr } = await db().storage.from(BUCKET)
         .upload(path, pdfBytes, { contentType: "application/pdf", upsert: true });
       if (upErr) return json({ ok: false, error: `PDF upload failed: ${upErr.message}` }, 500);
 
       await db().from("anchor_form_submissions").update({ pdf_path: path, updated_at: new Date().toISOString() }).eq("id", sub.id);
-      return json({ ok: true, submissionId: sub.id, pdfUrl: await signedUrl(path), emailTo: def.emailTo ?? null, title: def.title });
+      return json({ ok: true, submissionId: sub.id, pdfUrl: await signedUrl(path), emailTo: def.emailTo ?? null, title: def.title, pdfWarning });
     }
 
     // ── Email: send the completed PDF link ──
