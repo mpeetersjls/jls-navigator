@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  FileText, ChevronLeft, Loader2, Download, Mail, PenLine, CheckCircle2, Ship,
+  FileText, ChevronLeft, Loader2, Download, Mail, PenLine, CheckCircle2, Ship, X,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ANCHOR_FORMS, type FormDef, type FormField } from "@/lib/anchor-forms/definitions";
 
 // yachts column → form field key (auto-populate vessel data). Anything we don't hold
@@ -211,12 +212,21 @@ const STATUS_META: Record<string, { label: string; cls: string }> = {
   signed: { label: "Signed", cls: "bg-emerald-500/15 text-emerald-500" },
 };
 
+const APPROVAL_META: Record<string, { label: string; cls: string }> = {
+  pending: { label: "Awaiting approval", cls: "bg-amber-500/15 text-amber-500" },
+  approved: { label: "Approved", cls: "bg-emerald-500/15 text-emerald-500" },
+  rejected: { label: "Rejected", cls: "bg-red-500/15 text-red-400" },
+};
+
 export function FormsPage() {
   const [active, setActive] = useState<FormDef | null>(null);
   const [subs, setSubs] = useState<any[]>([]);
+  const [approveTarget, setApproveTarget] = useState<any | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const reload = useCallback(async () => {
     const { data } = await (supabase as any).from("anchor_form_submissions")
-      .select("id, title, status, created_at, pdf_path").order("created_at", { ascending: false }).limit(25);
+      .select("id, form_key, title, status, created_at, pdf_path, signed_pdf_path, approval_status, approval_chain, approval_step, approval_log")
+      .order("created_at", { ascending: false }).limit(25);
     setSubs(data ?? []);
   }, []);
   useEffect(() => { void reload(); }, [reload, active]);
@@ -225,6 +235,12 @@ export function FormsPage() {
     const { data } = await (supabase as any).storage.from("esign-documents").createSignedUrl(path, 3600);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
     else toast.error("Could not open the document");
+  }
+  async function act(action: "approve" | "reject", id: string) {
+    if (action === "reject" && !confirm("Reject this document?")) return;
+    setBusyId(id);
+    try { await api({ action, submissionId: id }); toast.success(action === "approve" ? "Approved" : "Rejected"); await reload(); }
+    catch (e: any) { toast.error(e.message ?? "Failed"); } finally { setBusyId(null); }
   }
 
   if (active) return <FillForm def={active} onBack={() => setActive(null)} />;
@@ -255,16 +271,33 @@ export function FormsPage() {
           <div className="overflow-hidden rounded-xl border border-border">
             {subs.map((s) => {
               const m = STATUS_META[s.status] ?? { label: s.status, cls: "bg-muted text-muted-foreground" };
+              const isDma = typeof s.form_key === "string" && s.form_key.startsWith("dma-");
+              const ap = s.approval_status && s.approval_status !== "none" ? APPROVAL_META[s.approval_status] : null;
+              const chain = (s.approval_chain ?? []) as { name: string; email: string }[];
+              const currentApprover = s.approval_status === "pending" ? chain[s.approval_step ?? 0] : null;
               return (
                 <div key={s.id} className="flex items-center justify-between gap-3 border-b border-border/50 bg-card px-4 py-2.5 last:border-0">
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-foreground">{s.title}</div>
-                    <div className="text-[11px] text-muted-foreground">{new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {new Date(s.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                      {currentApprover && <> · with <strong className="text-foreground">{currentApprover.name || currentApprover.email}</strong></>}
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.cls}`}>{m.label}</span>
-                    {s.pdf_path && (
-                      <button onClick={() => viewPdf(s.pdf_path)} className="text-xs text-primary hover:underline">View</button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {ap && <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ap.cls}`}>{ap.label}</span>}
+                    {!ap && <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.cls}`}>{m.label}</span>}
+                    {(s.signed_pdf_path || s.pdf_path) && (
+                      <button onClick={() => viewPdf(s.signed_pdf_path || s.pdf_path)} className="text-xs text-primary hover:underline">View</button>
+                    )}
+                    {isDma && (!s.approval_status || s.approval_status === "none" || s.approval_status === "rejected") && s.pdf_path && (
+                      <button onClick={() => setApproveTarget(s)} className="rounded bg-primary/15 px-2 py-0.5 text-[11px] font-medium text-primary hover:bg-primary/25">Submit for approval</button>
+                    )}
+                    {s.approval_status === "pending" && (
+                      <>
+                        <button disabled={busyId === s.id} onClick={() => act("approve", s.id)} className="rounded bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 hover:bg-emerald-500/25">{busyId === s.id ? "…" : "Approve"}</button>
+                        <button disabled={busyId === s.id} onClick={() => act("reject", s.id)} className="rounded px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-red-400">Reject</button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -272,6 +305,88 @@ export function FormsPage() {
             })}
           </div>
         )}
+      </div>
+
+      {approveTarget && <ApprovalSubmitDialog sub={approveTarget} onClose={() => setApproveTarget(null)} onDone={() => { setApproveTarget(null); void reload(); }} />}
+    </div>
+  );
+}
+
+function ApprovalSubmitDialog({ sub, onClose, onDone }: { sub: any; onClose: () => void; onDone: () => void }) {
+  const [sigs, setSigs] = useState<any[]>([]);
+  const [chain, setChain] = useState<{ name: string; email: string }[]>([]);
+  const [signatoryId, setSignatoryId] = useState("");
+  const [authority, setAuthority] = useState("sail@pcfc.ae");
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase as any).from("jls_signatories").select("id, full_name, email, approver_name, approver_email, signature_path").eq("active", true).order("full_name");
+      setSigs(data ?? []);
+    })();
+  }, []);
+
+  function addApprover() {
+    const s = sigs.find((x) => x.id === pick);
+    if (!s) return;
+    const email = s.approver_email || s.email;
+    const name = s.approver_name || s.full_name;
+    if (!email || chain.some((c) => c.email === email)) return;
+    setChain((c) => [...c, { name, email }]); setPick("");
+  }
+  async function submit() {
+    if (!chain.length) { toast.error("Add at least one approver"); return; }
+    setBusy(true);
+    try {
+      await api({ action: "submit-approval", submissionId: sub.id, chain, signatoryId: signatoryId || null, authorityEmail: authority || null });
+      toast.success("Submitted for approval"); onDone();
+    } catch (e: any) { toast.error(e.message ?? "Failed"); setBusy(false); }
+  }
+  const fld = "h-9 w-full rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="border-b border-border px-5 py-3.5"><h2 className="text-base font-semibold">Submit for approval</h2><p className="text-xs text-muted-foreground mt-0.5">{sub.title}</p></div>
+        <div className="space-y-4 px-5 py-4">
+          <div>
+            <label className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">Approval chain (in order)</label>
+            <div className="flex gap-2">
+              <select className={fld} value={pick} onChange={(e) => setPick(e.target.value)}>
+                <option value="">Add approver…</option>
+                {sigs.map((s) => <option key={s.id} value={s.id}>{s.approver_name || s.full_name} ({s.approver_email || s.email || "no email"})</option>)}
+              </select>
+              <Button size="sm" variant="outline" className="h-9" onClick={addApprover} disabled={!pick}>Add</Button>
+            </div>
+            <div className="mt-2 space-y-1">
+              {chain.length === 0 && <p className="text-[11px] text-muted-foreground/60">No approvers yet — add Hilary, then Maddie, etc.</p>}
+              {chain.map((c, i) => (
+                <div key={c.email} className="flex items-center gap-2 rounded border border-border/60 bg-background px-2 py-1 text-xs">
+                  <span className="text-muted-foreground">{i + 1}.</span><span className="flex-1">{c.name} <span className="text-muted-foreground">· {c.email}</span></span>
+                  <button onClick={() => setChain((x) => x.filter((_, idx) => idx !== i))} className="text-muted-foreground hover:text-red-400"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">Signatory (auto-signs on approval)</label>
+              <select className={fld} value={signatoryId} onChange={(e) => setSignatoryId(e.target.value)}>
+                <option value="">— none —</option>
+                {sigs.map((s) => <option key={s.id} value={s.id} disabled={!s.signature_path}>{s.full_name}{s.signature_path ? "" : " (no signature)"}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">Email to authority on approval</label>
+              <input className={fld} value={authority} onChange={(e) => setAuthority(e.target.value)} placeholder="sail@pcfc.ae" />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="sm" onClick={submit} disabled={busy || !chain.length}>{busy ? "…" : "Submit"}</Button>
+        </div>
       </div>
     </div>
   );
