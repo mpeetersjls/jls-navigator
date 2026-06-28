@@ -8,6 +8,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildFormPdf } from "@/lib/anchor-forms/pdf.server";
 import { generateDmaPdf } from "@/lib/anchor-forms/dma-docx.server";
+import { generateCf12aPdf } from "@/lib/anchor-forms/cf12a-pdf.server";
 import { getFormDef } from "@/lib/anchor-forms/definitions";
 import { sendEmail } from "@/lib/ses.server";
 import { PDFDocument } from "pdf-lib";
@@ -73,7 +74,10 @@ export async function anchorFormsHandler(request: Request): Promise<Response> {
       // everything else uses the in-house pdf-lib renderer. Fall back to pdf-lib
       // if the Graph conversion fails so a document is always produced.
       let pdfBytes: Uint8Array; let pdfWarning: string | null = null;
-      if (def.key.startsWith("dma-")) {
+      if (def.key === "cf12a") {
+        try { pdfBytes = await generateCf12aPdf(values); }
+        catch (e: any) { pdfWarning = `Official CF12a fill failed (${e?.message ?? e}); served a plain version`; pdfBytes = await buildFormPdf(def, values); }
+      } else if (def.key.startsWith("dma-")) {
         try { pdfBytes = await generateDmaPdf(def.key, values, def.title); }
         catch (e: any) { pdfWarning = `Bilingual PDF failed (${e?.message ?? e}); served the English version`; pdfBytes = await buildFormPdf(def, values); }
       } else {

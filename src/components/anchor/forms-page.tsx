@@ -13,14 +13,25 @@ const VESSEL_MAP: Record<string, string> = {
   vessel_name: "vessel_name", flag: "vessel_flag", imo_no: "imo",
   length_overall_m: "loa", mmsi: "mmsi", berth: "berth",
   location: "marina_arrival", port_of_registry: "marina_departure",
+  // CF12a vessel-registration / details / owner fields
+  vessel_type: "vessel_type", built_year: "year_build", gross_tonnage: "gross_tonnage",
+  breadth_m: "beam", draught_m: "draft", max_crew: "crew_count", max_guests: "max_passengers",
+  owners_name: "owner_name", owners_nationality: "owner_nationality",
+  contact_no: "owner_mobile", email_address: "owner_email",
 };
-const VESSEL_COLS = "id, vessel_name, flag, imo_no, length_overall_m, mmsi, berth, location, port_of_registry";
+const VESSEL_COLS =
+  "id, vessel_name, flag, imo_no, length_overall_m, mmsi, berth, location, port_of_registry, " +
+  "vessel_type, built_year, gross_tonnage, breadth_m, draught_m, max_crew, max_guests, " +
+  "owners_name, owners_nationality, contact_no, email_address";
 
 // JLS is the Approved Maritime Agent — pre-fill the agent block on every DMA form.
 const AGENT_DEFAULTS: Record<string, string> = {
   agent_details: "JLS Yachts LLC, Office 58-2 Leader Sport Compound, Plot 598-1000, DIP 1, P.O. Box 341766, Dubai, United Arab Emirates",
   contact_number: "+971 (0)4 331 3555",
   email: "info@jlsyachts.com",
+  // CF12a agent block
+  agent_name: "JLS Yachts LLC",
+  agent_phone: "+971 (0)4 331 3555",
 };
 
 type Result = { submissionId: string; pdfUrl: string; emailTo: string | null; title: string };

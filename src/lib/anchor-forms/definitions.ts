@@ -128,6 +128,103 @@ export const ANCHOR_FORMS: FormDef[] = [
       },
     ],
   },
+  {
+    key: "cf12a",
+    title: "DMA CF12a — Visiting Vessel Permit Application",
+    description: "Application for a Foreign-Flagged Visiting Vessel Permit (PCFC / DMA).",
+    category: "DMA / Port Operations",
+    emailTo: "sail@pcfc.ae",
+    intro:
+      "Fills the authority's official bilingual CF12a form with the vessel data we hold. " +
+      "The generated PDF stays fillable — tick the Permit Type, Application Type and Entry " +
+      "Method boxes and complete any remaining fields before submitting.",
+    sections: [
+      {
+        title: "Application",
+        fields: [
+          { key: "date_of_application", label: "Date of Application", type: "date" },
+          { key: "applicant_name", label: "Applicant Name", type: "text" },
+        ],
+      },
+      {
+        title: "Marine Vessel Registration Details",
+        fields: [
+          { key: "vessel_name", label: "Marine Vessel Name", type: "text", required: true },
+          { key: "imo", label: "License No. / (IMO) No.", type: "text" },
+          { key: "vessel_type", label: "Marine Vessel Type", type: "text" },
+          { key: "hull_id", label: "Hull Identification Number", type: "text" },
+          { key: "vessel_flag", label: "Flag of Registration", type: "text" },
+          { key: "year_build", label: "Year of Build", type: "text" },
+          { key: "crew_count", label: "No. of Crew", type: "number" },
+          { key: "max_passengers", label: "Maximum No. of Passengers", type: "number" },
+        ],
+      },
+      {
+        title: "Marine Vessel Details",
+        fields: [
+          { key: "loa", label: "Length (m)", type: "text" },
+          { key: "beam", label: "Beam (m)", type: "text" },
+          { key: "depth", label: "Depth (m)", type: "text" },
+          { key: "draft", label: "Draft (m)", type: "text" },
+          { key: "hull_material", label: "Hull Material", type: "text" },
+          { key: "hull_color", label: "Hull Color", type: "text" },
+          { key: "gross_tonnage", label: "Gross Tonnage", type: "text" },
+        ],
+      },
+      {
+        title: "Engine (tick Propulsion / Fuel type on the PDF)",
+        fields: [
+          { key: "propulsion_other", label: "Propulsion Type — Other", type: "text" },
+          { key: "fuel_other", label: "Fuel Type — Other", type: "text" },
+        ],
+      },
+      {
+        title: "Owner & Contact",
+        fields: [
+          { key: "owner_name", label: "Owner Name", type: "text" },
+          { key: "owner_nationality", label: "Owner Nationality", type: "text" },
+          { key: "captain_name", label: "Captain Name", type: "text" },
+          { key: "owner_mobile", label: "Mobile No.", type: "text" },
+          { key: "owner_email", label: "Email", type: "email" },
+        ],
+      },
+      {
+        title: "Shipping Agent",
+        fields: [
+          { key: "agent_name", label: "Agent Name", type: "text" },
+          { key: "agent_phone", label: "Agent Phone No.", type: "text" },
+          { key: "agent_license", label: "Agent License No.", type: "text" },
+        ],
+      },
+      {
+        title: "Shipping Broker (if applicable)",
+        fields: [
+          { key: "broker_company", label: "Company Name", type: "text" },
+          { key: "broker_code", label: "Customer Broker Code", type: "text" },
+          { key: "bill_of_lading", label: "Bill of Lading No.", type: "text" },
+        ],
+      },
+      {
+        title: "Insurance",
+        fields: [
+          { key: "insurance_company", label: "Insurance Company", type: "text" },
+          { key: "insurance_type", label: "Insurance Type", type: "text" },
+          { key: "insurance_policy_no", label: "Insurance Policy No.", type: "text" },
+          { key: "insurance_expiry", label: "Insurance Expiry Date", type: "date" },
+        ],
+      },
+      {
+        title: "UAE Entry / Departure",
+        fields: [
+          { key: "last_port", label: "Last Port Visited", type: "text" },
+          { key: "entry_port", label: "Entry Port", type: "text" },
+          { key: "uae_entry_date", label: "UAE Entry Date", type: "date" },
+          { key: "uae_departure_date", label: "UAE Departure Date", type: "date" },
+          { key: "declaration_date", label: "Declaration Date", type: "date" },
+        ],
+      },
+    ],
+  },
 ];
 
 export function getFormDef(key: string): FormDef | undefined {
