@@ -98,6 +98,22 @@ export async function downloadImmigrationPackage(docs: ExportableDoc[], zipName:
     }
   }
 
+  // Always include the standard UAE Arrival Instructions for Yacht Crew Visa
+  // (fetched from storage so it stays out of the JS bundle).
+  try {
+    const { VISA_ARRIVAL_DOC } = await import('@/lib/visa/arrival-instructions')
+    const url = await resolveSignedUrl(VISA_ARRIVAL_DOC.ref)
+    const res = await fetch(url)
+    if (res.ok) {
+      let name = VISA_ARRIVAL_DOC.filename
+      let n = 1
+      while (used.has(name)) { name = VISA_ARRIVAL_DOC.filename.replace(/\.pdf$/i, `_${n}.pdf`); n++ }
+      used.add(name)
+      zip.file(name, await res.arrayBuffer())
+      count++
+    }
+  } catch { /* non-fatal — bundle still useful without the cover sheet */ }
+
   if (count === 0) return 0
   const content = await zip.generateAsync({ type: 'blob' })
   triggerBlobDownload(content, zipName)

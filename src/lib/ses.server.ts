@@ -9,6 +9,13 @@
  */
 import { sendGraphEmail } from "@/lib/graph-mail.server";
 
+/** A file attachment to send with an email (base64-encoded content). */
+export interface EmailAttachment {
+  filename: string;
+  contentBase64: string;
+  contentType: string;
+}
+
 export interface SendEmailOptions {
   to: string[];
   cc?: string[];
@@ -17,6 +24,7 @@ export interface SendEmailOptions {
   text: string;
   /** Optional sender mailbox override (must be accessible to the Graph app). */
   from?: string;
+  attachments?: EmailAttachment[];
 }
 
 export async function sendEmail(opts: SendEmailOptions): Promise<void> {
@@ -27,5 +35,6 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
     html: opts.html,
     text: opts.text,
     from: opts.from,
+    attachments: opts.attachments,
   });
 }

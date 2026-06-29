@@ -12,6 +12,7 @@ import { visaMonitorHandler } from './routes/api.visa.monitor'
 import { visaExportHandler } from './routes/api.visa.export'
 import { visaExcelPushHandler } from './routes/api.visa.excel-push'
 import { visaExcelSyncHandler } from './routes/api.visa.excel-sync'
+import { visaUploadArrivalDocHandler } from './routes/api.visa.upload-arrival-doc'
 import { visaPassportOcrHandler } from './routes/api.visa.passport-ocr'
 import { itTicketsNotifyHandler } from './routes/api.it-tickets.notify'
 import { internalServicesRenewalCheckHandler } from './routes/api.internal-services.renewal-check'
@@ -249,6 +250,10 @@ export default {
 
     if (url.pathname === '/api/visa/excel-sync' && (request.method === 'GET' || request.method === 'POST')) {
       return visaExcelSyncHandler(request)
+    }
+
+    if (url.pathname === '/api/visa/upload-arrival-doc' && request.method === 'POST') {
+      return visaUploadArrivalDocHandler(request)
     }
 
     if (url.pathname === '/api/visa/passport-ocr' && request.method === 'POST') {

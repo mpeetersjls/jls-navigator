@@ -68,6 +68,7 @@ export async function sendGraphEmail(opts: {
   html: string
   text?: string
   from?: string
+  attachments?: { filename: string; contentBase64: string; contentType: string }[]
 }): Promise<void> {
   const token = await getMailGraphToken()
   // General platform mail (user invites, visa reports, permits, ShipSync POD, etc.)
@@ -81,6 +82,14 @@ export async function sendGraphEmail(opts: {
     toRecipients: opts.to.filter(Boolean).map((a) => ({ emailAddress: { address: a } })),
   }
   if (opts.cc?.length) message.ccRecipients = opts.cc.filter(Boolean).map((a) => ({ emailAddress: { address: a } }))
+  if (opts.attachments?.length) {
+    message.attachments = opts.attachments.map((a) => ({
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: a.filename,
+      contentType: a.contentType,
+      contentBytes: a.contentBase64,
+    }))
+  }
 
   const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
     method: 'POST',
