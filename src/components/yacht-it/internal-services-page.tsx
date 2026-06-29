@@ -527,7 +527,7 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} Internal Service</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit" : "Add"} {isInternal ? "Internal Service" : "Client Subscription"}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5"><Label className="text-xs">Service name <span className="text-destructive">*</span></Label>
@@ -543,10 +543,12 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
                 <Input value={form.owner ?? ""} onChange={(e) => set({ owner: e.target.value || null })} className="h-8" placeholder="Responsible person" /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label className="text-xs">Yacht / Client</Label>
-                <Input value={form.yacht_name ?? ""} onChange={(e) => set({ yacht_name: e.target.value || null })} list="iserv-yachts" className="h-8" placeholder="Yacht or client name" autoComplete="off" />
-                <datalist id="iserv-yachts">{yachtList.map((y) => <option key={y} value={y} />)}</datalist></div>
-              <div className="space-y-1.5"><Label className="text-xs">Payment method</Label>
+              {!isInternal && (
+                <div className="space-y-1.5"><Label className="text-xs">Yacht / Client</Label>
+                  <Input value={form.yacht_name ?? ""} onChange={(e) => set({ yacht_name: e.target.value || null })} list="iserv-yachts" className="h-8" placeholder="Yacht or client name" autoComplete="off" />
+                  <datalist id="iserv-yachts">{yachtList.map((y) => <option key={y} value={y} />)}</datalist></div>
+              )}
+              <div className={isInternal ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}><Label className="text-xs">Payment method</Label>
                 <Select value={form.payment_method ?? "none"} onValueChange={(v) => set({ payment_method: v === "none" ? null : v })}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -613,15 +615,17 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
                 <Select value={form.status} onValueChange={(v) => set({ status: v })}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="cancelled">Cancelled</SelectItem></SelectContent></Select></div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5"><Label className="text-xs">JLS invoice no.</Label>
-                <Input value={form.jls_invoice_number ?? ""} onChange={(e) => set({ jls_invoice_number: e.target.value || null })} className="h-8" placeholder="e.g. INV-1042" /></div>
-              <div className="space-y-1.5"><Label className="text-xs">Yacht PO</Label>
-                <Input value={form.yacht_po ?? ""} onChange={(e) => set({ yacht_po: e.target.value || null })} className="h-8" placeholder="Yacht PO ref" /></div>
-              <div className="space-y-1.5"><Label className="text-xs">Yacht paid?</Label>
-                <Select value={form.yacht_paid ? "yes" : "no"} onValueChange={(v) => set({ yacht_paid: v === "yes" })}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent></Select></div>
-            </div>
+            {!isInternal && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5"><Label className="text-xs">JLS invoice no.</Label>
+                  <Input value={form.jls_invoice_number ?? ""} onChange={(e) => set({ jls_invoice_number: e.target.value || null })} className="h-8" placeholder="e.g. INV-1042" /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Yacht PO</Label>
+                  <Input value={form.yacht_po ?? ""} onChange={(e) => set({ yacht_po: e.target.value || null })} className="h-8" placeholder="Yacht PO ref" /></div>
+                <div className="space-y-1.5"><Label className="text-xs">Yacht paid?</Label>
+                  <Select value={form.yacht_paid ? "yes" : "no"} onValueChange={(v) => set({ yacht_paid: v === "yes" })}><SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="no">No</SelectItem><SelectItem value="yes">Yes</SelectItem></SelectContent></Select></div>
+              </div>
+            )}
             <div className="space-y-1.5"><Label className="text-xs">Notes</Label>
               <Textarea value={form.notes ?? ""} onChange={(e) => set({ notes: e.target.value || null })} rows={2} className="resize-none text-sm" /></div>
           </div>
