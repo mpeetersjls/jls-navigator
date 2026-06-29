@@ -17,10 +17,12 @@ const TABS = [
   { key: "service-desk", label: "Service Desk", icon: Headset, Comp: ServiceDeskPage },
   { key: "it-yachts", label: "IT Yachts", icon: Ship, Comp: ItYachtsPage },
   { key: "licensing", label: "Licensing", icon: KeyRound, Comp: LicensingPage },
-  // Contracts = per-yacht client IT support contracts (yacht_it_contracts).
-  { key: "contracts", label: "Contracts", icon: FileText, Comp: YachtItPage },
-  // Internal Services = JLS Yachts LLC's own bills/subscriptions (internal_services).
-  { key: "internal", label: "Internal Services", icon: Boxes, Comp: InternalServicesPage },
+  // Client Subscriptions and Services — the client services/subscriptions register
+  // (internal_services table). The former IT-support contracts were migrated here.
+  { key: "client", label: "Client Subscriptions and Services", icon: FileText, Comp: InternalServicesPage },
+  // JLS Yachts Internal Services — JLS Yachts LLC's own bills/subscriptions
+  // (yacht_it_contracts table, now empty after the move).
+  { key: "internal", label: "JLS Yachts Internal Services", icon: Boxes, Comp: YachtItPage },
 ] as const;
 
 export function YachtItSolutionsPage() {

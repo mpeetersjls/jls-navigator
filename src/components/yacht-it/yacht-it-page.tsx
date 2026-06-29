@@ -279,7 +279,7 @@ export function YachtItPage() {
             <div className="text-xs text-muted-foreground">Yacht IT Solutions</div>
             <h1 className="font-display text-xl font-semibold tracking-tight flex items-center gap-2">
               <Monitor className="h-5 w-5 text-primary" />
-              Contracts
+              JLS Yachts Internal Services
             </h1>
           </div>
           <Button onClick={openNew} size="sm" className="gap-1.5">

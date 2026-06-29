@@ -338,7 +338,7 @@ export function InternalServicesPage() {
       <header className="flex items-center justify-between border-b border-border/70 bg-card/30 px-6 py-3.5">
         <div>
           <div className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">Yacht IT Solutions</div>
-          <h1 className="mt-0.5 font-display text-[1.25rem] font-semibold tracking-tight">Internal Services &amp; Subscriptions</h1>
+          <h1 className="mt-0.5 font-display text-[1.25rem] font-semibold tracking-tight">Client Subscriptions and Services</h1>
         </div>
         <Button size="sm" onClick={openNew} className="h-9 gap-1.5 px-3.5 font-medium shadow-sm"><Plus className="h-3.5 w-3.5" /> Add Service</Button>
       </header>
