@@ -32,6 +32,7 @@ export function LeoPanel({ token, userName, onReady }: LeoPanelProps) {
     if (didFetch.current) return
     didFetch.current = true
     streamBriefing()
+    return () => { didFetch.current = false }
   }, [])
 
   async function streamBriefing() {
