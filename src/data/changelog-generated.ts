@@ -10,6 +10,14 @@ export const GENERATED_RELEASES: Release[] = [
     "entries": [
       {
         "type": "feature",
+        "title": "Make New View (Polaris redesign) the default; label legacy as Old View"
+      },
+      {
+        "type": "feature",
+        "title": "Beta view — crew profile embed, Leo migration, deploy banner"
+      },
+      {
+        "type": "feature",
         "title": "PhoneNumberField component — flag dropdown + intelligent default (ticket #198)"
       },
       {
