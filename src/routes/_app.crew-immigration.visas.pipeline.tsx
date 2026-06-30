@@ -17,8 +17,9 @@ export const Route = createFileRoute('/_app/crew-immigration/visas/pipeline')({
   head: () => ({ meta: [{ title: 'UAE Visa Pipeline — Polaris' }] }),
 })
 
-// Real columns: `visa_expiry` / `visa_issuance_date`. The flag system (migration
-// 038) is not deployed to this project, so urgency is days-to-expiry derived.
+// Real columns: `visa_expiry` / `visa_issuance_date`. The expiry-flag system
+// (migrations 038/039) is deployed; this list shows days-to-expiry for an at-a-glance
+// view, while the flag engine drives working-day thresholds + notifications.
 interface PipelineRow {
   id: string
   status: string

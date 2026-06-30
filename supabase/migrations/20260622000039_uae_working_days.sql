@@ -34,6 +34,7 @@ CREATE OR REPLACE FUNCTION public.working_days_until(target_date date)
 RETURNS int
 LANGUAGE sql
 STABLE
+SET search_path = ''
 AS $$
   SELECT COUNT(*)::int
   FROM generate_series(CURRENT_DATE, target_date - INTERVAL '1 day', INTERVAL '1 day') AS d(day)
