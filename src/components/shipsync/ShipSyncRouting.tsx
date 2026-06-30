@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Ship, Truck, MapPin, Route, X, Package as PackageIcon, Anchor, Search } from "lucide-react";
 import { StatusBadge } from "@/components/shipsync/shared";
@@ -16,7 +15,7 @@ export function ShipSyncRouting({ data, reload }: { data: ShipSyncData; reload: 
   const [driverByBoat, setDriverByBoat] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [boatQuery, setBoatQuery] = useState("");
+  const [boatFilter, setBoatFilter] = useState<string>("all");
 
   const destByBoat = useMemo(() => {
     const m = new Map<string, ShipSyncDestination>();
@@ -41,12 +40,11 @@ export function ShipSyncRouting({ data, reload }: { data: ShipSyncData; reload: 
     return Array.from(groups.entries()).sort((a, b) => (a[0] === UNASSIGNED ? 1 : b[0] === UNASSIGNED ? -1 : a[0].localeCompare(b[0])));
   }, [unrouted]);
 
-  // Filter boat groups by the search box (matches the boat name).
+  // Filter boat groups by the selected boat in the dropdown.
   const visibleGroups = useMemo(() => {
-    const q = boatQuery.trim().toLowerCase();
-    if (!q) return boatGroups;
-    return boatGroups.filter(([boat]) => boat.toLowerCase().includes(q));
-  }, [boatGroups, boatQuery]);
+    if (boatFilter === "all") return boatGroups;
+    return boatGroups.filter(([boat]) => boat === boatFilter);
+  }, [boatGroups, boatFilter]);
 
   // Driver runs: parcels already routed and out the door, grouped by driver.
   const driverRuns = useMemo(() => {
@@ -124,9 +122,18 @@ export function ShipSyncRouting({ data, reload }: { data: ShipSyncData; reload: 
           <Route className="h-4 w-4 text-primary" />
           <h2 className="font-display text-base font-semibold">To route</h2>
           <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{unrouted.length} parcel{unrouted.length === 1 ? "" : "s"}</span>
-          <div className="relative ml-auto w-56">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input value={boatQuery} onChange={(e) => setBoatQuery(e.target.value)} placeholder="Search by boat…" className="h-8 pl-8 text-sm" />
+          <div className="ml-auto">
+            <Select value={boatFilter} onValueChange={setBoatFilter}>
+              <SelectTrigger className="h-8 w-56 text-sm">
+                <span className="flex items-center gap-2"><Search className="h-3.5 w-3.5 text-muted-foreground" /><SelectValue /></span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All boats ({boatGroups.length})</SelectItem>
+                {boatGroups.map(([boat, parcels]) => (
+                  <SelectItem key={boat} value={boat}>{boat === UNASSIGNED ? "No boat set" : boat} ({parcels.length})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -137,7 +144,7 @@ export function ShipSyncRouting({ data, reload }: { data: ShipSyncData; reload: 
           </div>
         ) : visibleGroups.length === 0 ? (
           <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
-            No boats match “{boatQuery}”.
+            No parcels waiting for {boatFilter === UNASSIGNED ? "boats without a name" : boatFilter}.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
