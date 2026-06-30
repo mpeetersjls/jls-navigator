@@ -1,10 +1,18 @@
 /**
  * Phone API
  *
- * GET  /api/phone/countries       — full ITU country list (cached, static)
- * GET  /api/phone/default-country — context-aware default for current user
- * POST /api/phone/validate        — server-side number validation
+ * Legacy (old phone-input.tsx):
+ *   GET  /api/phone/countries       — full ITU country list (cached, static)
+ *   GET  /api/phone/default-country — context-aware default for current user
+ *   POST /api/phone/validate        — server-side number validation
+ *
+ * Ticket #198 (PhoneNumberField — DB-backed, country_dial_codes table):
+ *   GET  /api/phone/resolve-default — country list + intelligent default
+ *   POST /api/phone/save            — persist selection + analytics
  */
+
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { persistPhoneSelection } from '@/lib/phone/persistPhoneSelection'
 
 // ── Country data ─────────────────────────────────────────────────────────────
 // UAE is pinned first; remaining entries are alphabetical.
@@ -159,15 +167,142 @@ function applyFormat(digits: string, format: string): string {
   return format.replace(/X/g, () => digits[i++] ?? '').trimEnd()
 }
 
+// ── Ticket #198: DB-backed resolve-default + save (country_dial_codes table) ──
+
+function admin(): SupabaseClient {
+  return createClient(
+    process.env.SUPABASE_URL ?? '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
+    { auth: { persistSession: false } },
+  )
+}
+
+interface DialCodeRow {
+  country_code: string; dial_code: string; flag_emoji: string | null; country_name: string
+  min_length: number; max_length: number; local_format_regex: string | null
+  is_popular: boolean; sort_order: number | null
+}
+
+function toDialOption(r: DialCodeRow) {
+  return {
+    countryCode: r.country_code, dialCode: r.dial_code, flagEmoji: r.flag_emoji,
+    countryName: r.country_name, minLength: r.min_length, maxLength: r.max_length,
+    localFormatRegex: r.local_format_regex, isPopular: r.is_popular, sortOrder: r.sort_order ?? 0,
+  }
+}
+
+async function loadDialCodes(sb: SupabaseClient): Promise<DialCodeRow[]> {
+  const { data, error } = await sb
+    .from('country_dial_codes')
+    .select('country_code, dial_code, flag_emoji, country_name, min_length, max_length, local_format_regex, is_popular, sort_order')
+    .order('is_popular', { ascending: false })
+    .order('sort_order', { ascending: true })
+    .order('country_name', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data ?? []) as DialCodeRow[]
+}
+
+// GET /api/phone/resolve-default — country list + intelligent default
+async function handleResolveDefault(request: Request): Promise<Response> {
+  const url = new URL(request.url)
+  const nationalityCountry    = url.searchParams.get('nationalityCountry')
+  const vesselLocationCountry = url.searchParams.get('vesselLocationCountry')
+  const orgLocationCountry    = url.searchParams.get('orgLocationCountry')
+  const crewMemberId          = url.searchParams.get('crewMemberId')
+  const guestToken            = request.headers.get('X-Guest-Token')
+
+  const sb = admin()
+  let rows: DialCodeRow[]
+  try { rows = await loadDialCodes(sb) }
+  catch (e: any) { return json({ error: 'Failed to load country list', detail: e?.message }, 500) }
+
+  const countries = rows.map(toDialOption)
+  const byIso  = new Map(countries.map((c) => [c.countryCode, c]))
+  const byName = new Map(countries.map((c) => [c.countryName.toLowerCase(), c]))
+
+  // Resolve a context value (ISO code or country name) to a known ISO code.
+  const toIso = (v: string | null): string | null => {
+    if (!v) return null
+    const up = v.trim().toUpperCase()
+    if (byIso.has(up)) return up
+    return byName.get(v.trim().toLowerCase())?.countryCode ?? null
+  }
+
+  let countryCode: string | null = null
+  let source = 'none'
+
+  // 1. last_used — most recent saved selection for this crew member / guest
+  if (crewMemberId) {
+    const { data } = await sb.from('phone_country_selection_log')
+      .select('final_country_code').eq('crew_member_id', crewMemberId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle()
+    const iso = (data as any)?.final_country_code
+    if (iso && byIso.has(iso)) { countryCode = iso; source = 'last_used' }
+  } else if (guestToken) {
+    const { data } = await sb.from('guest_phone_country_prefs')
+      .select('country_code').eq('guest_token', guestToken).maybeSingle()
+    const iso = (data as any)?.country_code
+    if (iso && byIso.has(iso)) { countryCode = iso; source = 'last_used' }
+  }
+
+  // 2. nationality  3. vessel_location  4. org_location
+  for (const [val, src] of [
+    [nationalityCountry, 'nationality'],
+    [vesselLocationCountry, 'vessel_location'],
+    [orgLocationCountry, 'org_location'],
+  ] as const) {
+    if (countryCode) break
+    const iso = toIso(val)
+    if (iso) { countryCode = iso; source = src }
+  }
+
+  const dialCode = countryCode ? byIso.get(countryCode)?.dialCode ?? null : null
+  return json({ defaultCountryCode: countryCode, defaultDialCode: dialCode, defaultSource: source, countries })
+}
+
+// POST /api/phone/save — persist selection + analytics (used by guest/edit flows)
+async function handleSave(request: Request): Promise<Response> {
+  let body: any
+  try { body = await request.json() } catch { return json({ error: 'Invalid JSON' }, 400) }
+  if (!body?.finalCountryCode || body?.finalLocalNumber === undefined) {
+    return json({ error: 'finalCountryCode and finalLocalNumber are required' }, 400)
+  }
+
+  const sb = admin()
+  const { data: rule } = await sb.from('country_dial_codes')
+    .select('country_code, dial_code, min_length, max_length, local_format_regex')
+    .eq('country_code', String(body.finalCountryCode).toUpperCase()).maybeSingle()
+
+  const result = await persistPhoneSelection({
+    finalCountryCode:      body.finalCountryCode,
+    finalLocalNumber:      String(body.finalLocalNumber),
+    suggestedCountryCode:  body.suggestedCountryCode ?? null,
+    suggestedSource:       body.suggestedSource ?? null,
+    crewMemberId:          body.crewMemberId ?? null,
+    guestToken:            request.headers.get('X-Guest-Token'),
+    nationalityCountry:    body.nationalityCountry ?? null,
+    vesselLocationCountry: body.vesselLocationCountry ?? null,
+    validationRule: rule ? {
+      countryCode: (rule as any).country_code, dialCode: (rule as any).dial_code,
+      minLength: (rule as any).min_length, maxLength: (rule as any).max_length,
+      localFormatRegex: (rule as any).local_format_regex,
+    } : null,
+    supabase: sb,
+  })
+  return json(result, result.success ? 200 : 400)
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 export async function phoneHandler(request: Request): Promise<Response> {
   const url  = new URL(request.url)
   const sub  = url.pathname.replace('/api/phone', '').replace(/\/$/, '')
 
-  if (sub === '/countries'      && request.method === 'GET')  return handleCountries()
-  if (sub === '/default-country' && request.method === 'GET') return handleDefaultCountry()
-  if (sub === '/validate'       && request.method === 'POST') return handleValidate(request)
+  if (sub === '/countries'       && request.method === 'GET')  return handleCountries()
+  if (sub === '/default-country' && request.method === 'GET')  return handleDefaultCountry()
+  if (sub === '/validate'        && request.method === 'POST') return handleValidate(request)
+  if (sub === '/resolve-default' && request.method === 'GET')  return handleResolveDefault(request)
+  if (sub === '/save'            && request.method === 'POST') return handleSave(request)
 
   return json({ error: 'Not found' }, 404)
 }
