@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { COLORS, FONTS } from '@/lib/tokens'
+import { VisaOccupationSelect } from '@/components/visa/VisaOccupationSelect'
 import { formatName } from '@/lib/formatName'
 import type {
   AdditionalInfoFields, AdditionalInfoField, FieldState,
@@ -644,15 +645,10 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
             field={fields.occupation}
             onConfirm={() => confirmField('occupation')}
           >
-            <select
-              style={{ ...inputStyle(fields.occupation), appearance: 'none' }}
-              value={fields.occupation.value}
-              onChange={e => setField('occupation', e.target.value)}
-            >
-              <option value="">Select…</option>
-              <option value="Captain">Captain</option>
-              <option value="Seaman">Seaman</option>
-            </select>
+            <VisaOccupationSelect
+              value={fields.occupation.value || null}
+              onChange={v => setField('occupation', v)}
+            />
           </ConfirmFieldWrapper>
         </div>
       </div>
