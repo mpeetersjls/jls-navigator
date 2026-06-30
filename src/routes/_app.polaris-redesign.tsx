@@ -31,6 +31,7 @@ import { YachtItSolutionsPage } from "@/components/yacht-it/yacht-it-solutions-p
 import { ImmigrationHub } from "@/components/crew-immigration/immigration-hub";
 import { VesselsHub } from "@/components/vessels/vessels-hub";
 import { CrewListPage } from "@/components/crew-immigration/crew-list-page";
+import { CrewProfilePage } from "@/components/crew-immigration/crew-profile-page";
 import { AnchorPage } from "@/components/anchor/anchor-page";
 import { ShipSyncPage } from "@/components/shipsync-page";
 import { FinancePage } from "@/components/finance/finance-page";
@@ -102,8 +103,10 @@ function PolarisRedesignApp() {
 
   return (
     <ToastProvider>
-      {/* ── Leo floating panel — fixed bottom-right, outside shell flow ── */}
-      {leoToken && (
+      {/* ── Leo floating panel — fixed bottom-right, outside shell flow ──
+           Hidden on the dashboard, where Leo greets inline as the morning brief.
+           This avoids mounting two LeoPanels (= two /api/leo/briefing calls). ── */}
+      {leoToken && screen !== "dashboard" && (
         <div
           style={{
             position:  "fixed",
@@ -184,10 +187,12 @@ function PolarisRedesignApp() {
             yacht={yacht}
             onSwitchVessel={() => setSwitcher(true)}
             onOpenReports={() => setScreen("visa-reports")}
+            leoToken={leoToken}
+            userName={user?.email ?? ""}
           />
         ) : screen === "crew" ? (
           <div style={{ height: "100%" }}>
-            <CrewListPage />
+            <BetaCrewScreen />
           </div>
         ) : screen === "compliance" ? (
           <PolarisCompliance
@@ -248,5 +253,16 @@ function PolarisRedesignApp() {
         )}
       </PolarisShell>
     </ToastProvider>
+  );
+}
+
+/** Crew screen for the Beta shell: list ↔ profile via local state, so viewing a
+ *  crew profile stays inside the Beta view instead of routing to /_app. */
+function BetaCrewScreen() {
+  const [crewId, setCrewId] = useState<string | null>(null);
+  return crewId ? (
+    <CrewProfilePage crewId={crewId} embedded onBack={() => setCrewId(null)} />
+  ) : (
+    <CrewListPage onOpenCrew={setCrewId} />
   );
 }

@@ -22,6 +22,21 @@ import { dirname, resolve } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUT = resolve(__dirname, '../src/data/changelog-generated.ts')
+const VERSION_OUT = resolve(__dirname, '../public/version.json')
+
+// Build identity — served at /version.json and injected into the bundle as
+// __BUILD_ID__ (see vite.config.ts). The DeployWatcher compares the two: when a
+// new deploy changes /version.json but the running bundle still has the old id,
+// it shows the "new version available" banner. Build id = commit sha + build time.
+function writeVersion() {
+  let sha = 'dev'
+  try { sha = execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim() || 'dev' } catch { /* no git */ }
+  const builtAt = new Date().toISOString()
+  const buildId = `${sha}-${Date.parse(builtAt)}`
+  mkdirSync(dirname(VERSION_OUT), { recursive: true })
+  writeFileSync(VERSION_OUT, JSON.stringify({ buildId, sha, builtAt }, null, 2) + '\n', 'utf8')
+  console.log(`[version] wrote build id ${buildId} → ${VERSION_OUT}`)
+}
 
 // The newest CURATED release in changelog-page.tsx. Generated entries cover
 // everything committed after it, versioned upward from here.
@@ -117,6 +132,8 @@ function main() {
   mkdirSync(dirname(OUT), { recursive: true })
   writeFileSync(OUT, header + body + ';\n', 'utf8')
   console.log(`[changelog] generated ${releases.length} release(s) from commits since ${SINCE} → ${OUT}`)
+
+  writeVersion()
 }
 
 main()

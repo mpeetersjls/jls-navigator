@@ -5,6 +5,7 @@ import { TopBar } from "@/components/top-bar";
 import { ViewAsBanner } from "@/components/view-as-banner";
 import { RecentTabsBar } from "@/components/recent-tabs-bar";
 import { LeoBubble } from "@/components/leo-bubble";
+import { DeployWatcher } from "@/components/deploy-watcher";
 import { WorkingIndicator } from "@/components/working-indicator";
 import { useAuth } from "@/lib/auth";
 import { recordVisit, getLastRoute } from "@/lib/recent-tabs";
@@ -56,11 +57,17 @@ export function AppLayout() {
   // (top bar + side nav), so we drop the standard app chrome behind it. The
   // "Original" button inside the redesign navigates back to /dashboard.
   if (location.pathname.startsWith("/polaris-redesign")) {
-    return <Outlet />;
+    return (
+      <>
+        <DeployWatcher />
+        <Outlet />
+      </>
+    );
   }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
+      <DeployWatcher />
       <AppSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />

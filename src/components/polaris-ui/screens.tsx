@@ -25,6 +25,7 @@ import {
   type BadgeVariant,
 } from "./primitives";
 import { ConfirmModal, useToast } from "./feedback";
+import { LeoPanel } from "@/components/leo/LeoPanel";
 import {
   useVesselVisaData,
   useVesselMovements,
@@ -205,10 +206,15 @@ export function PolarisDashboard({
   yacht,
   onSwitchVessel,
   onOpenReports,
+  leoToken,
+  userName,
 }: {
   yacht: YachtOption | null;
   onSwitchVessel: () => void;
   onOpenReports: () => void;
+  /** Leo morning-brief greeting on the dashboard (Beta). */
+  leoToken?: string;
+  userName?: string;
 }) {
   const { loading, rows, counts } = useVesselVisaData(yacht?.id ?? null);
   const { rows: reports, reload: reloadReports } = useReportLog(
@@ -262,6 +268,13 @@ export function PolarisDashboard({
           </>
         }
       />
+
+      {/* Leo morning brief — greets the user on the Beta dashboard */}
+      {leoToken && (
+        <div style={{ marginBottom: 16 }}>
+          <LeoPanel token={leoToken} userName={userName ?? ""} />
+        </div>
+      )}
 
       {/* Stat cards */}
       <SectionLabel>Fleet status — {yacht?.vessel_name ?? "—"}</SectionLabel>

@@ -70,7 +70,7 @@ const EMPTY_FORM = {
   yacht_id: "",
 };
 
-export function CrewListPage() {
+export function CrewListPage({ onOpenCrew }: { onOpenCrew?: (id: string) => void } = {}) {
   const { user } = useAuth();
   const [crew, setCrew] = useState<CrewMember[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
@@ -352,10 +352,17 @@ export function CrewListPage() {
                           {m.first_name[0]}{m.last_name[0]}
                         </div>
                         <div>
-                          <Link to={"/crew-immigration/crew/$id" as any} params={{ id: m.id } as any}
-                            className="font-semibold text-foreground hover:text-primary hover:underline">
-                            {m.first_name} {m.last_name}
-                          </Link>
+                          {onOpenCrew ? (
+                            <button type="button" onClick={() => onOpenCrew(m.id)}
+                              className="font-semibold text-foreground hover:text-primary hover:underline text-left">
+                              {m.first_name} {m.last_name}
+                            </button>
+                          ) : (
+                            <Link to={"/crew-immigration/crew/$id" as any} params={{ id: m.id } as any}
+                              className="font-semibold text-foreground hover:text-primary hover:underline">
+                              {m.first_name} {m.last_name}
+                            </Link>
+                          )}
                           {m.nationality && <div className="text-[11px] text-muted-foreground">{m.nationality}</div>}
                         </div>
                       </div>
@@ -380,9 +387,15 @@ export function CrewListPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="View profile" asChild>
-                          <Link to={"/crew-immigration/crew/$id" as any} params={{ id: m.id } as any}><UserCircle2 className="h-3.5 w-3.5" /></Link>
-                        </Button>
+                        {onOpenCrew ? (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="View profile" onClick={() => onOpenCrew(m.id)}>
+                            <UserCircle2 className="h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-primary" title="View profile" asChild>
+                            <Link to={"/crew-immigration/crew/$id" as any} params={{ id: m.id } as any}><UserCircle2 className="h-3.5 w-3.5" /></Link>
+                          </Button>
+                        )}
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={() => openEdit(m)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>

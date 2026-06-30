@@ -65,8 +65,22 @@ const titleCase = (s: string | null | undefined) =>
   s ? s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "—";
 const isSoon = (d: string | null, days = 90) => !!d && new Date(d) < new Date(Date.now() + days * 86400000);
 
-export function CrewProfilePage() {
-  const { id } = useParams({ from: "/_app/crew-immigration/crew/$id" });
+export function CrewProfilePage({
+  crewId,
+  embedded = false,
+  onBack,
+  onOpenVisa,
+}: {
+  /** When provided, used instead of the route param (Beta-embedded mode). */
+  crewId?: string;
+  /** Embedded inside the Beta shell — replaces route navigation with callbacks. */
+  embedded?: boolean;
+  onBack?: () => void;
+  onOpenVisa?: (visaId: string) => void;
+} = {}) {
+  // strict:false so this works both on its own route and embedded in the Beta shell.
+  const params = useParams({ strict: false }) as { id?: string };
+  const id = crewId ?? params.id!;
   const [crew, setCrew] = useState<CrewMember | null>(null);
   const [passports, setPassports] = useState<Passport[]>([]);
   const [visas, setVisas] = useState<Visa[]>([]);
@@ -143,7 +157,9 @@ export function CrewProfilePage() {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <UserCircle2 className="h-10 w-10 text-muted-foreground/40" />
         <p className="font-display text-base font-semibold">Crew member not found</p>
-        <Button variant="outline" asChild><Link to={"/crew-immigration/crew" as any}><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to crew list</Link></Button>
+        {embedded
+          ? <Button variant="outline" onClick={onBack}><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to crew list</Button>
+          : <Button variant="outline" asChild><Link to={"/crew-immigration/crew" as any}><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to crew list</Link></Button>}
       </div>
     );
   }
@@ -159,9 +175,15 @@ export function CrewProfilePage() {
       {/* Header */}
       <header className="flex items-center justify-between border-b border-border/70 bg-card/30 px-6 py-3.5">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
-            <Link to={"/crew-immigration/crew" as any}><ArrowLeft className="h-4 w-4" /></Link>
-          </Button>
+          {embedded ? (
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" asChild>
+              <Link to={"/crew-immigration/crew" as any}><ArrowLeft className="h-4 w-4" /></Link>
+            </Button>
+          )}
           <div>
             <div className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">Polaris / Crew & Immigration / Profile</div>
             <h1 className="mt-0.5 font-display text-[1.25rem] font-semibold tracking-tight">{crew.full_name || `${crew.first_name} ${crew.last_name}`}</h1>
@@ -190,7 +212,7 @@ export function CrewProfilePage() {
                 </span>
               </div>
               <dl className="mt-5 space-y-2.5 text-sm">
-                <Row label="Vessel" value={yachtName || "—"} href={crew.yacht_id ? `/yachts/${crew.yacht_id}` : undefined} />
+                <Row label="Vessel" value={yachtName || "—"} href={crew.yacht_id ? `/yachts/${crew.yacht_id}` : undefined} embedded={embedded} />
                 <Row label="Nationality" value={crew.nationality ?? "—"} />
                 <Row label="Date of birth" value={fmt(crew.date_of_birth)} />
                 <Row label="Gender" value={titleCase(crew.gender)} />
@@ -205,7 +227,7 @@ export function CrewProfilePage() {
             <div className="rounded-xl border border-border bg-card p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.4)]">
               <h3 className="mb-3 flex items-center gap-2 font-display text-sm font-semibold"><BookUser className="h-4 w-4 text-primary" /> Travel Documents</h3>
               <dl className="space-y-2.5 text-sm">
-                <Row label="Passport no." value={crew.passport_number ?? passports[0]?.passport_number ?? "—"} mono href={`/crew-immigration/crew/add/${crew.id}/passport`} />
+                <Row label="Passport no." value={crew.passport_number ?? passports[0]?.passport_number ?? "—"} mono href={`/crew-immigration/crew/add/${crew.id}/passport`} embedded={embedded} />
                 <Row label="Passport expiry" value={fmt(crew.passport_expiry_date ?? passports[0]?.expiry_date)} warn={isSoon(crew.passport_expiry_date ?? passports[0]?.expiry_date ?? null)} />
                 <Row label="Seaman's book" value={crew.seamans_book_number ?? "—"} mono />
                 <Row label="Book expiry" value={fmt(crew.seamans_book_expiry)} warn={isSoon(crew.seamans_book_expiry)} />
@@ -246,16 +268,29 @@ export function CrewProfilePage() {
                 <div className="divide-y divide-border/50">
                   {visas.map((v) => (
                     <div key={v.id} className="flex items-center gap-3 py-3 -mx-2 px-2 rounded-md transition-colors hover:bg-accent/20">
-                      <Link to={"/crew-immigration/visas/$id" as any} params={{ id: v.id } as any} className="min-w-0 flex-1">
-                        <div className="flex items-center text-sm font-medium">
-                          {v.destination_country ?? "—"}{v.visa_type ? ` · ${v.visa_type}` : ""}
-                          {matchBadge(v._match)}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-muted-foreground">
-                          {v.jls_reference ? `${v.jls_reference} · ` : ""}{v.visa_number ? `No. ${v.visa_number} · ` : ""}
-                          {v.visa_expiry ? <>Expires <span className={cn(isSoon(v.visa_expiry) && "text-amber-400")}>{fmt(v.visa_expiry)}</span></> : "No expiry recorded"}
-                        </div>
-                      </Link>
+                      {(() => {
+                        const inner = (
+                          <>
+                            <div className="flex items-center text-sm font-medium">
+                              {v.destination_country ?? "—"}{v.visa_type ? ` · ${v.visa_type}` : ""}
+                              {matchBadge(v._match)}
+                            </div>
+                            <div className="mt-0.5 text-[11px] text-muted-foreground">
+                              {v.jls_reference ? `${v.jls_reference} · ` : ""}{v.visa_number ? `No. ${v.visa_number} · ` : ""}
+                              {v.visa_expiry ? <>Expires <span className={cn(isSoon(v.visa_expiry) && "text-amber-400")}>{fmt(v.visa_expiry)}</span></> : "No expiry recorded"}
+                            </div>
+                          </>
+                        );
+                        return embedded ? (
+                          <button type="button" onClick={() => onOpenVisa?.(v.id)} className="min-w-0 flex-1 text-left">
+                            {inner}
+                          </button>
+                        ) : (
+                          <Link to={"/crew-immigration/visas/$id" as any} params={{ id: v.id } as any} className="min-w-0 flex-1">
+                            {inner}
+                          </Link>
+                        );
+                      })()}
                       {v._match && v._match !== "linked" && (
                         <Button variant="outline" size="sm" className="h-7 shrink-0 gap-1 text-[11px]"
                           onClick={() => linkVisa(v.id)} title="Confirm this visa belongs to this crew member">
@@ -321,8 +356,9 @@ export function CrewProfilePage() {
   );
 }
 
-function Row({ label, value, mono, warn, href }: { label: string; value: string; mono?: boolean; warn?: boolean; href?: string }) {
-  const clickable = href && value && value !== "—";
+function Row({ label, value, mono, warn, href, embedded }: { label: string; value: string; mono?: boolean; warn?: boolean; href?: string; embedded?: boolean }) {
+  // In embedded (Beta) mode, cross-module hrefs would break out of the shell — render plain.
+  const clickable = href && value && value !== "—" && !embedded;
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="text-[11px] uppercase tracking-wide text-muted-foreground/70">{label}</dt>

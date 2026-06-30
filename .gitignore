@@ -12,6 +12,9 @@ node_modules/
 # Build output
 dist/
 
+# Generated build identity (written by scripts/generate-changelog.mjs on every build)
+public/version.json
+
 # Wrangler
 .wrangler/
 
