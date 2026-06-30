@@ -260,12 +260,24 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
       const religionRaw  = pi.religion ?? ''
       const isOtherRelig = religionRaw && !['Christianity','Islam','Muslim','Hinduism','Buddhism','Judaism','None / prefer not to say'].includes(religionRaw)
 
+      // Occupation (UAE visa category) is derived from the crew member's rank/position:
+      // a captain/master rank → Captain; every other position → Seaman. Only auto-set
+      // when nothing is already stored, so a manual choice is never overwritten.
+      const derivedOccupation = (() => {
+        if (pi.occupation) return null
+        const r = (pi.rank ?? '').trim().toLowerCase()
+        if (!r) return null
+        return /capt|master|skipper|commander|commodore/.test(r) ? 'captain' : 'seaman'
+      })()
+
       setFields({
         nationalityCitizenship: makeField('nationalityCitizenship', pi.nationalityCitizenship, ocr?.nationality),
         countryOfBirth:         makeField('countryOfBirth',         pi.countryOfBirth,         ocr?.countryOfBirth),
         gender:                 makeField('gender',                  pi.gender,                 ocr?.gender),
         placeOfBirth:           makeField('placeOfBirth',           pi.placeOfBirth,           ocr?.placeOfBirth),
-        occupation:             makeField('occupation',             pi.occupation,              null),
+        occupation:             derivedOccupation
+                                  ? { value: derivedOccupation, state: 'ocr_auto' as FieldState }
+                                  : makeField('occupation', pi.occupation, null),
         maritalStatus:          { value: pi.maritalStatus      ?? '', state: 'manual' },
         nativeLanguage:         { value: pi.nativeLanguage     ?? '', state: 'manual' },
         mothersMaidenName:      { value: pi.mothersMaidenName  ?? '', state: 'manual' },
@@ -344,7 +356,7 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
       return 'Please confirm the highlighted fields before continuing.'
     }
 
-    if (fields.occupation.value && !['Captain', 'Seaman'].includes(fields.occupation.value)) {
+    if (fields.occupation.value && !['captain', 'seaman'].includes(fields.occupation.value.toLowerCase())) {
       return 'Occupation must be Captain or Seaman.'
     }
 

@@ -52,6 +52,7 @@ export interface PersonalInfoApiResponse {
   maritalStatus:           string | null
   nativeLanguage:          string | null
   occupation:              string | null
+  rank:                    string | null  // crew member's position — drives the visa occupation (Captain/Seaman)
   mothersMaidenName:       string | null
   fathersFullName:         string | null
   religion:                string | null
