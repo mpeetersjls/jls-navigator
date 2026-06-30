@@ -7,7 +7,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { LeoPanel } from "@/components/leo/LeoPanel";
+import { LeoChat } from "@/components/leo/LeoChat";
 import "@/components/polaris-ui/tokens.css";
 import { PolarisShell, type PolarisRole } from "@/components/polaris-ui/shell";
 import { ToastProvider } from "@/components/polaris-ui/feedback";
@@ -103,10 +103,10 @@ function PolarisRedesignApp() {
 
   return (
     <ToastProvider>
-      {/* ── Leo floating panel — fixed bottom-right, outside shell flow ──
-           Hidden on the dashboard, where Leo greets inline as the morning brief.
-           This avoids mounting two LeoPanels (= two /api/leo/briefing calls). ── */}
-      {leoToken && screen !== "dashboard" && (
+      {/* ── Leo floating agent — fixed bottom-right, outside shell flow ──
+           This is the ASK-LEO chat (not the briefing). The morning brief lives
+           inline on the dashboard; here the user types questions about the app. ── */}
+      {leoToken && (
         <div
           style={{
             position:  "fixed",
@@ -122,8 +122,8 @@ function PolarisRedesignApp() {
           }}
         >
           {leoOpen && (
-            <div style={{ width: "100%", marginBottom: 0 }}>
-              <LeoPanel
+            <div style={{ width: "100%", height: "min(70vh, 520px)", marginBottom: 0 }}>
+              <LeoChat
                 token={leoToken}
                 userName={user?.email ?? ""}
               />

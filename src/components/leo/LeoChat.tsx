@@ -13,13 +13,17 @@ interface Message {
 interface LeoChatProps {
   token:       string
   userName:    string
-  /** Initial assistant message — the briefing text */
-  briefingText: string
+  /** Initial assistant message. Optional — when omitted (floating chat), Leo
+   *  opens with a short greeting instead of a full briefing. */
+  briefingText?: string
 }
+
+const DEFAULT_GREETING =
+  "Hi, I'm Leo. Ask me anything about your fleet, crew, visas, permits, or day-to-day operations — I'll answer from what's in Polaris."
 
 export function LeoChat({ token, userName, briefingText }: LeoChatProps) {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: briefingText },
+    { role: 'assistant', content: briefingText ?? DEFAULT_GREETING },
   ])
   const [input,     setInput]     = useState('')
   const [streaming, setStreaming] = useState(false)
@@ -112,6 +116,7 @@ export function LeoChat({ token, userName, briefingText }: LeoChatProps) {
         border:        `1px solid ${COLORS.deep}`,
         borderRadius:  8,
         overflow:      'hidden',
+        height:        '100%',
         minHeight:     300,
       }}
     >
