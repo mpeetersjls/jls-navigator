@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "Dev Server",
-      "runtimeExecutable": "C:\\Github\\jls-navigator\\start-dev.cmd",
-      "runtimeArgs": [],
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "--port", "5173"],
       "port": 5173
     },
     {

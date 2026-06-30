@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
-import { Loader2, Package, Truck, Warehouse, Users, BarChart3, Smartphone, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Loader2, Package, Truck, Warehouse, Users, BarChart3, Smartphone, ArrowDownToLine, ArrowUpFromLine, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   loadPackages, loadDrivers, loadNotes, loadDestinations,
@@ -10,6 +10,7 @@ import type {
 } from "@/lib/shipsync/model";
 import { ShipSyncPackages } from "@/components/shipsync/ShipSyncPackages";
 import { ShipSyncDispatch } from "@/components/shipsync/ShipSyncDispatch";
+import { ShipSyncRouting } from "@/components/shipsync/ShipSyncRouting";
 import { ShipSyncWarehouse } from "@/components/shipsync/ShipSyncWarehouse";
 import { ShipSyncDrivers } from "@/components/shipsync/ShipSyncDrivers";
 import { ShipSyncDashboard } from "@/components/shipsync/ShipSyncDashboard";
@@ -27,6 +28,7 @@ const TABS = [
   { key: "import",   label: "Import",         icon: ArrowDownToLine },
   { key: "export",   label: "Export",         icon: ArrowUpFromLine },
   { key: "dispatch", label: "Dispatch",       icon: Truck },
+  { key: "routing",  label: "Routing",        icon: Route },
   { key: "warehouse", label: "Warehouse",     icon: Warehouse },
   { key: "drivers",  label: "Drivers",        icon: Users },
   { key: "dashboard", label: "Dashboard",     icon: BarChart3 },
@@ -116,6 +118,7 @@ export function ShipSyncPage() {
               />
             )}
             {tab === "dispatch" && <ShipSyncDispatch data={data} reload={reload} />}
+            {tab === "routing" && <ShipSyncRouting data={data} reload={reload} />}
             {tab === "warehouse" && <ShipSyncWarehouse data={data} reload={reload} />}
             {tab === "drivers" && <ShipSyncDrivers data={data} reload={reload} />}
             {tab === "dashboard" && <ShipSyncDashboard data={data} />}
