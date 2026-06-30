@@ -586,9 +586,10 @@ export function YachtsPage({ onOpenYacht }: { onOpenYacht?: (id: string) => void
             setQuickEditId={setQuickEditId}
             updateStatus={updateStatus}
             onArchive={setArchiveTarget}
+            onOpenYacht={onOpenYacht}
           />
         ) : (
-          <CardsView rows={filtered} staleIds={new Set(filtered.filter(isStale).map((y) => y.id))} small={view === "small"} onArchive={setArchiveTarget} />
+          <CardsView rows={filtered} staleIds={new Set(filtered.filter(isStale).map((y) => y.id))} small={view === "small"} onArchive={setArchiveTarget} onOpenYacht={onOpenYacht} />
         )}
       </div>
 
@@ -702,7 +703,7 @@ function trackUrl(y: Yacht): string {
 }
 
 function ListView({
-  rows, visible, sortKey, sortDir, onSort, quickEditId, setQuickEditId, updateStatus, onArchive,
+  rows, visible, sortKey, sortDir, onSort, quickEditId, setQuickEditId, updateStatus, onArchive, onOpenYacht,
 }: {
   rows: Yacht[];
   visible: YachtColumnKey[];
@@ -713,6 +714,7 @@ function ListView({
   setQuickEditId: (id: string | null) => void;
   updateStatus: (id: string, status: string) => Promise<void>;
   onArchive: (y: Yacht) => void;
+  onOpenYacht?: (id: string) => void;
 }) {
   const cols = YACHT_COLUMNS.filter((c) => visible.includes(c.key));
   return (
@@ -823,7 +825,7 @@ function ListView({
   );
 }
 
-function CardsView({ rows, staleIds, small, onArchive }: { rows: Yacht[]; staleIds: Set<string>; small?: boolean; onArchive: (y: Yacht) => void }) {
+function CardsView({ rows, staleIds, small, onArchive, onOpenYacht }: { rows: Yacht[]; staleIds: Set<string>; small?: boolean; onArchive: (y: Yacht) => void; onOpenYacht?: (id: string) => void }) {
   return (
     <div
       className={
