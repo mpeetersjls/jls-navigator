@@ -52,6 +52,7 @@ import { visaReportGenerateHandler } from './routes/api.visa.report-generate'
 import { visaReportSendHandler } from './routes/api.visa.report-send'
 import { visaVesselPrefsHandler } from './routes/api.visa.vessel-prefs'
 import { nativeLanguageResolveDefaultHandler } from './routes/api.native-language.resolve-default'
+import { nativeLanguageSaveHandler } from './routes/api.native-language.save'
 import { runWeeklyVisaReports } from './lib/visa-reporting/runWeeklyVisaReports.server'
 import { trackRun } from './lib/automations.server'
 import { runVisaExpiryFlagJob } from './lib/visa/visaExpiryFlags.server'
@@ -231,6 +232,10 @@ export default {
 
     if (url.pathname === '/api/native-language/resolve-default' && request.method === 'GET') {
       return nativeLanguageResolveDefaultHandler(request)
+    }
+
+    if (url.pathname === '/api/native-language/save' && request.method === 'POST') {
+      return nativeLanguageSaveHandler(request)
     }
 
     if (url.pathname === '/api/leo/chat' && request.method === 'POST') {
