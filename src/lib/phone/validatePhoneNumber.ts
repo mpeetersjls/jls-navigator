@@ -1,74 +1,125 @@
 /**
- * validatePhoneNumber — pure phone validation + formatting helpers.
+ * validatePhoneNumber
  *
- * No DB calls, no React. Shared by PhoneNumberField (client, live validation)
- * and persistPhoneSelection (server, authoritative re-check). Rules come from
- * the country_dial_codes table (min/max length + optional local_format_regex),
- * passed in as a CountryValidationRule.
+ * Validates a local phone number against the selected country's rules
+ * (min/max length, optional regex) from country_dial_codes. Designed to
+ * run both client-side (live, on every keystroke, for immediate feedback)
+ * and server-side (on save, as the authoritative check).
+ *
+ * This does NOT call the database directly — the country's validation
+ * rules are passed in (fetched once per form load alongside the country
+ * list), so this stays a pure, synchronous, easily-testable function.
  */
 
 export interface CountryValidationRule {
-  countryCode: string;
-  dialCode: string;
-  minLength: number;
-  maxLength: number;
+  countryCode:       string;
+  dialCode:          string;
+  minLength:         number;
+  maxLength:         number;
   localFormatRegex?: string | null;
 }
 
 export interface PhoneValidationResult {
   isValid: boolean;
-  error?: string;
-}
-
-/** Strip everything except digits (the canonical storage form for a local number). */
-export function normalizePhoneDigits(input: string): string {
-  return (input ?? '').replace(/\D+/g, '');
+  error?:  string;
 }
 
 /**
- * Validate a local number against a country's length + optional regex rule.
- * With no rule yet (country not chosen), a non-empty number is treated as
- * provisionally valid so the field doesn't error before a country is picked.
+ * Strips all non-digit characters — spaces, dashes, parens — so the
+ * caller can validate raw user input regardless of how they typed it.
  */
+export function normalizePhoneDigits(rawInput: string): string {
+  return rawInput.replace(/\D/g, '');
+}
+
 export function validatePhoneNumber(
-  localNumber: string,
+  rawLocalNumber: string,
   rule: CountryValidationRule | null,
 ): PhoneValidationResult {
-  const digits = normalizePhoneDigits(localNumber);
-  if (!digits) return { isValid: false, error: 'Enter a phone number' };
-  if (!rule) return { isValid: true };
+  if (!rule) {
+    return { isValid: false, error: 'Select a country code first' };
+  }
 
-  if (digits.length < rule.minLength || digits.length > rule.maxLength) {
-    const range =
-      rule.minLength === rule.maxLength
-        ? `${rule.minLength} digits`
-        : `${rule.minLength}–${rule.maxLength} digits`;
-    return { isValid: false, error: `${rule.countryCode} numbers must be ${range}` };
+  const digits = normalizePhoneDigits(rawLocalNumber);
+
+  if (digits.length === 0) {
+    return { isValid: false, error: 'Phone number is required' };
+  }
+
+  if (digits.length < rule.minLength) {
+    return {
+      isValid: false,
+      error: rule.minLength === rule.maxLength
+        ? `Must be exactly ${rule.minLength} digits for ${rule.countryCode}`
+        : `Must be at least ${rule.minLength} digits for ${rule.countryCode}`,
+    };
+  }
+
+  if (digits.length > rule.maxLength) {
+    return {
+      isValid: false,
+      error: rule.minLength === rule.maxLength
+        ? `Must be exactly ${rule.maxLength} digits for ${rule.countryCode}`
+        : `Must be at most ${rule.maxLength} digits for ${rule.countryCode}`,
+    };
   }
 
   if (rule.localFormatRegex) {
-    let re: RegExp | null = null;
-    try {
-      re = new RegExp(rule.localFormatRegex);
-    } catch {
-      re = null; // a bad regex in the table must never hard-block a save
-    }
-    if (re && !re.test(digits)) {
-      return { isValid: false, error: `Not a valid ${rule.countryCode} mobile number` };
+    const re = new RegExp(rule.localFormatRegex);
+    if (!re.test(digits)) {
+      return {
+        isValid: false,
+        error: `Doesn't match the expected format for ${rule.countryCode} mobile numbers`,
+      };
     }
   }
 
   return { isValid: true };
 }
 
-/** Light-touch display grouping (groups of 3). Storage stays digits-only. */
-export function formatPhoneForDisplay(localNumber: string, _countryCode?: string): string {
-  return normalizePhoneDigits(localNumber).replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+/**
+ * Formats a raw digit string for DISPLAY only (not for storage — storage
+ * always uses the raw digit string in phone_number). Provides simple
+ * grouping for the most common formats; falls back to ungrouped digits
+ * for countries without a specific format defined here.
+ *
+ * This is intentionally lightweight rather than a full libphonenumber
+ * integration — sufficient for visual formatting as the user types,
+ * matching the original spec's examples (+971 50 274 7733 / +44 7712 345678).
+ */
+export function formatPhoneForDisplay(digits: string, countryCode: string): string {
+  const clean = normalizePhoneDigits(digits);
+
+  switch (countryCode.toUpperCase()) {
+    case 'AE': // +971 50 274 7733
+      if (clean.length <= 2) return clean;
+      if (clean.length <= 5) return `${clean.slice(0, 2)} ${clean.slice(2)}`;
+      if (clean.length <= 8) return `${clean.slice(0, 2)} ${clean.slice(2, 5)} ${clean.slice(5)}`;
+      return `${clean.slice(0, 2)} ${clean.slice(2, 5)} ${clean.slice(5, 9)}`;
+
+    case 'GB': // +44 7712 345678
+      if (clean.length <= 4) return clean;
+      return `${clean.slice(0, 4)} ${clean.slice(4, 10)}`;
+
+    case 'US':
+    case 'CA': // +1 555 123 4567
+      if (clean.length <= 3) return clean;
+      if (clean.length <= 6) return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+      return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6, 10)}`;
+
+    default:
+      // Generic grouping — chunks of 3 — readable fallback for any country
+      // without an explicit format defined above.
+      return clean.replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+  }
 }
 
-/** Full international form, e.g. ('+971', '502747733') -> '+971502747733'. */
-export function computeFullInternationalNumber(dialCode: string, localNumber: string): string {
-  const digits = normalizePhoneDigits(localNumber);
-  const dc = !dialCode ? '' : dialCode.startsWith('+') ? dialCode : `+${dialCode}`;
-  return `${dc}${digits}`;
+/**
+ * Computes the full international number for storage in phone_full
+ * display purposes (the DB column itself is auto-generated by migration
+ * 025's GENERATED ALWAYS AS trigger — this is for client-side preview
+ * before save, e.g. showing the user what will be stored).
+ */
+export function computeFullInternationalNumber(dialCode: string, localDigits: string): string {
+  return `${dialCode}${normalizePhoneDigits(localDigits)}`;
 }
