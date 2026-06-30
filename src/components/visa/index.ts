@@ -24,3 +24,7 @@ export type { VesselChannelSelectorProps, DeliveryChannel } from './VesselChanne
 // ── Report history (paginated history list with status chips) ─────────────────
 export { VesselReportHistory }             from './VesselReportHistory';
 export type { VesselReportHistoryProps, ReportHistoryRecord, ReportSendStatus, ReportChannel } from './VesselReportHistory';
+
+// ── Occupation select (themed custom dropdown — fixes native select on dark bg) ─
+export { VisaOccupationSelect, DEFAULT_OCCUPATIONS } from './VisaOccupationSelect';
+export type { VisaOccupationSelectProps, OccupationOption } from './VisaOccupationSelect';
