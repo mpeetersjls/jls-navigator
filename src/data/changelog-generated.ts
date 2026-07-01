@@ -10,6 +10,10 @@ export const GENERATED_RELEASES: Release[] = [
     "entries": [
       {
         "type": "feature",
+        "title": "Add Small Boat Management (status, checklist, defect->job)"
+      },
+      {
+        "type": "feature",
         "title": "Wire ORBIT into the New View (was Old-View-only)"
       },
       {
