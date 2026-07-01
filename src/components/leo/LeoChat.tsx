@@ -38,6 +38,32 @@ export function LeoChat({ token, userName, briefingText }: LeoChatProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [messages])
 
+  // Floating chat (no briefingText — the user hasn't just read a briefing):
+  // swap the static greeting for a live, non-repeating operational signal
+  // once it loads. Falls back to the static greeting on any failure, and
+  // never touches the message once the user has started typing/chatting.
+  useEffect(() => {
+    if (briefingText || !token) return
+    let cancelled = false
+    fetch('/api/leo/welcome', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.message) return
+        setMessages((prev) =>
+          prev.length === 1 && prev[0].role === 'assistant' && !prev[0].streaming
+            ? [{ role: 'assistant', content: data.message }]
+            : prev
+        )
+      })
+      .catch(() => { /* keep the static greeting */ })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
   async function send() {
     const userText = input.trim()
     if (!userText || streaming) return

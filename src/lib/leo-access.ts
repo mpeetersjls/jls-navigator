@@ -44,6 +44,7 @@ export const ACCESS_CAPS: Record<AccessLevel, {
   ticketsData:boolean
   financials: boolean
   esign:      boolean
+  agencyData: boolean
 }> = {
   developer: {
     allVessels:  true,
@@ -53,6 +54,7 @@ export const ACCESS_CAPS: Record<AccessLevel, {
     ticketsData: true,
     financials:  true,
     esign:       true,
+    agencyData:  true,
   },
   manager: {
     allVessels:  true,
@@ -62,6 +64,7 @@ export const ACCESS_CAPS: Record<AccessLevel, {
     ticketsData: false,
     financials:  false,
     esign:       true,
+    agencyData:  true,
   },
   user: {
     allVessels:  false,
@@ -71,6 +74,7 @@ export const ACCESS_CAPS: Record<AccessLevel, {
     ticketsData: false,
     financials:  false,
     esign:       false,
+    agencyData:  false,
   },
   guest: {
     allVessels:  false,
@@ -80,5 +84,6 @@ export const ACCESS_CAPS: Record<AccessLevel, {
     ticketsData: false,
     financials:  false,
     esign:       false,
+    agencyData:  false,
   },
 }

@@ -24,7 +24,7 @@ function getAdmin() {
 }
 
 // ── Context assembly ─────────────────────────────────────────────────────────
-async function assembleLeoContext(userId: string, userEmail: string) {
+export async function assembleLeoContext(userId: string, userEmail: string) {
   const sb    = getAdmin()
   const level = getAccessLevel(userEmail)
   const caps  = ACCESS_CAPS[level]
@@ -41,6 +41,8 @@ async function assembleLeoContext(userId: string, userEmail: string) {
     visasRes,
     esignRes,
     complianceAlertsRes,
+    invoicesRes,
+    portCallsRes,
   ] = await Promise.all([
     // ── Fleet ────────────────────────────────────────────────────────────────
     caps.allVessels
@@ -115,6 +117,26 @@ async function assembleLeoContext(userId: string, userEmail: string) {
           .in('severity', ['warn', 'critical'])
           .order('due_date', { ascending: true })
           .limit(5)
+      : Promise.resolve({ data: [], error: null }),
+
+    // ── Overdue invoices with an outstanding balance ──────────────────────────
+    caps.financials
+      ? (sb as any).from('qbo_invoices')
+          .select('doc_number, customer_name, total_amt, balance, currency, due_date, status')
+          .gt('balance', 0)
+          .lt('due_date', today)
+          .order('due_date', { ascending: true })
+          .limit(10)
+      : Promise.resolve({ data: [], error: null }),
+
+    // ── Port calls arriving soon, with status — filtered to those still
+    //    awaiting documentation in the mapping step below ───────────────────
+    caps.agencyData
+      ? (sb as any).from('port_calls')
+          .select('previous_port, next_port, eta, etd, port_call_status(code, label), yachts(vessel_name)')
+          .lte('eta', new Date(Date.now() + 2 * 864e5).toISOString())
+          .order('eta', { ascending: true })
+          .limit(15)
       : Promise.resolve({ data: [], error: null }),
   ])
 
@@ -215,6 +237,27 @@ async function assembleLeoContext(userId: string, userEmail: string) {
         crew:     a.crew_members?.full_name ?? ((a.crew_members?.first_name ?? '') + ' ' + (a.crew_members?.last_name ?? '')).trim(),
       })),
     },
+    finance: {
+      overdueCount: (invoicesRes.data ?? []).length,
+      overdueTotal: (invoicesRes.data ?? []).reduce((sum: number, i: any) => sum + Number(i.balance ?? 0), 0),
+      list: (invoicesRes.data ?? []).map((i: any) => ({
+        invoice:  i.doc_number,
+        customer: i.customer_name,
+        balance:  i.balance,
+        currency: i.currency,
+        due:      i.due_date,
+      })),
+    },
+    agency: {
+      awaitingDocumentation: (portCallsRes.data ?? []).filter((p: any) => p.port_call_status?.code === 'awaiting_documentation').map((p: any) => ({
+        vessel:   p.yachts?.vessel_name,
+        eta:      p.eta,
+        etd:      p.etd,
+        fromPort: p.previous_port,
+        toPort:   p.next_port,
+        status:   p.port_call_status?.label,
+      })),
+    },
   }
 }
 
@@ -253,7 +296,8 @@ BRIEFING STRUCTURE (follow exactly when delivering an initial briefing):
 
 5. CREW & DOCUMENTS — Any pending visa applications or documents requiring action.
 
-6. OPEN ITEMS — Open IT tickets, unsigned esign documents, or anything else requiring human decision.
+6. OPEN ITEMS — Open IT tickets, unsigned esign documents, overdue invoices (finance.overdueCount/overdueTotal),
+   port calls still awaiting documentation (agency.awaitingDocumentation), or anything else requiring human decision.
 
 THEN — on a new line after the prose — output this JSON block:
 <insights>

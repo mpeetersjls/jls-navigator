@@ -7,6 +7,7 @@ import { syncVesselPositions } from './lib/vesselfinder.server'
 import { runDailyComplianceChecks } from './lib/visa/complianceMonitor.server'
 import { leoBriefingHandler } from './routes/api.leo.briefing'
 import { leoChatHandler } from './routes/api.leo.chat'
+import { leoWelcomeHandler } from './routes/api.leo.welcome'
 import { visaComplianceHandler } from './routes/api.visa.compliance'
 import { visaMonitorHandler } from './routes/api.visa.monitor'
 import { visaExportHandler } from './routes/api.visa.export'
@@ -240,6 +241,10 @@ export default {
 
     if (url.pathname === '/api/leo/chat' && request.method === 'POST') {
       return leoChatHandler(request)
+    }
+
+    if (url.pathname === '/api/leo/welcome' && request.method === 'POST') {
+      return leoWelcomeHandler(request)
     }
 
     if (url.pathname === '/api/visa/compliance' && request.method === 'POST') {

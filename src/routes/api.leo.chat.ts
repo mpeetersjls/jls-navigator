@@ -10,6 +10,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { getAccessLevel, ACCESS_LABELS } from '@/lib/leo-access'
+import { assembleLeoContext } from './api.leo.briefing'
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const LEO_MODEL     = 'claude-sonnet-4-6'
@@ -21,9 +22,16 @@ function getAdmin() {
   return createClient(url, key, { auth: { persistSession: false } })
 }
 
-const CHAT_SYSTEM = (userName: string, accessLabel: string) => `You are Leo — the active intelligence engine inside Polaris, the JLS Yachts management platform.
+// Cross-module context awareness: every chat turn gets the same live,
+// access-scoped operational data the briefing uses (fleet, permits, tasks,
+// crew/visas, finance, agency/port calls) rather than answering purely from
+// whatever happens to be in the client-carried conversation history.
+const CHAT_SYSTEM = (userName: string, accessLabel: string, context: any) => `You are Leo — the active intelligence engine inside Polaris, the JLS Yachts management platform.
 
 You are the in-app assistant. The user ${userName} (${accessLabel}) is asking you questions while working inside Polaris.
+
+LIVE CONTEXT (as of ${new Date().toUTCString()}, scoped to what this user can access):
+${JSON.stringify(context, null, 2)}
 
 SCOPE — stay within the platform:
 Only answer questions relevant to Polaris and yacht operations: the fleet/vessels, crew,
@@ -32,8 +40,9 @@ training, and how to use the platform's modules and screens.
 If asked something outside this scope (general knowledge, coding, world facts, personal advice),
 politely decline in one sentence and steer back to what you can help with inside Polaris.
 
-Respond directly and operationally. Answer from what you know about the platform context.
-If you don't have specific data, say so plainly — never fabricate operational details.
+Respond directly and operationally. Answer from the live context above wherever it's relevant —
+name real vessels, figures, and dates from it rather than speaking generically.
+If the answer isn't in the context, say so plainly — never fabricate operational details.
 Stay in character: confident, direct, no filler phrases.
 Keep responses concise — 2-4 sentences unless more detail is clearly needed.
 Use plain text only, no markdown headers, no bullet lists.`
@@ -66,11 +75,13 @@ export async function leoChatHandler(request: Request): Promise<Response> {
 
     // Validate session
     let userEmail = ''
+    let userId    = ''
     try {
       const admin = getAdmin()
       const { data: { user }, error } = await admin.auth.getUser(token)
       if (error || !user) throw new Error('Unauthorized')
       userEmail = user.email ?? ''
+      userId    = user.id
     } catch {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
@@ -79,7 +90,16 @@ export async function leoChatHandler(request: Request): Promise<Response> {
     }
 
     const accessLabel = ACCESS_LABELS[getAccessLevel(userEmail)]
-    const systemPrompt = CHAT_SYSTEM(userName, accessLabel)
+
+    let context: any
+    try {
+      context = await assembleLeoContext(userId, userEmail)
+    } catch (e) {
+      console.error('Leo chat context assembly failed:', e)
+      context = { error: 'Context assembly failed' }
+    }
+
+    const systemPrompt = CHAT_SYSTEM(userName, accessLabel, context)
 
     // Validate messages format — only 'user' and 'assistant' roles
     const safeMessages = messages
