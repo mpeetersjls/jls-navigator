@@ -328,7 +328,7 @@ function ChatMessage({ message }: { message: Message }) {
         style={{
           fontFamily: isUser ? "'Space Grotesk', sans-serif" : "'Inter', sans-serif",
           fontSize:   16,
-          color:      isUser ? COLORS.frost : '#C8D8E8',
+          color:      isUser ? COLORS.frost : COLORS.steel,
           lineHeight: isUser ? 1.55 : 1.78,
           margin:     0,
           whiteSpace: 'pre-wrap',
