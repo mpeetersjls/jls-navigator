@@ -11,6 +11,11 @@ export interface AgentOption {
   display_name: string | null;
 }
 
+export interface OfficeOption {
+  id: string;
+  name: string;
+}
+
 export interface ArrivalRow {
   port_call_id: string;
   vessel_name: string | null;

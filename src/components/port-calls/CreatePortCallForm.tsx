@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PolarisButton } from "@/components/polaris-ui/primitives";
-import type { AgentOption, CountryOption } from "./types";
+import type { AgentOption, CountryOption, OfficeOption } from "./types";
 
 export function CreatePortCallForm({
   onCreated,
@@ -29,12 +29,13 @@ export function CreatePortCallForm({
   const { yachts, loading: yachtsLoading } = useYachts();
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [agents, setAgents] = useState<AgentOption[]>([]);
+  const [offices, setOffices] = useState<OfficeOption[]>([]);
 
   const [vesselId, setVesselId] = useState("");
   const [countryId, setCountryId] = useState("");
   const [eta, setEta] = useState("");
   const [etd, setEtd] = useState("");
-  const [assignedOffice, setAssignedOffice] = useState("");
+  const [assignedOfficeId, setAssignedOfficeId] = useState("");
   const [assignedAgentId, setAssignedAgentId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +60,13 @@ export function CreatePortCallForm({
         .order("display_name", { ascending: true });
       setAgents((data ?? []) as unknown as AgentOption[]);
     })();
+    void (async () => {
+      const { data } = await supabase
+        .from("offices" as any)
+        .select("id, name")
+        .order("name", { ascending: true });
+      setOffices((data ?? []) as unknown as OfficeOption[]);
+    })();
   }, []);
 
   async function handleSubmit() {
@@ -75,7 +83,7 @@ export function CreatePortCallForm({
         p_destination_country_id: countryId,
         p_eta: eta ? new Date(eta).toISOString() : null,
         p_etd: etd ? new Date(etd).toISOString() : null,
-        p_assigned_office: assignedOffice || null,
+        p_assigned_office_id: assignedOfficeId || null,
         p_assigned_agent_id: assignedAgentId || null,
         p_created_by: user.id,
       },
@@ -153,10 +161,11 @@ export function CreatePortCallForm({
 
       <div>
         <Label>Assigned Office</Label>
-        <Input
-          value={assignedOffice}
-          onChange={(e) => setAssignedOffice(e.target.value)}
-          placeholder="e.g. Dubai"
+        <SearchableSelect
+          value={assignedOfficeId}
+          onValueChange={setAssignedOfficeId}
+          options={offices.map((o) => ({ value: o.id, label: o.name }))}
+          placeholder={offices.length ? "Select office (optional)…" : "No offices configured yet"}
         />
       </div>
 

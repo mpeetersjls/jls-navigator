@@ -16,7 +16,7 @@ import { Plus, Search, Pencil, Trash2, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-export type FieldType = "text" | "textarea" | "date" | "number" | "email" | "select" | "yacht";
+export type FieldType = "text" | "textarea" | "date" | "number" | "email" | "select" | "yacht" | "org";
 
 export interface FieldDef {
   key: string;
@@ -47,11 +47,13 @@ export interface ResourceConfig {
 
 type Row = Record<string, any>;
 type Yacht = { id: string; vessel_name: string };
+type Org = { org_id: string; name: string };
 
 export function ResourcePage({ config }: { config: ResourceConfig }) {
   const { user } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
+  const [orgs, setOrgs] = useState<Org[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -62,8 +64,9 @@ export function ResourcePage({ config }: { config: ResourceConfig }) {
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
 
   const hasYacht = config.fields.some((f) => f.type === "yacht") || config.fields.some((f) => f.key === "yacht_id");
+  const hasOrg = config.fields.some((f) => f.type === "org") || config.fields.some((f) => f.key === "org_id");
 
-  useEffect(() => { void load(); if (hasYacht) void loadYachts(); }, [config.table]);
+  useEffect(() => { void load(); if (hasYacht) void loadYachts(); if (hasOrg) void loadOrganisations(); }, [config.table]);
 
   async function load() {
     setLoading(true);
@@ -77,6 +80,10 @@ export function ResourcePage({ config }: { config: ResourceConfig }) {
   async function loadYachts() {
     const { data } = await fetchAllRows(() => supabase.from("yachts").select("id, vessel_name").order("vessel_name"));
     setYachts((data ?? []) as Yacht[]);
+  }
+  async function loadOrganisations() {
+    const { data } = await fetchAllRows(() => (supabase as any).from("organisations").select("org_id, name").order("name"));
+    setOrgs((data ?? []) as Org[]);
   }
 
   function openNew() {
@@ -124,11 +131,13 @@ export function ResourcePage({ config }: { config: ResourceConfig }) {
   }
 
   const yachtName = (id: string | null) => yachts.find((y) => y.id === id)?.vessel_name ?? "—";
+  const orgName = (id: string | null) => orgs.find((o) => o.org_id === id)?.name ?? "—";
   const fmtDate = (d: string | null) => d ? new Date(d + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
   function display(r: Row, f: FieldDef): ReactNode {
     const v = r[f.key];
     if (f.type === "yacht" || f.key === "yacht_id") return yachtName(v);
+    if (f.type === "org" || f.key === "org_id") return orgName(v);
     if (f.type === "date") return fmtDate(v);
     if (f.badge) {
       const label = config.statusLabels?.[v] ?? v ?? "—";
@@ -144,18 +153,18 @@ export function ResourcePage({ config }: { config: ResourceConfig }) {
     if (filterStatus !== "all" && config.statusKey && r[config.statusKey] !== filterStatus) return false;
     if (q.trim()) {
       const s = q.toLowerCase();
-      const hay = config.fields.map((f) => f.type === "yacht" ? yachtName(r[f.key]) : r[f.key]).join(" ").toLowerCase();
+      const hay = config.fields.map((f) => f.type === "yacht" ? yachtName(r[f.key]) : f.type === "org" ? orgName(r[f.key]) : r[f.key]).join(" ").toLowerCase();
       if (!hay.includes(s)) return false;
     }
     return true;
-  }), [rows, q, filterStatus, yachts]);
+  }), [rows, q, filterStatus, yachts, orgs]);
 
   function exportCSV() {
     const cols = config.fields;
     const headers = cols.map((c) => c.label);
     const esc = (v: any) => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
     const lines = [headers.join(",")];
-    filtered.forEach((r) => lines.push(cols.map((c) => esc(c.type === "yacht" ? yachtName(r[c.key]) : r[c.key])).join(",")));
+    filtered.forEach((r) => lines.push(cols.map((c) => esc(c.type === "yacht" ? yachtName(r[c.key]) : c.type === "org" ? orgName(r[c.key]) : r[c.key])).join(",")));
     const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: `${config.table}-${new Date().toISOString().slice(0,10)}.csv` });
     a.click(); URL.revokeObjectURL(url);
@@ -261,6 +270,14 @@ export function ResourcePage({ config }: { config: ResourceConfig }) {
                     <SelectContent>
                       <SelectItem value="__none">— None —</SelectItem>
                       {yachts.map((y) => <SelectItem key={y.id} value={y.id}>{y.vessel_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : f.type === "org" ? (
+                  <Select value={form[f.key] ?? "__none"} onValueChange={(v) => setForm((s) => ({ ...s, [f.key]: v === "__none" ? "" : v }))}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— None —" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">— None —</SelectItem>
+                      {orgs.map((o) => <SelectItem key={o.org_id} value={o.org_id}>{o.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : (
