@@ -1054,6 +1054,7 @@ SUPABASE_SERVICE_ROLE_KEY=...         # server only
 | #143   | Matt Tighe | HIGH     | Polaris shell — sidebar with filtered module navigation |
 | #144   | Matt Tighe | MED      | ShipSync, Training, Supplier portals |
 | #145   | Matt Tighe | MED      | Ecosystem module map — lib/platform/ecosystem.ts |
+| #206   | Matt Tighe | HIGH     | Security: RLS disabled on `public.languages`, `public.country_language_map`, `public.country_dial_codes` (migrations 054/055) — anon key can read/write every row. Lock down: public read where guest flows need it, admin/service-role-only writes. Flagged by Supabase advisor 2026-07-01, fixed same day — see migration 063. |
 
 ---
 
