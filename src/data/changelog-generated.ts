@@ -5,9 +5,95 @@ import type { Release } from "@/components/changelog-page";
 
 export const GENERATED_RELEASES: Release[] = [
   {
+    "version": "2.19.0",
+    "date": "2026-07-01",
+    "entries": [
+      {
+        "type": "feature",
+        "title": "Add client/vessel entity foundation for Port Calls"
+      },
+      {
+        "type": "fix",
+        "title": "Backfill missing user_profiles rows + auto-provision trigger"
+      },
+      {
+        "type": "fix",
+        "title": "Lock down RLS on languages/country_language_map/country_dial_codes"
+      },
+      {
+        "type": "feature",
+        "title": "Add Port Calls / Inward Clearance vertical slice (tickets #196-205)"
+      }
+    ]
+  },
+  {
     "version": "2.18.0",
     "date": "2026-06-30",
     "entries": [
+      {
+        "type": "feature",
+        "title": "ShipSync Routing — multi-route builder"
+      },
+      {
+        "type": "feature",
+        "title": "ShipSync — Routing tab before Dispatch, rename Dispatch to Dispatched"
+      },
+      {
+        "type": "feature",
+        "title": "ShipSync — multi-boat route → dispatched, with per-boat breakdown"
+      },
+      {
+        "type": "feature",
+        "title": "ShipSync Routing — boat filter is now a dropdown"
+      },
+      {
+        "type": "feature",
+        "title": "ShipSync Routing — add search-by-boat filter on the To route list"
+      },
+      {
+        "type": "fix",
+        "title": "TS errors in VesselChannelSelector and training page"
+      },
+      {
+        "type": "feature",
+        "title": "ShipSync — add Routing board (parcels → driver + boat)"
+      },
+      {
+        "type": "feature",
+        "title": "ShipSync — rename Packages to Local Packages, add Import & Export tabs"
+      },
+      {
+        "type": "feature",
+        "title": "Visa Occupation auto-derives from the crew member's position"
+      },
+      {
+        "type": "fix",
+        "title": "Vessels screen crash (onOpenYacht is not defined)"
+      },
+      {
+        "type": "feature",
+        "title": "Keep vessel detail inside the New View shell"
+      },
+      {
+        "type": "feature",
+        "title": "Animated Leo mascot + wire into Ask-Leo chat"
+      },
+      {
+        "type": "improvement",
+        "title": "Adopt canonical validatePhoneNumber + resolvePhoneCountryDefault"
+      },
+      {
+        "type": "feature",
+        "title": "Implement /api/phone/resolve-default + /save (ticket #198 backend)"
+      },
+      {
+        "type": "feature",
+        "title": "Complete + wire PhoneNumberField (ticket #198)"
+      },
+      {
+        "type": "feature",
+        "title": "Floating agent in New View is now Ask-Leo chat, not the briefing"
+      },
       {
         "type": "feature",
         "title": "Make New View (Polaris redesign) the default; label legacy as Old View"
