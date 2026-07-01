@@ -16,14 +16,16 @@ import { ProjectDetailPage } from "./project-detail-page";
 import { OrbitRequestsPage } from "./orbit-requests-page";
 import { OrbitRequestDetailPage } from "./orbit-request-detail-page";
 import { ORBIT_DEFECTS_CONFIG, ORBIT_MAINTENANCE_CONFIG } from "./orbit-resource-configs";
-import { LayoutGrid, ClipboardList, Wrench, CalendarClock } from "lucide-react";
+import { OrbitBoatsHub } from "./orbit-boats-hub";
+import { LayoutGrid, ClipboardList, Wrench, CalendarClock, Ship } from "lucide-react";
 
-type Tab = "projects" | "requests" | "defects" | "maintenance";
+type Tab = "projects" | "requests" | "defects" | "maintenance" | "boats";
 const TABS: { key: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "projects", label: "Projects", icon: LayoutGrid },
   { key: "requests", label: "Service Requests", icon: ClipboardList },
   { key: "defects", label: "Defects & Repairs", icon: Wrench },
   { key: "maintenance", label: "Planned Maintenance", icon: CalendarClock },
+  { key: "boats", label: "Small Boats", icon: Ship },
 ];
 
 type ProjectsView = { mode: "list" } | { mode: "detail"; projectId: string };
@@ -81,6 +83,8 @@ export function OrbitHub() {
             <ResourcePage config={ORBIT_MAINTENANCE_CONFIG} />
           </div>
         )}
+
+        {tab === "boats" && <OrbitBoatsHub />}
       </div>
     </div>
   );
