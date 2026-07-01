@@ -10,6 +10,10 @@ export const GENERATED_RELEASES: Release[] = [
     "entries": [
       {
         "type": "feature",
+        "title": "Add Bunkering UI (structured intake, BDN, Master's Declaration)"
+      },
+      {
+        "type": "feature",
         "title": "Add Bunkering vertical slice against the real ORBIT module"
       },
       {
