@@ -41,9 +41,11 @@ function relTime(iso: string) {
   return `${Math.round(m / 1440)}d ago`;
 }
 
-export function OrbitRequestsPage() {
+export function OrbitRequestsPage({ onOpenRequest }: { onOpenRequest?: (id: string) => void } = {}) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const openRequest = (id: string) =>
+    onOpenRequest ? onOpenRequest(id) : navigate({ to: "/orbit/requests/$id", params: { id } });
   const [rows, setRows] = useState<Request[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
@@ -110,7 +112,7 @@ export function OrbitRequestsPage() {
       if (error) throw error;
       toast.success(form.emergency ? "Emergency request raised" : "Request submitted");
       setOpen(false);
-      navigate({ to: "/orbit/requests/$id", params: { id: data.id } }).catch(() => void load());
+      openRequest(data.id);
     } catch (e: any) { toast.error(e.message ?? "Could not submit"); }
     finally { setBusy(false); }
   }
@@ -180,7 +182,7 @@ export function OrbitRequestsPage() {
                   </tr></thead>
                   <tbody>
                     {filtered.map(r => (
-                      <tr key={r.id} onClick={() => navigate({ to: "/orbit/requests/$id", params: { id: r.id } })} className="cursor-pointer border-b border-border/40 hover:bg-accent/30">
+                      <tr key={r.id} onClick={() => openRequest(r.id)} className="cursor-pointer border-b border-border/40 hover:bg-accent/30">
                         <td className="px-3 py-2.5 font-medium text-foreground">{r.title}</td>
                         <td className="px-3 py-2.5 text-muted-foreground">{r.yacht?.vessel_name ?? "—"}</td>
                         <td className="px-3 py-2.5 text-muted-foreground">{CATEGORY_LABEL[r.category] ?? r.category}</td>
@@ -259,7 +261,7 @@ export function OrbitRequestsPage() {
         open={bunkerFormOpen}
         onOpenChange={setBunkerFormOpen}
         yachts={yachts}
-        onCreated={(id) => navigate({ to: "/orbit/requests/$id", params: { id } }).catch(() => void load())}
+        onCreated={(id) => openRequest(id)}
       />
     </div>
   );

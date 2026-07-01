@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { Route } from "@/routes/_app.orbit.$projectId";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetch-all";
 import { Button } from "@/components/ui/button";
@@ -166,9 +165,21 @@ function KanbanColumn({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export function ProjectDetailPage() {
-  const { projectId } = Route.useParams();
+export function ProjectDetailPage({
+  projectId: projectIdProp,
+  embedded = false,
+  onBack,
+}: {
+  /** When provided, used instead of the route param (Beta-embedded mode). */
+  projectId?: string;
+  embedded?: boolean;
+  onBack?: () => void;
+} = {}) {
+  // strict:false so this works both on its own route and embedded in the Beta shell.
+  const params = useParams({ strict: false }) as { projectId?: string };
+  const projectId = projectIdProp ?? params.projectId!;
   const navigate = useNavigate();
+  const goToProjects = () => (embedded ? onBack?.() : navigate({ to: "/orbit" }));
 
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -195,7 +206,7 @@ export function ProjectDetailPage() {
     ]);
     if (projRes.error || !projRes.data) {
       toast.error("Project not found");
-      navigate({ to: "/orbit" });
+      goToProjects();
       return;
     }
     setProject(projRes.data as Project);
@@ -306,7 +317,7 @@ export function ProjectDetailPage() {
     if (!confirm(`Delete "${project.name}"? This will remove all tasks permanently.`)) return;
     const { error } = await (supabase as any).from("orbit_projects").delete().eq("id", projectId);
     if (error) toast.error(error.message);
-    else { toast.success("Project deleted"); navigate({ to: "/orbit" }); }
+    else { toast.success("Project deleted"); goToProjects(); }
   }
 
   // ── Derived ──
@@ -332,7 +343,7 @@ export function ProjectDetailPage() {
       <header className="border-b border-border bg-card/40 px-6 py-4 space-y-3">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate({ to: "/orbit" })}
+            onClick={goToProjects}
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
           >
             <ArrowLeft className="h-4 w-4" /> Orbit

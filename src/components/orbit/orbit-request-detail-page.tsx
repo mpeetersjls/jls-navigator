@@ -20,10 +20,22 @@ function fmtDT(d: string | null) {
   return d ? new Date(d).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
 }
 
-export function OrbitRequestDetailPage() {
-  const { id } = useParams({ from: "/_app/orbit/requests/$id" }) as { id: string };
+export function OrbitRequestDetailPage({
+  requestId: requestIdProp,
+  embedded = false,
+  onBack,
+}: {
+  /** When provided, used instead of the route param (Beta-embedded mode). */
+  requestId?: string;
+  embedded?: boolean;
+  onBack?: () => void;
+} = {}) {
+  // strict:false so this works both on its own route and embedded in the Beta shell.
+  const params = useParams({ strict: false }) as { id?: string };
+  const id = requestIdProp ?? params.id!;
   const { user } = useAuth();
   const navigate = useNavigate();
+  const goToRequests = () => (embedded ? onBack?.() : navigate({ to: "/orbit/requests" as any }));
   const [req, setReq] = useState<any>(null);
   const [quotes, setQuotes] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
@@ -91,7 +103,11 @@ export function OrbitRequestDetailPage() {
   if (!req) return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
       <p className="font-display text-base font-semibold">Request not found</p>
-      <Button variant="outline" asChild><Link to={"/orbit/requests" as any}><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to requests</Link></Button>
+      {embedded ? (
+        <Button variant="outline" onClick={onBack}><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to requests</Button>
+      ) : (
+        <Button variant="outline" asChild><Link to={"/orbit/requests" as any}><ArrowLeft className="mr-1.5 h-4 w-4" /> Back to requests</Link></Button>
+      )}
     </div>
   );
 
@@ -101,7 +117,7 @@ export function OrbitRequestDetailPage() {
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-border/70 bg-card/30 px-6 py-3.5">
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate({ to: "/orbit/requests" as any })}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={goToRequests}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="min-w-0 flex-1">
           <div className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground/60">{CATEGORY_LABEL[req.category] ?? req.category}{req.request_type ? ` · ${req.request_type}` : ""}</div>
           <h1 className="mt-0.5 truncate font-display text-[1.2rem] font-semibold tracking-tight">{req.title}</h1>

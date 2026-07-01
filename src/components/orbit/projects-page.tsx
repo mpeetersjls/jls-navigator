@@ -103,13 +103,13 @@ function PriorityIcon({ priority }: { priority: Priority }) {
 // ─── Project Card ─────────────────────────────────────────────────────────────
 
 function ProjectCard({
-  project, onEdit, onDelete,
+  project, onEdit, onDelete, onOpen,
 }: {
   project: Project;
   onEdit: (p: Project) => void;
   onDelete: (p: Project) => void;
+  onOpen: (id: string) => void;
 }) {
-  const navigate = useNavigate();
   const counts = project.task_counts ?? { todo: 0, in_progress: 0, review: 0, done: 0 };
   const total = counts.todo + counts.in_progress + counts.review + counts.done;
   const pct = total > 0 ? Math.round((counts.done / total) * 100) : 0;
@@ -118,7 +118,7 @@ function ProjectCard({
   return (
     <div
       className="group relative rounded-xl border border-border bg-card hover:border-primary/30 hover:shadow-md transition-all cursor-pointer flex flex-col"
-      onClick={() => navigate({ to: "/orbit/$projectId", params: { projectId: project.id } })}
+      onClick={() => onOpen(project.id)}
     >
       {/* Card body */}
       <div className="p-5 flex-1">
@@ -202,7 +202,10 @@ function ProjectCard({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export function ProjectsPage() {
+export function ProjectsPage({ onOpenProject }: { onOpenProject?: (id: string) => void } = {}) {
+  const navigate = useNavigate();
+  const openProject = (id: string) =>
+    onOpenProject ? onOpenProject(id) : navigate({ to: "/orbit/$projectId", params: { projectId: id } });
   const [projects, setProjects] = useState<Project[]>([]);
   const [yachts, setYachts] = useState<Yacht[]>([]);
   const [loading, setLoading] = useState(true);
@@ -429,7 +432,7 @@ export function ProjectsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
             {filtered.map(p => (
-              <ProjectCard key={p.id} project={p} onEdit={openEdit} onDelete={handleDelete} />
+              <ProjectCard key={p.id} project={p} onEdit={openEdit} onDelete={handleDelete} onOpen={openProject} />
             ))}
           </div>
         )}
