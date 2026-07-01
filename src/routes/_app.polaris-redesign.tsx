@@ -42,6 +42,7 @@ import { ErrorLogPage } from "@/components/dev/error-log-page";
 import { IntegrationsPage } from "@/components/dev/integrations-page";
 import { FeedbackPage } from "@/components/feedback/feedback-page";
 import { CrewPlacementPage } from "@/components/crew-placement/crew-placement-page";
+import { PortCallsHub } from "@/components/port-calls/PortCallsHub";
 
 /** Beta screens that simply embed an existing full app page (Beta styling is inherited
  *  from the shell's pds-embed content area). */
@@ -236,6 +237,10 @@ function PolarisRedesignApp() {
         ) : screen === "anchor" ? (
           <div style={{ height: "100%" }}>
             <AnchorPage />
+          </div>
+        ) : screen === "port-calls" ? (
+          <div style={{ height: "100%" }}>
+            <PortCallsHub />
           </div>
         ) : EMBED_SCREENS[screen] ? (
           <div style={{ height: "100%" }}>

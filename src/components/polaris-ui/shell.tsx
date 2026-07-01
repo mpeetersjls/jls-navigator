@@ -69,6 +69,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Anchor", icon: "signature", screen: "anchor" },
       { label: "Crew Placement", icon: "user-star", screen: "crew-placement", roles: ["global_admin", "crew_immigration"] },
       { label: "Finance", icon: "report-money", screen: "finance", roles: ["global_admin"] },
+      { label: "Port Calls", icon: "anchor", screen: "port-calls" },
     ],
   },
   {
