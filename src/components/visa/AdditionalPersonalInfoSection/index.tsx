@@ -132,6 +132,7 @@ interface ConfirmFieldProps {
 
 function ConfirmFieldWrapper({ label, field, onConfirm, children }: ConfirmFieldProps) {
   const confirmed = field.state === 'ocr_confirmed'
+  const hasValue = Boolean(field.value.trim())
 
   return (
     <div>
@@ -154,11 +155,14 @@ function ConfirmFieldWrapper({ label, field, onConfirm, children }: ConfirmField
             <button
               type="button"
               onClick={onConfirm}
+              disabled={!hasValue}
+              title={hasValue ? undefined : 'Select a value before confirming'}
               style={{
                 fontFamily: FONTS.display, fontSize: 10, fontWeight: 700,
                 color: AMBER, background: `${AMBER}14`,
                 border: `1px solid ${AMBER}50`, borderRadius: 4,
-                padding: '2px 8px', cursor: 'pointer',
+                padding: '2px 8px', cursor: hasValue ? 'pointer' : 'not-allowed',
+                opacity: hasValue ? 1 : 0.5,
               }}
             >
               Confirm
@@ -310,10 +314,12 @@ export const AdditionalPersonalInfoSection = forwardRef<AdditionalPersonalInfoHa
   }
 
   function confirmField(key: keyof AdditionalInfoFields) {
-    setFields(prev => ({
-      ...prev,
-      [key]: { ...prev[key], state: 'ocr_confirmed' },
-    }))
+    setFields(prev => {
+      // A field can never be "confirmed" without a value — otherwise the
+      // badge can show Confirmed while the underlying field is empty.
+      if (!prev[key].value.trim()) return prev
+      return { ...prev, [key]: { ...prev[key], state: 'ocr_confirmed' } }
+    })
   }
 
   function unlockField(key: keyof AdditionalInfoFields) {

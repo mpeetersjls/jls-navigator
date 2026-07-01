@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { SignedAnchor, SignedImage } from "@/components/ui/signed-file";
 import { CrewTimeline } from "@/components/crew-immigration/CrewTimeline";
+import { formatPhoneForDisplay } from "@/lib/phone/validatePhoneNumber";
 
 type CrewMember = {
   id: string; yacht_id: string | null;
@@ -19,6 +20,7 @@ type CrewMember = {
   nationality: string | null; gender: string | null; date_of_birth: string | null;
   rank: string | null; department: string | null; status: string;
   email: string | null; phone: string | null; photo_url: string | null;
+  phone_country_code: string | null; phone_number: string | null; phone_full: string | null;
   passport_number: string | null; passport_expiry_date: string | null;
   seamans_book_number: string | null; seamans_book_expiry: string | null;
 };
@@ -89,6 +91,7 @@ export function CrewProfilePage({
   const [yachtMap, setYachtMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [phoneIso, setPhoneIso] = useState<string | null>(null);
 
   useEffect(() => { void load(); }, [id]);
 
@@ -97,6 +100,13 @@ export function CrewProfilePage({
     const db = supabase as any;
     const { data: m } = await db.from("crew_members").select("*").eq("id", id).single();
     setCrew(m ?? null);
+    if (m?.phone_country_code) {
+      const { data: dial } = await db.from("country_dial_codes").select("country_code")
+        .eq("dial_code", m.phone_country_code).limit(1).maybeSingle();
+      setPhoneIso(dial?.country_code ?? null);
+    } else {
+      setPhoneIso(null);
+    }
 
     const [{ data: yl }, { data: pp }, { data: linkedVisas }, { data: dd }] = await Promise.all([
       fetchAllRows(() => supabase.from("yachts").select("id, vessel_name")),
@@ -148,6 +158,22 @@ export function CrewProfilePage({
     toast.success("Visa application linked to this crew member");
     setVisas((prev) => prev.map((v) => (v.id === visaId ? { ...v, _match: "linked" } : v)));
   }
+
+  // Read-only display for the phone number. Older records only have the legacy
+  // free-text `phone` column (raw digits, e.g. "971502747733" with no
+  // formatting); newer ones went through the structured phone system (ticket
+  // #198) and have phone_country_code/phone_number, formatted here the same
+  // way PhoneNumberField formats them while editing. Falls back to whatever
+  // is stored if neither the ISO lookup nor the structured fields are available.
+  const phoneDisplay = useMemo(() => {
+    if (!crew) return null;
+    if (crew.phone_number) {
+      // phone_country_code is stored with its leading "+" already (e.g. "+971").
+      const formatted = formatPhoneForDisplay(crew.phone_number, phoneIso ?? "AE");
+      return `${crew.phone_country_code ?? ""} ${formatted}`.trim();
+    }
+    return crew.phone_full || crew.phone || null;
+  }, [crew, phoneIso]);
 
   if (loading) {
     return <div className="flex h-full items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
@@ -219,7 +245,7 @@ export function CrewProfilePage({
               </dl>
               <div className="mt-4 space-y-2 border-t border-border/60 pt-4">
                 {crew.email && <a href={`mailto:${crew.email}`} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><Mail className="h-3.5 w-3.5" /> {crew.email}</a>}
-                {crew.phone && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Phone className="h-3.5 w-3.5" /> {crew.phone}</div>}
+                {phoneDisplay && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Phone className="h-3.5 w-3.5" /> {phoneDisplay}</div>}
               </div>
             </div>
 

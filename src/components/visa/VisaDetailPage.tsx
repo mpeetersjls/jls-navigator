@@ -211,7 +211,8 @@ export function VisaDetailPage({ visaId, onBack, onEditDraft }: { visaId?: strin
     setForm({
       vessel_name: visa?.vessel_name ?? (vesselName !== "—" ? vesselName : ""),
       nationality: visa?.nationality ?? "", passport_number: visa?.passport_number ?? "",
-      visa_number: visa?.visa_number ?? "", rank_rating: visa?.rank_rating ?? "",
+      visa_number: visa?.visa_number ?? "", visa_application_no: visa?.visa_application_no ?? "",
+      rank_rating: visa?.rank_rating ?? "",
       visa_issuance_date: visa?.visa_issuance_date ?? "", visa_expiry: visa?.visa_expiry ?? "",
       sign_on_date: visa?.sign_on_date ?? "", sign_off_date: visa?.sign_off_date ?? "",
       application_notes: visa?.application_notes ?? "",
@@ -263,10 +264,15 @@ export function VisaDetailPage({ visaId, onBack, onEditDraft }: { visaId?: strin
     ["Nationality", visa.nationality ?? "—"],
     ["Passport No.", visa.passport_number ?? "—"],
     ["Rank / Rating", visa.rank_rating ?? "—"],
-    ["Visa Reference", visa.visa_number ?? "—"],
-    ["Visa Issuance", fmt(visa.visa_issuance_date)],
+    // Corrected terminology to match the official grant document — these were
+    // previously labeled "Visa Reference"/"Visa Issuance"/"1st Entry Expiry",
+    // which don't match any country's actual document wording; the underlying
+    // values/columns are unchanged.
+    ["Visa Number", visa.visa_number ?? "—"],
+    ["Visa Application No", visa.visa_application_no ?? "—"],
+    ["Visa Grant Date", fmt(visa.visa_issuance_date)],
     ["Visa Expiry", fmt(visa.visa_expiry)],
-    ["1st Entry Expiry", fmt(visa.first_entry_expiry)],
+    ["Visa Use By Date", fmt(visa.first_entry_expiry)],
     ["Arrival", fmt(visa.arrival_date)],
     ["Sign On", fmt(signOn ?? visa.sign_on_date)],
     ["Sign Off", fmt(signOff ?? visa.sign_off_date)],
@@ -434,9 +440,10 @@ export function VisaDetailPage({ visaId, onBack, onEditDraft }: { visaId?: strin
             </div>
             <div className="space-y-1.5"><Label className="text-xs">Nationality</Label><Input value={form.nationality} onChange={e => setForm(f => ({ ...f, nationality: e.target.value }))} className="h-9" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Passport No.</Label><Input value={form.passport_number} onChange={e => setForm(f => ({ ...f, passport_number: e.target.value }))} className="h-9" /></div>
-            <div className="space-y-1.5"><Label className="text-xs">Visa Reference</Label><Input value={form.visa_number} onChange={e => setForm(f => ({ ...f, visa_number: e.target.value }))} className="h-9" /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Visa Number</Label><Input value={form.visa_number} onChange={e => setForm(f => ({ ...f, visa_number: e.target.value }))} className="h-9" /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Visa Application No</Label><Input value={form.visa_application_no} onChange={e => setForm(f => ({ ...f, visa_application_no: e.target.value }))} className="h-9" /></div>
             <div className="space-y-1.5"><Label className="text-xs">Rank / Rating</Label><Input value={form.rank_rating} onChange={e => setForm(f => ({ ...f, rank_rating: e.target.value }))} className="h-9" /></div>
-            <div className="space-y-1.5"><Label className="text-xs">Visa Issuance</Label><DateInputDMY value={form.visa_issuance_date} onChange={v => setForm(f => ({ ...f, visa_issuance_date: v }))} style={{ height: 36, width: "100%", borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", padding: "0 10px", fontSize: 14 }} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Visa Grant Date</Label><DateInputDMY value={form.visa_issuance_date} onChange={v => setForm(f => ({ ...f, visa_issuance_date: v }))} style={{ height: 36, width: "100%", borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", padding: "0 10px", fontSize: 14 }} /></div>
             <div className="space-y-1.5"><Label className="text-xs">Visa Expiry</Label><DateInputDMY value={form.visa_expiry} onChange={v => setForm(f => ({ ...f, visa_expiry: v }))} style={{ height: 36, width: "100%", borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", padding: "0 10px", fontSize: 14 }} /></div>
             <div className="space-y-1.5"><Label className="text-xs">Sign On</Label><DateInputDMY value={form.sign_on_date} onChange={v => setForm(f => ({ ...f, sign_on_date: v }))} style={{ height: 36, width: "100%", borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", padding: "0 10px", fontSize: 14 }} /></div>
             <div className="space-y-1.5"><Label className="text-xs">Sign Off</Label><DateInputDMY value={form.sign_off_date} onChange={v => setForm(f => ({ ...f, sign_off_date: v }))} style={{ height: 36, width: "100%", borderRadius: 8, border: "1px solid var(--border)", background: "var(--background)", color: "var(--foreground)", padding: "0 10px", fontSize: 14 }} /></div>
