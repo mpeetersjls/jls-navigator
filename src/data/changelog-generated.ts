@@ -9,6 +9,10 @@ export const GENERATED_RELEASES: Release[] = [
     "date": "2026-07-01",
     "entries": [
       {
+        "type": "feature",
+        "title": "Cross-module chat context + dynamic non-repeating welcome"
+      },
+      {
         "type": "fix",
         "title": "Occupation false-confirm, phone display, Oman field labels"
       },
