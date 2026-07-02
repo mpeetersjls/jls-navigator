@@ -60,7 +60,10 @@ function normStatus(raw: unknown): string | null {
   if (/(amend|correct|resubmit|return)/.test(s)) return 'amendment_required'
   if (/(submit|applied|lodged|process|review|progress)/.test(s)) return 'submitted'
   if (/(pending|await|docs|need|apply|draft|new)/.test(s)) return 'pending_docs'
-  return s.slice(0, 40) // unknown → store the raw text (visa_applications.status has no DB constraint)
+  if (/(sign ?off|signed ?off)/.test(s)) return 'signed off' // allowed by the status check
+  // Unknown free text → null: visa_applications now has a status CHECK constraint,
+  // so raw sheet text must never be written. The create path falls back by expiry.
+  return null
 }
 
 /** Excel serial (1900 system) → ISO date (YYYY-MM-DD). */
