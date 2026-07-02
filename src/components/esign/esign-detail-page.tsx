@@ -5,6 +5,7 @@ import { fetchAllRows } from "@/lib/fetch-all";
 import { useAuth } from "@/lib/auth";
 import { doSendForSignature } from "@/lib/esign.server";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   ArrowLeft, Loader2, FileText, Download, Send, Ban, Mail, Eye, CheckCircle2,
   Clock, FileSignature, Link2, XCircle,
@@ -22,6 +23,7 @@ type Doc = {
   signing_token: string | null; token_expires_at: string | null;
   sent_at: string | null; viewed_at: string | null; signed_at: string | null;
   declined_reason: string | null; created_at: string;
+  signature_fields?: any[] | null;
 };
 type Event = { id: string; event: string; actor: string | null; ip_address: string | null; created_at: string };
 
@@ -116,6 +118,9 @@ export function EsignDetailPage({ documentId, onBack }: { documentId: string; on
             {doc.signed_file_path && <Button variant="outline" size="sm" asChild className="gap-1.5"><SignedAnchor stored={doc.signed_file_path} bucket="esign-documents"><Download className="h-3.5 w-3.5" /> Signed PDF</SignedAnchor></Button>}
           </div>
 
+          {/* Signature field placement — editable until the document is signed */}
+          <SignatureFieldsEditor doc={doc} onSaved={load} />
+
           {/* Inline preview of the relevant PDF */}
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <iframe title="Document" src={(signedFileUrl || fileUrl) || undefined} className="h-[60vh] w-full border-0" />
@@ -161,6 +166,143 @@ function Stamp({ icon, label, value }: { icon: React.ReactNode; label: string; v
       <div className="text-muted-foreground/60">{icon}</div>
       <div className="w-14 text-muted-foreground">{label}</div>
       <div className="font-medium">{value}</div>
+    </div>
+  );
+}
+
+// ── Signature field editor — place client + company signatures on the document ──
+type SigField = { page: number; pos: string; role: "client" | "company"; signatory_id?: string; signatory_name?: string };
+const SIG_POSITIONS = ["bottom-right", "bottom-left", "bottom-center", "top-right", "top-left", "middle-center"];
+
+function SignatureFieldsEditor({ doc, onSaved }: { doc: Doc; onSaved: () => void }) {
+  const locked = doc.status === "signed" || doc.status === "voided" || doc.status === "declined";
+  const [fields, setFields] = useState<SigField[]>(() =>
+    (Array.isArray(doc.signature_fields) ? doc.signature_fields : []).map((f: any) => ({
+      page: Number(f.page ?? 1), pos: String(f.pos ?? "bottom-right"),
+      role: f.role === "company" ? "company" : "client",
+      signatory_id: f.signatory_id, signatory_name: f.signatory_name,
+    })),
+  );
+  const [signatories, setSignatories] = useState<{ id: string; full_name: string; signature_path: string | null }[]>([]);
+  const [addRole, setAddRole] = useState<"client" | "company">("client");
+  const [addSignatory, setAddSignatory] = useState("");
+  const [addPage, setAddPage] = useState("1");
+  const [addPos, setAddPos] = useState("bottom-right");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void (supabase as any).from("jls_signatories").select("id, full_name, signature_path").order("full_name")
+      .then(({ data }: any) => setSignatories(data ?? []));
+  }, []);
+
+  function addField() {
+    const sig = signatories.find((s) => s.id === addSignatory);
+    if (addRole === "company" && !sig) { toast.error("Pick the company signatory"); return; }
+    if (addRole === "company" && !sig?.signature_path) { toast.error(`${sig?.full_name} has no signature image uploaded (Anchor → Signatories)`); return; }
+    setFields((f) => [...f, {
+      page: Math.max(1, Number(addPage) || 1), pos: addPos, role: addRole,
+      ...(addRole === "company" ? { signatory_id: sig!.id, signatory_name: sig!.full_name } : {}),
+    }]);
+    setDirty(true);
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      const { error } = await (supabase as any).from("esign_documents")
+        .update({ signature_fields: fields, updated_at: new Date().toISOString() }).eq("id", doc.id);
+      if (error) throw error;
+      toast.success("Signature fields saved");
+      setDirty(false);
+      onSaved();
+    } catch (e: any) { toast.error(String(e?.message ?? e)); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+          <FileSignature className="h-4 w-4 text-primary/70" /> Signature fields
+        </h3>
+        {dirty && !locked && (
+          <Button size="sm" onClick={save} disabled={saving} className="h-7 gap-1.5 text-xs">
+            {saving && <Loader2 className="h-3 w-3 animate-spin" />} Save fields
+          </Button>
+        )}
+      </div>
+      <p className="mb-3 text-[11.5px] text-muted-foreground">
+        Where signatures are stamped when the document is signed — the client's drawn signature, and/or a JLS company signatory's stored signature.
+        {locked && " (Locked — the document is finalised.)"}
+      </p>
+
+      {fields.length === 0 ? (
+        <p className="mb-3 text-xs text-muted-foreground/70">No fields yet — the signature will only appear on the certificate page.</p>
+      ) : (
+        <div className="mb-3 space-y-1.5">
+          {fields.map((f, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs">
+              <span className={cn(
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                f.role === "company" ? "bg-primary/15 text-primary" : "bg-emerald-500/15 text-emerald-500",
+              )}>
+                {f.role === "company" ? `Company · ${f.signatory_name ?? "signatory"}` : "Client"}
+              </span>
+              <span className="text-muted-foreground">Page {f.page}</span>
+              <span className="capitalize text-muted-foreground">{f.pos.replace("-", " ")}</span>
+              {!locked && (
+                <button
+                  onClick={() => { setFields((all) => all.filter((_, x) => x !== i)); setDirty(true); }}
+                  className="ml-auto rounded p-0.5 text-muted-foreground/60 hover:text-destructive"
+                  title="Remove this field"
+                >
+                  <Ban className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!locked && (
+        <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-border/70 p-2.5">
+          <div className="space-y-1">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Who signs</div>
+            <select value={addRole} onChange={(e) => setAddRole(e.target.value as "client" | "company")}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs">
+              <option value="client">Client (the signer)</option>
+              <option value="company">Company signatory (JLS)</option>
+            </select>
+          </div>
+          {addRole === "company" && (
+            <div className="space-y-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Signatory</div>
+              <select value={addSignatory} onChange={(e) => setAddSignatory(e.target.value)}
+                className="h-8 rounded-md border border-border bg-background px-2 text-xs">
+                <option value="">Select…</option>
+                {signatories.map((s) => (
+                  <option key={s.id} value={s.id}>{s.full_name}{s.signature_path ? "" : " (no signature image)"}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="space-y-1">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Page</div>
+            <Input type="number" min={1} value={addPage} onChange={(e) => setAddPage(e.target.value)} className="h-8 w-16 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Position</div>
+            <select value={addPos} onChange={(e) => setAddPos(e.target.value)}
+              className="h-8 rounded-md border border-border bg-background px-2 text-xs">
+              {SIG_POSITIONS.map((p) => <option key={p} value={p}>{p.replace("-", " ")}</option>)}
+            </select>
+          </div>
+          <Button variant="outline" size="sm" onClick={addField} className="h-8 gap-1 text-xs">
+            <FileSignature className="h-3 w-3" /> Add field
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
