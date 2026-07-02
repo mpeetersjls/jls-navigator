@@ -33,6 +33,7 @@ type InternalService = {
   // Association + commercial / invoicing
   yacht_name: string | null;
   payment_method: string | null;
+  paid_by: string | null;         // who paid / whose card (e.g. Maddie, Mike)
   sell_price: number | null;
   sell_currency: string | null;
   fx_rate: number | null;        // 1 {currency} = fx_rate {sell_currency}, captured at purchase
@@ -64,15 +65,19 @@ const BILLING_CYCLES = [
 const CURRENCIES = ["GBP", "USD", "EUR", "AED"];
 const PAYMENT_METHODS = [
   { value: "card", label: "Card" },
-  { value: "debit", label: "Debit" },
-  { value: "bank_transfer", label: "Bank transfer" },
+  { value: "direct_debit", label: "Direct Debit" },
+  { value: "standing_order", label: "Standing Order" },
+  { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "invoice", label: "Invoice / Account" },
   { value: "other", label: "Other" },
 ];
+// Common payers/cardholders offered as suggestions (free text still allowed).
+const PAID_BY_SUGGESTIONS = ["Maddie", "Mike", "Matthew", "Hilary"];
 const EMPTY_FORM: FormState = {
   service_name: "", vendor: null, category: "software", cost_amount: null, currency: "AED",
   billing_cycle: "monthly", seats: null, owner: null, account_ref: null,
   start_date: null, renewal_date: null, status: "active", notes: null,
-  yacht_name: null, payment_method: null,
+  yacht_name: null, payment_method: null, paid_by: null,
   sell_price: null, sell_currency: "AED", fx_rate: null, fx_rate_date: null,
   commitment_term: null, jls_invoice_number: null,
   yacht_paid: false, yacht_po: null,
@@ -249,7 +254,7 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
       currency: r.currency, billing_cycle: r.billing_cycle, seats: r.seats, owner: r.owner,
       account_ref: r.account_ref, start_date: r.start_date, renewal_date: r.renewal_date,
       status: r.status, notes: r.notes,
-      yacht_name: r.yacht_name, payment_method: r.payment_method,
+      yacht_name: r.yacht_name, payment_method: r.payment_method, paid_by: r.paid_by,
       sell_price: r.sell_price, sell_currency: r.sell_currency ?? r.currency, fx_rate: r.fx_rate, fx_rate_date: r.fx_rate_date,
       commitment_term: r.commitment_term, jls_invoice_number: r.jls_invoice_number,
       yacht_paid: r.yacht_paid, yacht_po: r.yacht_po,
@@ -548,7 +553,7 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
                   <Input value={form.yacht_name ?? ""} onChange={(e) => set({ yacht_name: e.target.value || null })} list="iserv-yachts" className="h-8" placeholder="Yacht or client name" autoComplete="off" />
                   <datalist id="iserv-yachts">{yachtList.map((y) => <option key={y} value={y} />)}</datalist></div>
               )}
-              <div className={isInternal ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}><Label className="text-xs">Payment method</Label>
+              <div className="space-y-1.5"><Label className="text-xs">Payment method</Label>
                 <Select value={form.payment_method ?? "none"} onValueChange={(v) => set({ payment_method: v === "none" ? null : v })}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -556,6 +561,9 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
                     {PAYMENT_METHODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                   </SelectContent>
                 </Select></div>
+              <div className="space-y-1.5"><Label className="text-xs">Paid by <span className="font-normal normal-case text-muted-foreground">(whose card / account)</span></Label>
+                <Input value={form.paid_by ?? ""} onChange={(e) => set({ paid_by: e.target.value || null })} list="iserv-paidby" className="h-8" placeholder="e.g. Maddie" autoComplete="off" />
+                <datalist id="iserv-paidby">{PAID_BY_SUGGESTIONS.map((n) => <option key={n} value={n} />)}</datalist></div>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5"><Label className="text-xs">Cost</Label>
