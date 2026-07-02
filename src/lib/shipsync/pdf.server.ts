@@ -49,8 +49,10 @@ export async function buildDeliveryNotePdf(
   const boats = Array.from(groups.keys()).sort((a, b) =>
     a === UNASSIGNED ? 1 : b === UNASSIGNED ? -1 : a.localeCompare(b))
 
-  for (const boat of boats) {
+  boats.forEach((boat, boatIndex) => {
     const boatPackages = groups.get(boat)!
+    // Each boat gets its own note number: single-boat = DN-0001, multi-boat = DN-0001-1, -2, …
+    const noteRef = `DN-${note.number ?? UNASSIGNED}${boats.length > 1 ? `-${boatIndex + 1}` : ''}`
     let page = doc.addPage([W, H])
     let y = H - M
     const text = (s: string, x: number, yy: number, size = 10, f = font, color = NAVY) =>
@@ -61,7 +63,7 @@ export async function buildDeliveryNotePdf(
     text(kind === 'predelivery' ? 'PRE-DELIVERY NOTE' : 'DELIVERY NOTE', W - M - 170, y, 14, bold)
     y -= 16
     text('Yacht Logistics', M, y, 9, font, GREY)
-    text(`DN-${note.number ?? UNASSIGNED}`, W - M - 170, y, 11, bold)
+    text(noteRef, W - M - 170, y, 11, bold)
     y -= 26
     page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: LINE })
     y -= 22
@@ -120,7 +122,7 @@ export async function buildDeliveryNotePdf(
     page.drawLine({ start: { x: W / 2, y }, end: { x: W / 2 + 200, y }, thickness: 0.5, color: LINE })
     y -= 14
     text('Name / Designation / Date', M, y, 8, font, GREY)
-  }
+  })
 
   return doc.save()
 }
