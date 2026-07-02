@@ -156,6 +156,8 @@ export function YachtsPage({ onOpenYacht }: { onOpenYacht?: (id: string) => void
 
   const [view, setView] = useState<"list" | "cards" | "small">(loadView);
   const [yachts, setYachts] = useState<Yacht[]>([]);
+  // Fleet-wide unpaid QBO balance per yacht (matched by yacht link or QBO customer).
+  const [outstanding, setOutstanding] = useState<Record<string, number>>({});
   const [activityMap, setActivityMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
@@ -199,6 +201,23 @@ export function YachtsPage({ onOpenYacht }: { onOpenYacht?: (id: string) => void
     const rows = (data ?? []) as Yacht[];
     setYachts(rows);
     setLoading(false);
+    // Outstanding QBO balance per yacht (best-effort; column shows — when absent).
+    try {
+      const custToYacht = new Map<string, string>();
+      for (const r of rows) if ((r as any).qbo_customer_id) custToYacht.set(String((r as any).qbo_customer_id), r.id);
+      const agg: Record<string, number> = {};
+      for (let from = 0; ; from += 1000) {
+        const { data: inv } = await (supabase as any)
+          .from("qbo_invoices").select("yacht_id, customer_ref, balance")
+          .eq("doc_type", "invoice").gt("balance", 0).range(from, from + 999);
+        for (const d of (inv ?? [])) {
+          const yid = d.yacht_id ?? (d.customer_ref ? custToYacht.get(String(d.customer_ref)) : undefined);
+          if (yid) agg[yid] = (agg[yid] ?? 0) + Number(d.balance ?? 0);
+        }
+        if (!inv || inv.length < 1000) break;
+      }
+      setOutstanding(agg);
+    } catch { /* non-fatal */ }
     // "Last activity" per yacht = newest of the yacht record + any visa activity
     // linked to it. (Other entities — sign-on, docs, permits — can be folded in later.)
     const map: Record<string, string> = {};
@@ -587,6 +606,7 @@ export function YachtsPage({ onOpenYacht }: { onOpenYacht?: (id: string) => void
             updateStatus={updateStatus}
             onArchive={setArchiveTarget}
             onOpenYacht={onOpenYacht}
+            outstanding={outstanding}
           />
         ) : (
           <CardsView rows={filtered} staleIds={new Set(filtered.filter(isStale).map((y) => y.id))} small={view === "small"} onArchive={setArchiveTarget} onOpenYacht={onOpenYacht} />
@@ -703,10 +723,11 @@ function trackUrl(y: Yacht): string {
 }
 
 function ListView({
-  rows, visible, sortKey, sortDir, onSort, quickEditId, setQuickEditId, updateStatus, onArchive, onOpenYacht,
+  rows, visible, sortKey, sortDir, onSort, quickEditId, setQuickEditId, updateStatus, onArchive, onOpenYacht, outstanding = {},
 }: {
   rows: Yacht[];
   visible: YachtColumnKey[];
+  outstanding?: Record<string, number>;
   sortKey: YachtColumnKey | null;
   sortDir: SortDir;
   onSort: (key: YachtColumnKey) => void;
@@ -735,6 +756,7 @@ function ListView({
                 </span>
               </th>
             ))}
+            <th className="whitespace-nowrap px-3 py-2 text-right font-medium">Outstanding</th>
             <th className="px-3 py-2 text-left font-medium w-8">
               <Radar className="h-3 w-3 opacity-40" />
             </th>
@@ -795,6 +817,13 @@ function ListView({
                   )}
                 </td>
               ))}
+              <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">
+                {outstanding[y.id] ? (
+                  <span className="font-medium text-red-500">AED {outstanding[y.id].toLocaleString("en-AE", { maximumFractionDigits: 0 })}</span>
+                ) : (
+                  <span className="text-muted-foreground/40">—</span>
+                )}
+              </td>
               {/* Fleet tracking + archive buttons */}
               <td className="px-2 py-1.5">
                 <div className="flex items-center gap-0.5">
