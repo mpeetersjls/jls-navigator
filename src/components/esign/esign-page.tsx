@@ -8,7 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { FileSignature, Plus, Search, Loader2, Send, Upload, UploadCloud } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { FileSignature, Plus, Search, Loader2, Send, Upload, UploadCloud, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ESIGN_STATUS_ORDER, ESIGN_STATUS_LABEL, ESIGN_STATUS_COLOR } from "./esign-meta";
@@ -32,6 +36,8 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Doc | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [sigPage, setSigPage] = useState("1");
   const [sigPos, setSigPos] = useState("bottom-right");
 
@@ -91,6 +97,26 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
       void load();
     } catch (e: any) { toast.error(e.message ?? "Send failed"); }
     finally { setSendingId(null); }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      // Look up storage paths so we can remove the uploaded files too.
+      const { data: paths } = await (supabase as any).from("esign_documents")
+        .select("file_path, signed_file_path").eq("id", deleteTarget.id).maybeSingle();
+      const toRemove = [paths?.file_path, paths?.signed_file_path].filter(Boolean) as string[];
+      if (toRemove.length) await supabase.storage.from("esign-documents").remove(toRemove);
+
+      // Row delete cascades to esign_events.
+      const { error } = await (supabase as any).from("esign_documents").delete().eq("id", deleteTarget.id);
+      if (error) throw error;
+      toast.success("Document deleted");
+      setDeleteTarget(null);
+      void load();
+    } catch (e: any) { toast.error(e.message ?? "Delete failed"); }
+    finally { setDeleting(false); }
   }
 
   const filtered = useMemo(() => rows.filter(r => {
@@ -165,12 +191,23 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
                     <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{fmt(d.sent_at)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">{fmt(d.signed_at)}</td>
                     <td className="px-4 py-3 text-right">
-                      {(d.status === "draft" || d.status === "sent" || d.status === "viewed" || d.status === "expired") && (
-                        <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" disabled={sendingId === d.id} onClick={() => send(d)}>
-                          {sendingId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                          {d.status === "draft" ? "Send" : "Resend"}
+                      <div className="flex items-center justify-end gap-1.5">
+                        {(d.status === "draft" || d.status === "sent" || d.status === "viewed" || d.status === "expired") && (
+                          <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" disabled={sendingId === d.id} onClick={() => send(d)}>
+                            {sendingId === d.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+                            {d.status === "draft" ? "Send" : "Resend"}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          title="Delete document"
+                          onClick={() => setDeleteTarget(d)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -234,6 +271,30 @@ export function EsignPage({ onOpenDocument }: { onOpenDocument?: (id: string) =>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={o => !o && !deleting && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{deleteTarget?.reference ? `${deleteTarget.reference} — ` : ""}{deleteTarget?.title}</strong> and its
+              uploaded files will be permanently removed. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void confirmDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-1.5"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
