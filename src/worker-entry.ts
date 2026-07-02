@@ -4,6 +4,7 @@ import { syncAisPositions } from './lib/aisstream.server'
 import { runExpiryAlerts } from './lib/permit-expiry-cron.server'
 import { syncFleetPositions } from './lib/mygps.server'
 import { syncVesselPositions } from './lib/vesselfinder.server'
+import { syncMyShipTracking } from './lib/myshiptracking.server'
 import { runDailyComplianceChecks } from './lib/visa/complianceMonitor.server'
 import { leoBriefingHandler } from './routes/api.leo.briefing'
 import { leoChatHandler } from './routes/api.leo.chat'
@@ -127,6 +128,17 @@ async function handleSharePointWebhook(request: Request, ctx: { waitUntil: (p: P
     return new Response(JSON.stringify({ ok: results.every((r) => r.ok), to: testEmail, results }), {
       status: 200, headers: { 'Content-Type': 'application/json' },
     })
+  }
+
+  // Manual AIS test: `?run-ais=myshiptracking` runs one MyShipTracking sync pass
+  // and returns the result (for verifying the API key after `wrangler secret put`).
+  if (url.searchParams.get('run-ais') === 'myshiptracking') {
+    try {
+      const r = await syncMyShipTracking()
+      return new Response(JSON.stringify({ ok: true, ...r }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    } catch (e) {
+      return new Response(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    }
   }
 
   // One-time setup: `?setup=signon-list` creates the "Crew Sign On Off" SharePoint
@@ -533,6 +545,13 @@ export default {
       syncVesselPositions()
         .then(({ matched, updated }) => console.log(`[vesselfinder-cron] matched=${matched} updated=${updated}`))
         .catch((e) => console.error('[vesselfinder-cron] error:', e))
+    )
+
+    // Sync live MyShipTracking AIS positions onto yachts (no-op until API key set)
+    ctx.waitUntil(
+      syncMyShipTracking()
+        .then((r) => console.log(`[myshiptracking-cron] requested=${r.requested} matched=${r.matched} updated=${r.updated}${r.note ? ' note=' + r.note : ''}`))
+        .catch((e) => console.error('[myshiptracking-cron] error:', e))
     )
 
     // Weekly immigration digest — Monday 07:00 GST (03:00 UTC). Emails ops/visa
