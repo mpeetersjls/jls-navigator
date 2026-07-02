@@ -472,3 +472,26 @@ export async function syncCrewVisaTwoWay(opts: { vesselOffset?: number; vesselLi
     return { ok: false, mode: dryRun ? 'dry' : 'apply', vesselOffset, vesselLimit, vesselsProcessed: summary.vessels, nextOffset: null, summary, actions, error: e?.message ?? String(e) }
   }
 }
+
+// Cron tick: process ONE chunk of vessels per run using a rotating cursor stored
+// in visa_sync_runs (direction two_way_cron). Cycles through all vessels over
+// several ticks, then wraps back to the start — a hands-free keep-in-sync loop.
+export async function runTwoWaySyncTick(vesselLimit = 25): Promise<{ ok: boolean; offset: number; nextOffset: number | null; summary?: Record<string, number>; error?: string }> {
+  try {
+    const { data: last } = await db().from('visa_sync_runs')
+      .select('next_offset').eq('direction', 'two_way_cron').order('started_at', { ascending: false }).limit(1).maybeSingle()
+    const offset = last?.next_offset ?? 0
+    const r = await syncCrewVisaTwoWay({ vesselOffset: offset, vesselLimit, dryRun: false })
+    try {
+      await db().from('visa_sync_runs').insert({
+        direction: 'two_way_cron', mode: 'apply', finished_at: new Date().toISOString(),
+        vessel_offset: offset, vessel_limit: vesselLimit, vessels_processed: r.vesselsProcessed,
+        next_offset: r.nextOffset ?? 0, // wrap to 0 when the pass completes
+        summary: r.summary, ok: r.ok, error: r.error ?? null,
+      })
+    } catch { /* logging is best-effort */ }
+    return { ok: r.ok, offset, nextOffset: r.nextOffset, summary: r.summary, error: r.error }
+  } catch (e: any) {
+    return { ok: false, offset: 0, nextOffset: null, error: e?.message ?? String(e) }
+  }
+}

@@ -57,6 +57,7 @@ import { nativeLanguageSaveHandler } from './routes/api.native-language.save'
 import { runWeeklyVisaReports } from './lib/visa-reporting/runWeeklyVisaReports.server'
 import { trackRun } from './lib/automations.server'
 import { runVisaExpiryFlagJob } from './lib/visa/visaExpiryFlags.server'
+import { runTwoWaySyncTick } from './lib/visa/excel-sync.server'
 
 const handleRequest = createStartHandler(defaultStreamHandler)
 
@@ -497,6 +498,16 @@ export default {
       // source of truth for ShipSync (Packages + Drivers are pulled IN via the
       // rotating syncStalestList() like every other list). The "Push now" button
       // on the Integrations page remains for a manual push when needed.
+    }
+
+    // ── Hourly: one chunk of the two-way visa ⇄ tracker sync (rotating cursor,
+    // snapshot-guarded newest-wins). Cycles through all vessels over ~8 hours. ──
+    if (isHourly) {
+      ctx.waitUntil(
+        runTwoWaySyncTick()
+          .then((r) => console.log(`[visa-2way-cron] offset=${r.offset} next=${r.nextOffset} ${JSON.stringify(r.summary ?? {})}`))
+          .catch((e) => console.error('[visa-2way-cron] error:', e))
+      )
     }
 
     // ── Every 15 min: pull SharePoint changes IN, ONE list per tick ──
