@@ -151,8 +151,8 @@ export function MyFleetPage() {
       <div className="flex items-center gap-2 border-t border-border/40 bg-muted/10 px-6 py-2">
         <Info className="h-3 w-3 shrink-0 text-muted-foreground/50" />
         <span className="text-[11px] text-muted-foreground/60">
-          Free live AIS via AISStream.io — terrestrial coverage (coastal / near-port). Positions refresh automatically every
-          15&nbsp;minutes; vessels without an MMSI can't be tracked. Set the AISSTREAM_API_KEY secret to enable.
+          Live AIS via MyShipTracking. Positions refresh automatically every 15&nbsp;minutes (destination &amp; ETA hourly);
+          vessels without a valid MMSI or IMO on their record can't be tracked.
         </span>
       </div>
     </div>
