@@ -484,7 +484,7 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
           <div className="overflow-hidden rounded-xl border border-border bg-card">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-border bg-muted/40 text-left text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {["Service", "Yacht / Client", "Vendor", "Category", "Cost", "Price", "Margin", "Billing", "Seats", "Renewal", "Owner", "Yacht Paid", "Status", ""].map((h) => (
+                {["Service", "Yacht / Client", "Vendor", "Category", "Cost", "Price", "Margin", "Billing", "Seats", "Renewal", "Owner", "Payment", "Paid By", "Yacht Paid", "Status", ""].map((h) => (
                   <th key={h} className="px-4 py-2.5 whitespace-nowrap">{h}</th>
                 ))}
               </tr></thead>
@@ -510,6 +510,8 @@ export function InternalServicesPage({ scope = "client" }: { scope?: "client" | 
                         ? <div className="mt-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">Quote due · {d}d</div> : null; })()}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{r.owner ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{PAYMENT_METHODS.find((p) => p.value === r.payment_method)?.label ?? "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{r.paid_by ?? "—"}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${r.yacht_paid ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20"}`}>
                         {r.yacht_paid ? "Paid" : "Unpaid"}
