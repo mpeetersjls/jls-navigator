@@ -335,13 +335,28 @@ export async function reconcileCrewVisa(opts: {
       }
     }
 
+    const insertErrors = new Map<string, number>()
     if (!dryRun) {
       for (const u of toUpdate) await db().from('visa_applications').update({ ...u.patch, updated_at: new Date().toISOString() }).eq('id', u.id)
       for (let i = 0; i < toCreate.length; i += 100) {
         const chunk = toCreate.slice(i, i + 100)
         const { error } = await db().from('visa_applications').insert(chunk)
-        if (error) { summary.created -= chunk.length; summary.skipped += chunk.length; actions.push({ vessel: '—', given: '', surname: '', passport: '', action: 'skip', reason: `insert failed: ${error.message}` }) }
+        if (error) {
+          // One bad row sinks a whole chunk — retry rows individually so the rest
+          // land, and collect the distinct errors for the report.
+          for (const row of chunk) {
+            const { error: e2 } = await db().from('visa_applications').insert(row)
+            if (e2) {
+              summary.created--; summary.skipped++
+              insertErrors.set(e2.message, (insertErrors.get(e2.message) ?? 0) + 1)
+            }
+          }
+        }
       }
+    }
+    if (insertErrors.size) {
+      // Surface at the FRONT of the actions list so caps never hide them.
+      for (const [msg, n] of insertErrors) actions.unshift({ vessel: '—', given: '', surname: '', passport: '', action: 'skip', reason: `insert failed ×${n}: ${msg.slice(0, 160)}` })
     }
 
     let runId: string | undefined
